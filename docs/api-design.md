@@ -39,7 +39,7 @@ RESTful API served via AWS Lambda behind API Gateway (HTTP API v2). All endpoint
 |--------|------|------|-------------|
 | GET | `/polls?seasonId={id}&status={status}` | User | List polls (filterable) |
 | GET | `/polls/active` | User | Get currently open poll(s) |
-| GET | `/polls/{pollId}` | User | Get poll with questions and options |
+| GET | `/polls/{pollId}` | User | Get poll with questions, options, and current user's answers |
 | POST | `/polls` | Admin | Create a new poll |
 | PUT | `/polls/{pollId}` | Admin | Update poll (title, deadline) |
 | POST | `/polls/{pollId}/publish` | Admin | Move from Draft → Open |

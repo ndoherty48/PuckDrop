@@ -30,8 +30,9 @@ A poll tied to a specific game day. Contains one or more questions.
 
 **Status transitions:**
 - Draft → Open (admin publishes)
-- Open → Closed (deadline passes, or admin manually closes)
+- Open → Closed (deadline passes automatically, or admin manually closes)
 - Closed → Scored (admin marks correct answers)
+- Open → Scored (admin scores after deadline has passed — skips explicit close)
 
 ### Question
 
@@ -106,3 +107,5 @@ Aggregated score for a user within a season.
 | Pick visibility | Hidden until closed | API won't return others' answers before deadline |
 | Late joiners | Start from zero | No backfill |
 | Admin model | Multiple admins | Role-based via Cognito |
+| Display name | Cognito attribute | Read from JWT claims, denormalised to leaderboard entries |
+| Season creation | Auto-created | System derives season from game date (Aug–Apr). Created on first poll if it doesn't exist |
