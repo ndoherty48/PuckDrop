@@ -1,0 +1,5 @@
+{
+  "appHost": {
+    "path": "Infrastructure/PuckDrop.AppHost/PuckDrop.AppHost.csproj"
+  }
+}

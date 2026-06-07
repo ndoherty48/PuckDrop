@@ -1,0 +1,20 @@
+<Solution>
+  <Folder Name="/API/"></Folder>
+  <Folder Name="/API/src/">
+    <Project Path="API/src/PuckDrop.Api/PuckDrop.Api.csproj" />
+    <Project Path="API/src/PuckDrop.Application/PuckDrop.Application.csproj" />
+    <Project Path="API/src/PuckDrop.Domain/PuckDrop.Domain.csproj" />
+    <Project Path="API/src/PuckDrop.Infrastructure/PuckDrop.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/API/tests/"></Folder>
+  <Folder Name="/UI/"></Folder>
+  <Folder Name="/UI/src/">
+    <Project Path="UI/src/PuckDrop.Web/PuckDrop.Web.csproj" />
+  </Folder>
+  <Folder Name="/UI/tests/"></Folder>
+  <Folder Name="/Infrastructure/">
+    <Project Path="Infrastructure/PuckDrop.AppHost/PuckDrop.AppHost.csproj" />
+    <Project Path="Infrastructure/PuckDrop.ServiceDefaults/PuckDrop.ServiceDefaults.csproj" />
+    <Project Path="Infrastructure/PuckDrop.ClientServiceDefaults/PuckDrop.ClientServiceDefaults.csproj" />
+  </Folder>
+</Solution>

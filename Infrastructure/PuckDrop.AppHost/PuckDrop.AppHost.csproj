@@ -1,0 +1,20 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.4.2">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>fe401db9-7934-4d43-b3a9-04d478408286</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AWS" />
+    <PackageReference Include="Aspire.Hosting.Blazor" />
+    <PackageReference Include="Aspire.Hosting.Browsers" />
+    <PackageReference Include="Aspire.Hosting.DevTunnels" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\UI\src\PuckDrop.Web\PuckDrop.Web.csproj" />
+    <ProjectReference Include="..\..\API\src\PuckDrop.Api\PuckDrop.Api.csproj" />
+  </ItemGroup>
+
+</Project>
