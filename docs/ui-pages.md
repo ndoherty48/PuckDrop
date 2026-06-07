@@ -1,0 +1,149 @@
+# UI Pages
+
+## Page Inventory
+
+| Page | Route | Auth | Role | Purpose |
+|------|-------|------|------|---------|
+| Home | `/` | User | All | Dashboard — next game, active poll CTA, recent results |
+| Poll | `/poll/{pollId}` | User | All | View questions, submit/edit answers |
+| Results | `/results/{pollId}` | User | All | Post-game results — who got what right |
+| Leaderboard | `/leaderboard` | User | All | Season standings |
+| History | `/history` | User | All | Past game days and their results |
+| Admin: Polls | `/admin/polls` | User | Admin | List/manage all polls |
+| Admin: Create Poll | `/admin/polls/create` | User | Admin | Create a new game day poll |
+| Admin: Edit Poll | `/admin/polls/{pollId}` | User | Admin | Edit poll, add/edit questions |
+| Admin: Score Poll | `/admin/polls/{pollId}/score` | User | Admin | Mark correct answers post-game |
+| Login Redirect | `/authentication/login` | None | — | Triggers Cognito OIDC flow |
+| Logout | `/authentication/logout` | None | — | Clears session |
+| Not Authorized | `/unauthorized` | None | — | Shown when user lacks permission |
+
+## Page Descriptions
+
+### Home (`/`)
+
+**Layout:** Single column, mobile-first.
+
+- **Next Game Card** — Game title, date, countdown to deadline
+  - If poll is Open: "Make your picks →" button
+  - If poll is Closed/Scored: "View results →" button
+  - If no active poll: "No upcoming poll" message
+- **Quick Leaderboard** — Top 5 with user's own position highlighted
+- **Recent Results** — Last 2-3 scored polls with user's score
+
+### Poll (`/poll/{pollId}`)
+
+**Layout:** Single column, card per question.
+
+- **Header** — Game title, deadline countdown (or "Voting closed" badge)
+- **Questions** — For each question:
+  - Question text
+  - Radio button group for options
+  - Selected option highlighted
+- **Submit button** — Saves all answers at once
+  - Disabled if past deadline
+  - Shows "Saved ✓" confirmation
+- **State handling:**
+  - Before deadline: editable, submit enabled
+  - After deadline: read-only, shows what user picked
+
+### Results (`/results/{pollId}`)
+
+**Layout:** Question-by-question breakdown.
+
+- **Header** — Game title, final result context
+- **Per question:**
+  - Question text
+  - Correct answer highlighted in green
+  - Each user's pick shown (green tick / red cross)
+- **Summary** — Points scored this game day per user
+- **Only visible** when poll status is `Scored`
+
+### Leaderboard (`/leaderboard`)
+
+**Layout:** Table/list, mobile-friendly.
+
+- **Season selector** — Dropdown (defaults to current season)
+- **Table columns:** Rank, Name, Points, Games Played, Accuracy %
+- **Current user's row** highlighted/pinned
+- **Sorting:** By points descending (default)
+
+### History (`/history`)
+
+**Layout:** List of past game days.
+
+- **Grouped by month** (or just a reverse-chronological list)
+- **Per item:** Game title, date, user's score, link to full results
+- **Filtered to current season** (with season selector)
+
+### Admin: Polls (`/admin/polls`)
+
+**Layout:** Table of all polls.
+
+- **Columns:** Game date, title, status, # questions, actions
+- **Actions:** Edit, Publish, Close, Score (contextual by status)
+- **Create button** at top
+
+### Admin: Create Poll (`/admin/polls/create`)
+
+**Layout:** Form.
+
+- **Fields:**
+  - Title (text)
+  - Game date (date picker)
+  - Deadline (datetime picker, defaults to game date 19:00)
+  - Season (auto-selected based on game date)
+- **Save as Draft** → goes to Edit Poll to add questions
+
+### Admin: Edit Poll (`/admin/polls/{pollId}`)
+
+**Layout:** Poll details + question builder.
+
+- **Poll fields** — Title, deadline (editable if Draft/Open)
+- **Questions list:**
+  - Add question button
+  - Per question: text input + options list (add/remove/reorder)
+  - Delete question button
+- **Publish button** — moves Draft → Open
+- **Only editable** while Draft or Open
+
+### Admin: Score Poll (`/admin/polls/{pollId}/score`)
+
+**Layout:** Question-by-question scoring.
+
+- **Per question:**
+  - Question text displayed
+  - Options shown as selectable buttons/radio
+  - Admin picks the correct answer
+- **Submit scores** — triggers scoring flow, updates leaderboard
+- **Only accessible** when poll status is `Closed`
+
+## User Flows
+
+### Flow 1: User submits picks
+
+1. User opens app → Home shows active poll card
+2. Taps "Make your picks" → navigates to Poll page
+3. Selects one option per question
+4. Taps "Submit" → API saves answers
+5. Can return and edit until deadline
+
+### Flow 2: Admin creates and publishes a poll
+
+1. Admin goes to Admin: Polls → taps "Create"
+2. Fills in title, date, deadline → saves as Draft
+3. Redirected to Edit Poll → adds questions and options
+4. Taps "Publish" → poll becomes Open, users can see it
+
+### Flow 3: Post-game scoring
+
+1. Game ends, admin opens Admin: Polls
+2. Finds the Closed poll → taps "Score"
+3. Selects correct answer for each question
+4. Taps "Submit scores" → system evaluates all answers, updates leaderboard
+5. Users see Results page and updated Leaderboard
+
+### Flow 4: Viewing results
+
+1. After scoring, user opens app → Home shows "View results" for last game
+2. Taps through → sees per-question breakdown
+3. Can also check Leaderboard for updated standings
