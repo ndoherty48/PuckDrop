@@ -4,7 +4,7 @@
 <h3 class="mb-4">Manage Polls</h3>
 
 <div class="mb-3">
-    <a href="/admin/polls/create" class="btn btn-primary">Create Poll</a>
+    <a href="admin/polls/create" class="btn btn-primary">Create Poll</a>
 </div>
 
 @if (_error is not null)
@@ -40,7 +40,7 @@ else
                     <td>
                         @if (poll.Status is "Draft" or "Open")
                         {
-                            <a href="/admin/polls/@poll.PollId/edit" class="btn btn-sm btn-outline-secondary me-1">Edit</a>
+                            <a href="admin/polls/@poll.PollId/edit" class="btn btn-sm btn-outline-secondary me-1">Edit</a>
                         }
                         @if (poll.Status == "Draft")
                         {
@@ -52,7 +52,7 @@ else
                         }
                         @if (poll.Status == "Closed")
                         {
-                            <a href="/admin/polls/@poll.PollId/score" class="btn btn-sm btn-info">Score</a>
+                            <a href="admin/polls/@poll.PollId/score" class="btn btn-sm btn-info">Score</a>
                         }
                     </td>
                 </tr>

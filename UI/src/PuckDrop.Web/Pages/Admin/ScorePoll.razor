@@ -41,7 +41,7 @@ else
                 disabled="@(!AllQuestionsAnswered || _submitting)">
             @(_submitting ? "Submitting..." : "Submit Scores")
         </button>
-        <a href="/admin/polls" class="btn btn-outline-secondary btn-lg ms-2">Cancel</a>
+        <a href="admin/polls" class="btn btn-outline-secondary btn-lg ms-2">Cancel</a>
     </div>
 
     @if (!AllQuestionsAnswered)
@@ -88,6 +88,6 @@ else
         );
 
         await Api.ScorePollAsync(PollId, request);
-        Nav.NavigateTo($"/results/{PollId}");
+        Nav.NavigateTo($"results/{PollId}");
     }
 }

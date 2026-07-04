@@ -27,7 +27,7 @@
             <button type="submit" class="btn btn-primary" disabled="@_submitting">
                 @(_submitting ? "Creating..." : "Create Poll")
             </button>
-            <a href="/admin/polls" class="btn btn-outline-secondary ms-2">Cancel</a>
+            <a href="admin/polls" class="btn btn-outline-secondary ms-2">Cancel</a>
         </EditForm>
     </div>
 </div>
@@ -58,7 +58,7 @@
 
         if (poll is not null)
         {
-            Nav.NavigateTo($"/admin/polls/{poll.PollId}/edit");
+            Nav.NavigateTo($"admin/polls/{poll.PollId}/edit");
         }
 
         _submitting = false;
