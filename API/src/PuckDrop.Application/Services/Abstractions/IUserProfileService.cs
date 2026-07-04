@@ -1,4 +1,4 @@
-namespace PuckDrop.Domain.Services;
+namespace PuckDrop.Application.Services.Abstractions;
 
 /// <summary>
 /// Resolves user profile information (display names, etc.) from the identity provider.

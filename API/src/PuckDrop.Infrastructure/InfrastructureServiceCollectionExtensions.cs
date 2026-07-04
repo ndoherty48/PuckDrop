@@ -1,8 +1,8 @@
 using Amazon.DynamoDBv2;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using PuckDrop.Domain.Repositories;
-using PuckDrop.Domain.Services;
+using PuckDrop.Application.Repositories;
+using PuckDrop.Application.Services.Abstractions;
 using PuckDrop.Infrastructure.DynamoDb.Repositories;
 using PuckDrop.Infrastructure.Identity;
 

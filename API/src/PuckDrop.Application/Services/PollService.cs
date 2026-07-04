@@ -1,7 +1,7 @@
 using PuckDrop.Domain.Entities;
 using PuckDrop.Domain.Enums;
 using PuckDrop.Domain.Models;
-using PuckDrop.Domain.Repositories;
+using PuckDrop.Application.Repositories;
 
 namespace PuckDrop.Application.Services;
 

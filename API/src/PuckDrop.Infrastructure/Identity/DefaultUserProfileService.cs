@@ -1,4 +1,4 @@
-using PuckDrop.Domain.Services;
+using PuckDrop.Application.Services.Abstractions;
 
 namespace PuckDrop.Infrastructure.Identity;
 

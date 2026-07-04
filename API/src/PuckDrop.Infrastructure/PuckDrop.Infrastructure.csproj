@@ -5,7 +5,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\PuckDrop.Domain\PuckDrop.Domain.csproj" />
     <ProjectReference Include="..\PuckDrop.Application\PuckDrop.Application.csproj" />
   </ItemGroup>
 

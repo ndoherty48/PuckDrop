@@ -1,6 +1,6 @@
 using PuckDrop.Domain.Entities;
 
-namespace PuckDrop.Domain.Repositories;
+namespace PuckDrop.Application.Repositories;
 
 public interface ILeaderboardRepository
 {

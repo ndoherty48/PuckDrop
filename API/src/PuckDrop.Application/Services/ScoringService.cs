@@ -1,7 +1,7 @@
 using PuckDrop.Domain.Entities;
 using PuckDrop.Domain.Models;
-using PuckDrop.Domain.Repositories;
-using PuckDrop.Domain.Services;
+using PuckDrop.Application.Repositories;
+using PuckDrop.Application.Services.Abstractions;
 
 namespace PuckDrop.Application.Services;
 

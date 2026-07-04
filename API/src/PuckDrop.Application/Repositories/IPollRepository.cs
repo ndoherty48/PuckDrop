@@ -1,7 +1,7 @@
 using PuckDrop.Domain.Entities;
 using PuckDrop.Domain.Models;
 
-namespace PuckDrop.Domain.Repositories;
+namespace PuckDrop.Application.Repositories;
 
 public interface IPollRepository
 {
