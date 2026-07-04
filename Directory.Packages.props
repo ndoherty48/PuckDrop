@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <PackageVersion Include="Amazon.Lambda.AspNetCoreServer" Version="9.2.1" />
+    <PackageVersion Include="AWSSDK.DynamoDBv2" Version="4.0.100.2" />
   </ItemGroup>
 
   <ItemGroup>

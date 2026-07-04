@@ -1,6 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.DynamoDBv2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PuckDrop.Domain\PuckDrop.Domain.csproj" />
     <ProjectReference Include="..\PuckDrop.Application\PuckDrop.Application.csproj" />
   </ItemGroup>
 
