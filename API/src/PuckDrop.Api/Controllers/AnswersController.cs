@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using PuckDrop.Api.Contracts;
+using PuckDrop.Api.Mappings;
 using PuckDrop.Application.Services;
 
 namespace PuckDrop.Api.Controllers;
@@ -14,10 +15,7 @@ public class AnswersController(AnswerService answerService) : ControllerBase
     {
         var userId = GetUserId();
         var answers = await answerService.GetUserAnswersAsync(userId, pollId, ct);
-
-        return Ok(answers.Select(a => new UserAnswerResponse(
-            a.QuestionId, a.SelectedOptionId, a.SubmittedAt.ToString("O"), a.IsCorrect
-        )).ToList());
+        return Ok(answers.Select(a => a.ToResponse()).ToList());
     }
 
     [HttpPut]
@@ -26,12 +24,8 @@ public class AnswersController(AnswerService answerService) : ControllerBase
     {
         var userId = GetUserId();
         var answerTuples = request.Answers.Select(a => (a.QuestionId, a.SelectedOptionId)).ToList();
-
         var answers = await answerService.SubmitAnswersAsync(userId, pollId, answerTuples, ct);
-
-        return Ok(answers.Select(a => new UserAnswerResponse(
-            a.QuestionId, a.SelectedOptionId, a.SubmittedAt.ToString("O"), a.IsCorrect
-        )).ToList());
+        return Ok(answers.Select(a => a.ToResponse()).ToList());
     }
 
     private string GetUserId() => User.FindFirst("sub")?.Value ?? "anonymous";

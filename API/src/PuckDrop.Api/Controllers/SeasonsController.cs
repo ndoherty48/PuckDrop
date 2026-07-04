@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using PuckDrop.Api.Contracts;
+using PuckDrop.Api.Mappings;
 using PuckDrop.Application.Services;
 
 namespace PuckDrop.Api.Controllers;
@@ -8,32 +9,20 @@ namespace PuckDrop.Api.Controllers;
 [Route("seasons")]
 public class SeasonsController(SeasonService seasonService) : ControllerBase
 {
-    /// <summary>
-    /// List all seasons.
-    /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<SeasonResponse>>> ListSeasons(CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<SeasonResponse>>> ListSeasons(CancellationToken ct)
     {
-        var seasons = await seasonService.ListSeasonsAsync(cancellationToken);
-        var response = seasons.Select(s => new SeasonResponse(
-            s.SeasonId, s.Name, s.StartDate.ToString("yyyy-MM-dd"), s.EndDate.ToString("yyyy-MM-dd")
-        )).ToList();
-
-        return Ok(response);
+        var seasons = await seasonService.ListSeasonsAsync(ct);
+        return Ok(seasons.Select(s => s.ToResponse()).ToList());
     }
 
-    /// <summary>
-    /// Get the current active season.
-    /// </summary>
     [HttpGet("current")]
-    public async Task<ActionResult<SeasonResponse>> GetCurrentSeason(CancellationToken cancellationToken)
+    public async Task<ActionResult<SeasonResponse>> GetCurrentSeason(CancellationToken ct)
     {
-        var season = await seasonService.GetCurrentSeasonAsync(cancellationToken);
+        var season = await seasonService.GetCurrentSeasonAsync(ct);
         if (season is null)
             return NotFound(new ErrorResponse("SEASON_NOT_FOUND", "No active season found."));
 
-        return Ok(new SeasonResponse(
-            season.SeasonId, season.Name, season.StartDate.ToString("yyyy-MM-dd"), season.EndDate.ToString("yyyy-MM-dd")
-        ));
+        return Ok(season.ToResponse());
     }
 }

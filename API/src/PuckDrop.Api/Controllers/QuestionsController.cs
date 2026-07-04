@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using PuckDrop.Api.Contracts;
+using PuckDrop.Api.Mappings;
 using PuckDrop.Application.Services;
 
 namespace PuckDrop.Api.Controllers;
@@ -15,19 +16,8 @@ public class QuestionsController(PollService pollService) : ControllerBase
         var options = request.Options.Select(o => (o.Text, o.SortOrder)).ToList();
         var question = await pollService.AddQuestionAsync(pollId, request.Text, request.SortOrder, options, ct);
 
-        // Read back to get generated option IDs
-        var pollData = await pollService.GetPollWithQuestionsAsync(pollId, ct);
-        var (_, questions, allOptions) = pollData!.Value;
-
-        var created = questions.First(q => q.QuestionId == question.QuestionId);
-        var questionOptions = allOptions
-            .Where(o => o.QuestionId == question.QuestionId)
-            .Select(o => new OptionResponse(o.OptionId, o.Text, o.SortOrder))
-            .ToList();
-
-        return Created(
-            $"polls/{pollId}/questions/{question.QuestionId}",
-            new QuestionResponse(created.QuestionId, created.Text, created.SortOrder, created.CorrectOptionId, questionOptions));
+        var response = await GetQuestionResponse(pollId, question.QuestionId, ct);
+        return Created($"polls/{pollId}/questions/{question.QuestionId}", response);
     }
 
     [HttpPut("{questionId}")]
@@ -39,16 +29,8 @@ public class QuestionsController(PollService pollService) : ControllerBase
         var options = request.Options.Select(o => (o.Text, o.SortOrder)).ToList();
         var question = await pollService.AddQuestionAsync(pollId, request.Text, request.SortOrder, options, ct);
 
-        var pollData = await pollService.GetPollWithQuestionsAsync(pollId, ct);
-        var (_, questions, allOptions) = pollData!.Value;
-
-        var updated = questions.First(q => q.QuestionId == question.QuestionId);
-        var questionOptions = allOptions
-            .Where(o => o.QuestionId == question.QuestionId)
-            .Select(o => new OptionResponse(o.OptionId, o.Text, o.SortOrder))
-            .ToList();
-
-        return Ok(new QuestionResponse(updated.QuestionId, updated.Text, updated.SortOrder, updated.CorrectOptionId, questionOptions));
+        var response = await GetQuestionResponse(pollId, question.QuestionId, ct);
+        return Ok(response);
     }
 
     [HttpDelete("{questionId}")]
@@ -56,5 +38,16 @@ public class QuestionsController(PollService pollService) : ControllerBase
     {
         await pollService.DeleteQuestionAsync(pollId, questionId, ct);
         return NoContent();
+    }
+
+    private async Task<QuestionResponse> GetQuestionResponse(string pollId, string questionId, CancellationToken ct)
+    {
+        var pollData = await pollService.GetPollWithQuestionsAsync(pollId, ct);
+        var (_, questions, allOptions) = pollData!.Value;
+
+        var question = questions.First(q => q.QuestionId == questionId);
+        var questionOptions = allOptions.Where(o => o.QuestionId == questionId).ToList();
+
+        return question.ToResponse(questionOptions);
     }
 }
