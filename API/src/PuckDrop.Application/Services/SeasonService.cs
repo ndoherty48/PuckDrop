@@ -3,15 +3,8 @@ using PuckDrop.Domain.Repositories;
 
 namespace PuckDrop.Application.Services;
 
-public class SeasonService
+public class SeasonService(ISeasonRepository seasonRepository)
 {
-    private readonly ISeasonRepository _seasonRepository;
-
-    public SeasonService(ISeasonRepository seasonRepository)
-    {
-        _seasonRepository = seasonRepository;
-    }
-
     /// <summary>
     /// Gets the current active season based on today's date.
     /// Returns null if no season exists yet for the current period.
@@ -19,7 +12,7 @@ public class SeasonService
     public async Task<Season?> GetCurrentSeasonAsync(CancellationToken cancellationToken = default)
     {
         var seasonId = Season.DeriveSeasonId(DateOnly.FromDateTime(DateTime.UtcNow));
-        return await _seasonRepository.GetByIdAsync(seasonId, cancellationToken);
+        return await seasonRepository.GetByIdAsync(seasonId, cancellationToken);
     }
 
     /// <summary>
@@ -27,7 +20,7 @@ public class SeasonService
     /// </summary>
     public async Task<IReadOnlyList<Season>> ListSeasonsAsync(CancellationToken cancellationToken = default)
     {
-        return await _seasonRepository.ListAllAsync(cancellationToken);
+        return await seasonRepository.ListAllAsync(cancellationToken);
     }
 
     /// <summary>
@@ -38,13 +31,13 @@ public class SeasonService
     public async Task<Season> EnsureSeasonExistsAsync(DateOnly gameDate, CancellationToken cancellationToken = default)
     {
         var seasonId = Season.DeriveSeasonId(gameDate);
-        var existing = await _seasonRepository.GetByIdAsync(seasonId, cancellationToken);
+        var existing = await seasonRepository.GetByIdAsync(seasonId, cancellationToken);
 
         if (existing is not null)
             return existing;
 
         var season = Season.CreateForDate(gameDate);
-        await _seasonRepository.SaveAsync(season, cancellationToken);
+        await seasonRepository.SaveAsync(season, cancellationToken);
         return season;
     }
 }

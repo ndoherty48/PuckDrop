@@ -4,23 +4,14 @@ using PuckDrop.Domain.Repositories;
 
 namespace PuckDrop.Application.Services;
 
-public class ResultsService
+public class ResultsService(IPollRepository pollRepository, IUserAnswerRepository answerRepository)
 {
-    private readonly IPollRepository _pollRepository;
-    private readonly IUserAnswerRepository _answerRepository;
-
-    public ResultsService(IPollRepository pollRepository, IUserAnswerRepository answerRepository)
-    {
-        _pollRepository = pollRepository;
-        _answerRepository = answerRepository;
-    }
-
     /// <summary>
     /// Gets the full results for a scored poll: questions, options, and all users' answers with scores.
     /// </summary>
     public async Task<PollResults> GetPollResultsAsync(string pollId, CancellationToken cancellationToken = default)
     {
-        var pollData = await _pollRepository.GetWithQuestionsAsync(pollId, cancellationToken);
+        var pollData = await pollRepository.GetWithQuestionsAsync(pollId, cancellationToken);
         if (pollData is null)
             throw new KeyNotFoundException($"Poll '{pollId}' not found.");
 
@@ -29,7 +20,7 @@ public class ResultsService
         if (poll.Status != PollStatus.Scored)
             throw new InvalidOperationException("Results are only available for scored polls.");
 
-        var allAnswers = await _answerRepository.GetAllAnswersForPollAsync(pollId, cancellationToken);
+        var allAnswers = await answerRepository.GetAllAnswersForPollAsync(pollId, cancellationToken);
 
         var userResults = allAnswers
             .GroupBy(a => a.UserId)

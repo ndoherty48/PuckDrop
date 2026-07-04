@@ -3,17 +3,8 @@ using PuckDrop.Domain.Repositories;
 
 namespace PuckDrop.Application.Services;
 
-public class AnswerService
+public class AnswerService(IUserAnswerRepository answerRepository, IPollRepository pollRepository)
 {
-    private readonly IUserAnswerRepository _answerRepository;
-    private readonly IPollRepository _pollRepository;
-
-    public AnswerService(IUserAnswerRepository answerRepository, IPollRepository pollRepository)
-    {
-        _answerRepository = answerRepository;
-        _pollRepository = pollRepository;
-    }
-
     /// <summary>
     /// Gets a user's answers for a specific poll.
     /// </summary>
@@ -22,7 +13,7 @@ public class AnswerService
         string pollId,
         CancellationToken cancellationToken = default)
     {
-        return await _answerRepository.GetUserAnswersAsync(userId, pollId, cancellationToken);
+        return await answerRepository.GetUserAnswersAsync(userId, pollId, cancellationToken);
     }
 
     /// <summary>
@@ -36,7 +27,7 @@ public class AnswerService
         CancellationToken cancellationToken = default)
     {
         // Load poll with questions and options for validation
-        var pollData = await _pollRepository.GetWithQuestionsAsync(pollId, cancellationToken);
+        var pollData = await pollRepository.GetWithQuestionsAsync(pollId, cancellationToken);
         if (pollData is null)
             throw new KeyNotFoundException($"Poll '{pollId}' not found.");
 
@@ -77,7 +68,7 @@ public class AnswerService
             });
         }
 
-        await _answerRepository.SaveAnswersAsync(userAnswers, cancellationToken);
+        await answerRepository.SaveAnswersAsync(userAnswers, cancellationToken);
         return userAnswers;
     }
 }

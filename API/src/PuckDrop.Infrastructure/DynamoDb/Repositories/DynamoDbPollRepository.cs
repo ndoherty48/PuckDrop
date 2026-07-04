@@ -8,18 +8,12 @@ using PuckDrop.Infrastructure.DynamoDb.Mappers;
 
 namespace PuckDrop.Infrastructure.DynamoDb.Repositories;
 
-public class DynamoDbPollRepository : IPollRepository
+public class DynamoDbPollRepository(IAmazonDynamoDB dynamoDb) : IPollRepository
 {
-    private readonly IAmazonDynamoDB _dynamoDb;
-
-    public DynamoDbPollRepository(IAmazonDynamoDB dynamoDb)
-    {
-        _dynamoDb = dynamoDb;
-    }
 
     public async Task<GameDayPoll?> GetByIdAsync(string pollId, CancellationToken cancellationToken = default)
     {
-        var response = await _dynamoDb.GetItemAsync(new GetItemRequest
+        var response = await dynamoDb.GetItemAsync(new GetItemRequest
         {
             TableName = DynamoDbKeys.TableName,
             Key = new Dictionary<string, AttributeValue>
@@ -39,7 +33,7 @@ public class DynamoDbPollRepository : IPollRepository
         string pollId, CancellationToken cancellationToken = default)
     {
         // Query GSI1 to get poll + questions + options in a single query
-        var response = await _dynamoDb.QueryAsync(new QueryRequest
+        var response = await dynamoDb.QueryAsync(new QueryRequest
         {
             TableName = DynamoDbKeys.TableName,
             IndexName = DynamoDbKeys.GSI1IndexName,
@@ -83,7 +77,7 @@ public class DynamoDbPollRepository : IPollRepository
 
     public async Task<IReadOnlyList<GameDayPoll>> ListBySeasonAsync(string seasonId, CancellationToken cancellationToken = default)
     {
-        var response = await _dynamoDb.QueryAsync(new QueryRequest
+        var response = await dynamoDb.QueryAsync(new QueryRequest
         {
             TableName = DynamoDbKeys.TableName,
             KeyConditionExpression = "PK = :pk AND begins_with(SK, :skPrefix)",
@@ -99,7 +93,7 @@ public class DynamoDbPollRepository : IPollRepository
 
     public async Task<IReadOnlyList<GameDayPoll>> GetActiveAsync(string seasonId, CancellationToken cancellationToken = default)
     {
-        var response = await _dynamoDb.QueryAsync(new QueryRequest
+        var response = await dynamoDb.QueryAsync(new QueryRequest
         {
             TableName = DynamoDbKeys.TableName,
             IndexName = DynamoDbKeys.GSI2IndexName,
@@ -118,7 +112,7 @@ public class DynamoDbPollRepository : IPollRepository
         var mainItem = ToPollAttributes(DynamoDbMapper.ToItem(poll));
         var collectionItem = ToPollAttributes(DynamoDbMapper.ToSeasonCollectionItem(poll));
 
-        await _dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
+        await dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
         {
             TransactItems =
             [
@@ -143,7 +137,7 @@ public class DynamoDbPollRepository : IPollRepository
             });
         }
 
-        await _dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
+        await dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
         {
             TransactItems = transactItems
         }, cancellationToken);
@@ -152,7 +146,7 @@ public class DynamoDbPollRepository : IPollRepository
     public async Task DeleteQuestionAsync(string pollId, string questionId, CancellationToken cancellationToken = default)
     {
         // First, find the question and its options to delete them
-        var response = await _dynamoDb.QueryAsync(new QueryRequest
+        var response = await dynamoDb.QueryAsync(new QueryRequest
         {
             TableName = DynamoDbKeys.TableName,
             KeyConditionExpression = "PK = :pk",
@@ -194,7 +188,7 @@ public class DynamoDbPollRepository : IPollRepository
 
         if (transactItems.Count > 0)
         {
-            await _dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
+            await dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
             {
                 TransactItems = transactItems
             }, cancellationToken);
@@ -212,7 +206,7 @@ public class DynamoDbPollRepository : IPollRepository
             }
         }).ToList();
 
-        await _dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
+        await dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
         {
             TransactItems = transactItems
         }, cancellationToken);

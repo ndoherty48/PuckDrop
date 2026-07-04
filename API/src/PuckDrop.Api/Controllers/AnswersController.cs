@@ -6,21 +6,14 @@ namespace PuckDrop.Api.Controllers;
 
 [ApiController]
 [Route("polls/{pollId}/answers")]
-public class AnswersController : ControllerBase
+public class AnswersController(AnswerService answerService) : ControllerBase
 {
-    private readonly AnswerService _answerService;
-
-    public AnswersController(AnswerService answerService)
-    {
-        _answerService = answerService;
-    }
-
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<UserAnswerResponse>>> GetAnswers(
         string pollId, CancellationToken ct)
     {
         var userId = GetUserId();
-        var answers = await _answerService.GetUserAnswersAsync(userId, pollId, ct);
+        var answers = await answerService.GetUserAnswersAsync(userId, pollId, ct);
 
         return Ok(answers.Select(a => new UserAnswerResponse(
             a.QuestionId, a.SelectedOptionId, a.SubmittedAt.ToString("O"), a.IsCorrect
@@ -34,7 +27,7 @@ public class AnswersController : ControllerBase
         var userId = GetUserId();
         var answerTuples = request.Answers.Select(a => (a.QuestionId, a.SelectedOptionId)).ToList();
 
-        var answers = await _answerService.SubmitAnswersAsync(userId, pollId, answerTuples, ct);
+        var answers = await answerService.SubmitAnswersAsync(userId, pollId, answerTuples, ct);
 
         return Ok(answers.Select(a => new UserAnswerResponse(
             a.QuestionId, a.SelectedOptionId, a.SubmittedAt.ToString("O"), a.IsCorrect

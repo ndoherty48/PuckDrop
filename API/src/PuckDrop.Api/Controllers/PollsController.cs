@@ -7,20 +7,13 @@ namespace PuckDrop.Api.Controllers;
 
 [ApiController]
 [Route("polls")]
-public class PollsController : ControllerBase
+public class PollsController(PollService pollService) : ControllerBase
 {
-    private readonly PollService _pollService;
-
-    public PollsController(PollService pollService)
-    {
-        _pollService = pollService;
-    }
-
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<PollResponse>>> ListPolls(
         [FromQuery] string seasonId, CancellationToken ct)
     {
-        var polls = await _pollService.ListPollsAsync(seasonId, ct);
+        var polls = await pollService.ListPollsAsync(seasonId, ct);
         return Ok(polls.Select(ToPollResponse).ToList());
     }
 
@@ -28,14 +21,14 @@ public class PollsController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<PollResponse>>> GetActivePolls(
         [FromQuery] string seasonId, CancellationToken ct)
     {
-        var polls = await _pollService.GetActivePollsAsync(seasonId, ct);
+        var polls = await pollService.GetActivePollsAsync(seasonId, ct);
         return Ok(polls.Select(ToPollResponse).ToList());
     }
 
     [HttpGet("{pollId}")]
     public async Task<ActionResult<PollDetailResponse>> GetPoll(string pollId, CancellationToken ct)
     {
-        var result = await _pollService.GetPollWithQuestionsAsync(pollId, ct);
+        var result = await pollService.GetPollWithQuestionsAsync(pollId, ct);
         if (result is null)
             return NotFound(new ErrorResponse("POLL_NOT_FOUND", $"Poll '{pollId}' not found."));
 
@@ -47,7 +40,7 @@ public class PollsController : ControllerBase
     public async Task<ActionResult<PollResponse>> CreatePoll(
         [FromBody] CreatePollRequest request, CancellationToken ct)
     {
-        var poll = await _pollService.CreatePollAsync(
+        var poll = await pollService.CreatePollAsync(
             request.Title,
             DateOnly.ParseExact(request.GameDate, "yyyy-MM-dd"),
             DateTime.Parse(request.Deadline).ToUniversalTime(),
@@ -65,21 +58,21 @@ public class PollsController : ControllerBase
             ? DateTime.Parse(request.Deadline).ToUniversalTime()
             : (DateTime?)null;
 
-        var poll = await _pollService.UpdatePollAsync(pollId, request.Title, deadline, ct);
+        var poll = await pollService.UpdatePollAsync(pollId, request.Title, deadline, ct);
         return Ok(ToPollResponse(poll));
     }
 
     [HttpPost("{pollId}/publish")]
     public async Task<ActionResult<PollResponse>> PublishPoll(string pollId, CancellationToken ct)
     {
-        var poll = await _pollService.PublishPollAsync(pollId, ct);
+        var poll = await pollService.PublishPollAsync(pollId, ct);
         return Ok(ToPollResponse(poll));
     }
 
     [HttpPost("{pollId}/close")]
     public async Task<ActionResult<PollResponse>> ClosePoll(string pollId, CancellationToken ct)
     {
-        var poll = await _pollService.ClosePollAsync(pollId, ct);
+        var poll = await pollService.ClosePollAsync(pollId, ct);
         return Ok(ToPollResponse(poll));
     }
 

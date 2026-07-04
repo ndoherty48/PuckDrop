@@ -3,22 +3,11 @@ using PuckDrop.Domain.Repositories;
 
 namespace PuckDrop.Application.Services;
 
-public class ScoringService
+public class ScoringService(
+    IPollRepository pollRepository,
+    IUserAnswerRepository answerRepository,
+    ILeaderboardRepository leaderboardRepository)
 {
-    private readonly IPollRepository _pollRepository;
-    private readonly IUserAnswerRepository _answerRepository;
-    private readonly ILeaderboardRepository _leaderboardRepository;
-
-    public ScoringService(
-        IPollRepository pollRepository,
-        IUserAnswerRepository answerRepository,
-        ILeaderboardRepository leaderboardRepository)
-    {
-        _pollRepository = pollRepository;
-        _answerRepository = answerRepository;
-        _leaderboardRepository = leaderboardRepository;
-    }
-
     /// <summary>
     /// Scores a poll: marks correct answers on questions, evaluates all user answers,
     /// updates the leaderboard, and transitions the poll to Scored.
@@ -33,7 +22,7 @@ public class ScoringService
         CancellationToken cancellationToken = default)
     {
         // 1. Load the poll with questions
-        var pollData = await _pollRepository.GetWithQuestionsAsync(pollId, cancellationToken);
+        var pollData = await pollRepository.GetWithQuestionsAsync(pollId, cancellationToken);
         if (pollData is null)
             throw new KeyNotFoundException($"Poll '{pollId}' not found.");
 
@@ -54,10 +43,10 @@ public class ScoringService
         }
 
         // Persist updated questions (with correctOptionId set)
-        await _pollRepository.UpdateQuestionsAsync(questions.ToList(), cancellationToken);
+        await pollRepository.UpdateQuestionsAsync(questions.ToList(), cancellationToken);
 
         // 3. Evaluate all user answers
-        var allAnswers = await _answerRepository.GetAllAnswersForPollAsync(pollId, cancellationToken);
+        var allAnswers = await answerRepository.GetAllAnswersForPollAsync(pollId, cancellationToken);
 
         foreach (var answer in allAnswers)
         {
@@ -68,7 +57,7 @@ public class ScoringService
         }
 
         // Persist scored answers
-        await _answerRepository.UpdateScoresAsync(allAnswers.ToList(), cancellationToken);
+        await answerRepository.UpdateScoresAsync(allAnswers.ToList(), cancellationToken);
 
         // 4. Aggregate points per user and update leaderboard
         var pointsByUser = allAnswers
@@ -83,13 +72,13 @@ public class ScoringService
 
         foreach (var userScore in pointsByUser)
         {
-            var existingEntry = await _leaderboardRepository.GetEntryAsync(poll.SeasonId, userScore.UserId, cancellationToken);
+            var existingEntry = await leaderboardRepository.GetEntryAsync(poll.SeasonId, userScore.UserId, cancellationToken);
 
             if (existingEntry is not null)
             {
                 var previousPoints = existingEntry.TotalPoints;
                 existingEntry.AddPollResults(userScore.CorrectCount, userScore.TotalAnswered);
-                await _leaderboardRepository.SaveEntryAsync(existingEntry, previousPoints, cancellationToken);
+                await leaderboardRepository.SaveEntryAsync(existingEntry, previousPoints, cancellationToken);
             }
             else
             {
@@ -100,11 +89,11 @@ public class ScoringService
                     DisplayName = displayNameResolver(userScore.UserId)
                 };
                 entry.AddPollResults(userScore.CorrectCount, userScore.TotalAnswered);
-                await _leaderboardRepository.SaveEntryAsync(entry, cancellationToken: cancellationToken);
+                await leaderboardRepository.SaveEntryAsync(entry, cancellationToken: cancellationToken);
             }
         }
 
         // 5. Save poll with Scored status
-        await _pollRepository.SavePollAsync(poll, cancellationToken);
+        await pollRepository.SavePollAsync(poll, cancellationToken);
     }
 }

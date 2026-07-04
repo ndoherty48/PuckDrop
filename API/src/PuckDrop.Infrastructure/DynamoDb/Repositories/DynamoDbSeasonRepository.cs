@@ -6,18 +6,12 @@ using PuckDrop.Infrastructure.DynamoDb.Mappers;
 
 namespace PuckDrop.Infrastructure.DynamoDb.Repositories;
 
-public class DynamoDbSeasonRepository : ISeasonRepository
+public class DynamoDbSeasonRepository(IAmazonDynamoDB dynamoDb) : ISeasonRepository
 {
-    private readonly IAmazonDynamoDB _dynamoDb;
-
-    public DynamoDbSeasonRepository(IAmazonDynamoDB dynamoDb)
-    {
-        _dynamoDb = dynamoDb;
-    }
 
     public async Task<Season?> GetByIdAsync(string seasonId, CancellationToken cancellationToken = default)
     {
-        var response = await _dynamoDb.GetItemAsync(new GetItemRequest
+        var response = await dynamoDb.GetItemAsync(new GetItemRequest
         {
             TableName = DynamoDbKeys.TableName,
             Key = new Dictionary<string, AttributeValue>
@@ -35,7 +29,7 @@ public class DynamoDbSeasonRepository : ISeasonRepository
 
     public async Task<IReadOnlyList<Season>> ListAllAsync(CancellationToken cancellationToken = default)
     {
-        var response = await _dynamoDb.QueryAsync(new QueryRequest
+        var response = await dynamoDb.QueryAsync(new QueryRequest
         {
             TableName = DynamoDbKeys.TableName,
             KeyConditionExpression = "PK = :pk AND begins_with(SK, :skPrefix)",
@@ -54,7 +48,7 @@ public class DynamoDbSeasonRepository : ISeasonRepository
         var mainItem = ToAttributes(DynamoDbMapper.ToItem(season));
         var collectionItem = ToAttributes(DynamoDbMapper.ToCollectionItem(season));
 
-        await _dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
+        await dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
         {
             TransactItems =
             [

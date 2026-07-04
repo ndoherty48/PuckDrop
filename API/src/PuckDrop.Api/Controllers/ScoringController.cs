@@ -6,15 +6,8 @@ namespace PuckDrop.Api.Controllers;
 
 [ApiController]
 [Route("polls/{pollId}")]
-public class ScoringController : ControllerBase
+public class ScoringController(ScoringService scoringService) : ControllerBase
 {
-    private readonly ScoringService _scoringService;
-
-    public ScoringController(ScoringService scoringService)
-    {
-        _scoringService = scoringService;
-    }
-
     [HttpPost("score")]
     public async Task<IActionResult> ScorePoll(
         string pollId, [FromBody] ScorePollRequest request, CancellationToken ct)
@@ -24,7 +17,7 @@ public class ScoringController : ControllerBase
         // TODO: Resolve display names from Cognito in Phase 5
         string DisplayNameResolver(string userId) => userId;
 
-        await _scoringService.ScorePollAsync(pollId, correctAnswers, DisplayNameResolver, ct);
+        await scoringService.ScorePollAsync(pollId, correctAnswers, DisplayNameResolver, ct);
 
         return Ok(new { message = "Poll scored successfully." });
     }

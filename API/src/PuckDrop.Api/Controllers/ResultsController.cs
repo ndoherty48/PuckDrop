@@ -6,19 +6,12 @@ namespace PuckDrop.Api.Controllers;
 
 [ApiController]
 [Route("polls/{pollId}")]
-public class ResultsController : ControllerBase
+public class ResultsController(ResultsService resultsService) : ControllerBase
 {
-    private readonly ResultsService _resultsService;
-
-    public ResultsController(ResultsService resultsService)
-    {
-        _resultsService = resultsService;
-    }
-
     [HttpGet("results")]
     public async Task<ActionResult<PollResultsResponse>> GetResults(string pollId, CancellationToken ct)
     {
-        var results = await _resultsService.GetPollResultsAsync(pollId, ct);
+        var results = await resultsService.GetPollResultsAsync(pollId, ct);
 
         var optionsByQuestion = results.Options.GroupBy(o => o.QuestionId).ToDictionary(g => g.Key, g => g.ToList());
 

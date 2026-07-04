@@ -4,17 +4,8 @@ using PuckDrop.Domain.Repositories;
 
 namespace PuckDrop.Application.Services;
 
-public class PollService
+public class PollService(IPollRepository pollRepository, SeasonService seasonService)
 {
-    private readonly IPollRepository _pollRepository;
-    private readonly SeasonService _seasonService;
-
-    public PollService(IPollRepository pollRepository, SeasonService seasonService)
-    {
-        _pollRepository = pollRepository;
-        _seasonService = seasonService;
-    }
-
     /// <summary>
     /// Creates a new poll in Draft status. Auto-creates the season if needed.
     /// </summary>
@@ -25,7 +16,7 @@ public class PollService
         string createdBy,
         CancellationToken cancellationToken = default)
     {
-        var season = await _seasonService.EnsureSeasonExistsAsync(gameDate, cancellationToken);
+        var season = await seasonService.EnsureSeasonExistsAsync(gameDate, cancellationToken);
 
         var poll = new GameDayPoll
         {
@@ -38,7 +29,7 @@ public class PollService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _pollRepository.SavePollAsync(poll, cancellationToken);
+        await pollRepository.SavePollAsync(poll, cancellationToken);
         return poll;
     }
 
@@ -62,7 +53,7 @@ public class PollService
         if (deadline.HasValue)
             poll.Deadline = deadline.Value.ToUniversalTime();
 
-        await _pollRepository.SavePollAsync(poll, cancellationToken);
+        await pollRepository.SavePollAsync(poll, cancellationToken);
         return poll;
     }
 
@@ -73,7 +64,7 @@ public class PollService
     {
         var poll = await GetPollOrThrowAsync(pollId, cancellationToken);
         poll.Publish();
-        await _pollRepository.SavePollAsync(poll, cancellationToken);
+        await pollRepository.SavePollAsync(poll, cancellationToken);
         return poll;
     }
 
@@ -84,7 +75,7 @@ public class PollService
     {
         var poll = await GetPollOrThrowAsync(pollId, cancellationToken);
         poll.Close();
-        await _pollRepository.SavePollAsync(poll, cancellationToken);
+        await pollRepository.SavePollAsync(poll, cancellationToken);
         return poll;
     }
 
@@ -93,7 +84,7 @@ public class PollService
     /// </summary>
     public async Task<GameDayPoll?> GetPollAsync(string pollId, CancellationToken cancellationToken = default)
     {
-        return await _pollRepository.GetByIdAsync(pollId, cancellationToken);
+        return await pollRepository.GetByIdAsync(pollId, cancellationToken);
     }
 
     /// <summary>
@@ -102,7 +93,7 @@ public class PollService
     public async Task<(GameDayPoll Poll, IReadOnlyList<Question> Questions, IReadOnlyList<Option> Options)?> GetPollWithQuestionsAsync(
         string pollId, CancellationToken cancellationToken = default)
     {
-        return await _pollRepository.GetWithQuestionsAsync(pollId, cancellationToken);
+        return await pollRepository.GetWithQuestionsAsync(pollId, cancellationToken);
     }
 
     /// <summary>
@@ -110,7 +101,7 @@ public class PollService
     /// </summary>
     public async Task<IReadOnlyList<GameDayPoll>> ListPollsAsync(string seasonId, CancellationToken cancellationToken = default)
     {
-        return await _pollRepository.ListBySeasonAsync(seasonId, cancellationToken);
+        return await pollRepository.ListBySeasonAsync(seasonId, cancellationToken);
     }
 
     /// <summary>
@@ -118,7 +109,7 @@ public class PollService
     /// </summary>
     public async Task<IReadOnlyList<GameDayPoll>> GetActivePollsAsync(string seasonId, CancellationToken cancellationToken = default)
     {
-        return await _pollRepository.GetActiveAsync(seasonId, cancellationToken);
+        return await pollRepository.GetActiveAsync(seasonId, cancellationToken);
     }
 
     /// <summary>
@@ -152,7 +143,7 @@ public class PollService
             SortOrder = o.SortOrder
         }).ToList();
 
-        await _pollRepository.SaveQuestionAsync(question, optionEntities, cancellationToken);
+        await pollRepository.SaveQuestionAsync(question, optionEntities, cancellationToken);
         return question;
     }
 
@@ -166,12 +157,12 @@ public class PollService
         if (poll.Status is not (PollStatus.Draft or PollStatus.Open))
             throw new InvalidOperationException($"Cannot delete questions from a poll with status '{poll.Status}'.");
 
-        await _pollRepository.DeleteQuestionAsync(pollId, questionId, cancellationToken);
+        await pollRepository.DeleteQuestionAsync(pollId, questionId, cancellationToken);
     }
 
     private async Task<GameDayPoll> GetPollOrThrowAsync(string pollId, CancellationToken cancellationToken)
     {
-        var poll = await _pollRepository.GetByIdAsync(pollId, cancellationToken);
+        var poll = await pollRepository.GetByIdAsync(pollId, cancellationToken);
         if (poll is null)
             throw new KeyNotFoundException($"Poll '{pollId}' not found.");
         return poll;

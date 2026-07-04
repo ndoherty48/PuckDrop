@@ -7,18 +7,12 @@ using PuckDrop.Infrastructure.DynamoDb.Mappers;
 
 namespace PuckDrop.Infrastructure.DynamoDb.Repositories;
 
-public class DynamoDbUserAnswerRepository : IUserAnswerRepository
+public class DynamoDbUserAnswerRepository(IAmazonDynamoDB dynamoDb) : IUserAnswerRepository
 {
-    private readonly IAmazonDynamoDB _dynamoDb;
-
-    public DynamoDbUserAnswerRepository(IAmazonDynamoDB dynamoDb)
-    {
-        _dynamoDb = dynamoDb;
-    }
 
     public async Task<IReadOnlyList<UserAnswer>> GetUserAnswersAsync(string userId, string pollId, CancellationToken cancellationToken = default)
     {
-        var response = await _dynamoDb.QueryAsync(new QueryRequest
+        var response = await dynamoDb.QueryAsync(new QueryRequest
         {
             TableName = DynamoDbKeys.TableName,
             KeyConditionExpression = "PK = :pk",
@@ -34,7 +28,7 @@ public class DynamoDbUserAnswerRepository : IUserAnswerRepository
     public async Task<IReadOnlyList<UserAnswer>> GetAllAnswersForPollAsync(string pollId, CancellationToken cancellationToken = default)
     {
         // Use GSI1 to get all answers for a poll
-        var response = await _dynamoDb.QueryAsync(new QueryRequest
+        var response = await dynamoDb.QueryAsync(new QueryRequest
         {
             TableName = DynamoDbKeys.TableName,
             IndexName = DynamoDbKeys.GSI1IndexName,
@@ -64,7 +58,7 @@ public class DynamoDbUserAnswerRepository : IUserAnswerRepository
             }
         }).ToList();
 
-        await _dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
+        await dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
         {
             TransactItems = transactItems
         }, cancellationToken);
@@ -84,7 +78,7 @@ public class DynamoDbUserAnswerRepository : IUserAnswerRepository
         // BatchWriteItem supports max 25 items per request
         foreach (var batch in writeRequests.Chunk(25))
         {
-            await _dynamoDb.BatchWriteItemAsync(new BatchWriteItemRequest
+            await dynamoDb.BatchWriteItemAsync(new BatchWriteItemRequest
             {
                 RequestItems = new Dictionary<string, List<WriteRequest>>
                 {

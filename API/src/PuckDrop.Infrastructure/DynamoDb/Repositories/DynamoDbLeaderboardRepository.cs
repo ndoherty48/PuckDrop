@@ -7,18 +7,12 @@ using PuckDrop.Infrastructure.DynamoDb.Mappers;
 
 namespace PuckDrop.Infrastructure.DynamoDb.Repositories;
 
-public class DynamoDbLeaderboardRepository : ILeaderboardRepository
+public class DynamoDbLeaderboardRepository(IAmazonDynamoDB dynamoDb) : ILeaderboardRepository
 {
-    private readonly IAmazonDynamoDB _dynamoDb;
-
-    public DynamoDbLeaderboardRepository(IAmazonDynamoDB dynamoDb)
-    {
-        _dynamoDb = dynamoDb;
-    }
 
     public async Task<IReadOnlyList<LeaderboardEntry>> GetLeaderboardAsync(string seasonId, CancellationToken cancellationToken = default)
     {
-        var response = await _dynamoDb.QueryAsync(new QueryRequest
+        var response = await dynamoDb.QueryAsync(new QueryRequest
         {
             TableName = DynamoDbKeys.TableName,
             KeyConditionExpression = "PK = :pk AND begins_with(SK, :skPrefix)",
@@ -37,7 +31,7 @@ public class DynamoDbLeaderboardRepository : ILeaderboardRepository
     public async Task<LeaderboardEntry?> GetEntryAsync(string seasonId, string userId, CancellationToken cancellationToken = default)
     {
         // We need to scan the leaderboard partition for this user since the SK includes inverted points
-        var response = await _dynamoDb.QueryAsync(new QueryRequest
+        var response = await dynamoDb.QueryAsync(new QueryRequest
         {
             TableName = DynamoDbKeys.TableName,
             KeyConditionExpression = "PK = :pk AND begins_with(SK, :skPrefix)",
@@ -88,7 +82,7 @@ public class DynamoDbLeaderboardRepository : ILeaderboardRepository
             }
         });
 
-        await _dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
+        await dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
         {
             TransactItems = transactItems
         }, cancellationToken);

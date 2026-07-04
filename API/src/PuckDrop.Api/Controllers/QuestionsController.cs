@@ -6,24 +6,17 @@ namespace PuckDrop.Api.Controllers;
 
 [ApiController]
 [Route("polls/{pollId}/questions")]
-public class QuestionsController : ControllerBase
+public class QuestionsController(PollService pollService) : ControllerBase
 {
-    private readonly PollService _pollService;
-
-    public QuestionsController(PollService pollService)
-    {
-        _pollService = pollService;
-    }
-
     [HttpPost]
     public async Task<ActionResult<QuestionResponse>> AddQuestion(
         string pollId, [FromBody] CreateQuestionRequest request, CancellationToken ct)
     {
         var options = request.Options.Select(o => (o.Text, o.SortOrder)).ToList();
-        var question = await _pollService.AddQuestionAsync(pollId, request.Text, request.SortOrder, options, ct);
+        var question = await pollService.AddQuestionAsync(pollId, request.Text, request.SortOrder, options, ct);
 
         // Read back to get generated option IDs
-        var pollData = await _pollService.GetPollWithQuestionsAsync(pollId, ct);
+        var pollData = await pollService.GetPollWithQuestionsAsync(pollId, ct);
         var (_, questions, allOptions) = pollData!.Value;
 
         var created = questions.First(q => q.QuestionId == question.QuestionId);
@@ -41,12 +34,12 @@ public class QuestionsController : ControllerBase
     public async Task<ActionResult<QuestionResponse>> UpdateQuestion(
         string pollId, string questionId, [FromBody] UpdateQuestionRequest request, CancellationToken ct)
     {
-        await _pollService.DeleteQuestionAsync(pollId, questionId, ct);
+        await pollService.DeleteQuestionAsync(pollId, questionId, ct);
 
         var options = request.Options.Select(o => (o.Text, o.SortOrder)).ToList();
-        var question = await _pollService.AddQuestionAsync(pollId, request.Text, request.SortOrder, options, ct);
+        var question = await pollService.AddQuestionAsync(pollId, request.Text, request.SortOrder, options, ct);
 
-        var pollData = await _pollService.GetPollWithQuestionsAsync(pollId, ct);
+        var pollData = await pollService.GetPollWithQuestionsAsync(pollId, ct);
         var (_, questions, allOptions) = pollData!.Value;
 
         var updated = questions.First(q => q.QuestionId == question.QuestionId);
@@ -61,7 +54,7 @@ public class QuestionsController : ControllerBase
     [HttpDelete("{questionId}")]
     public async Task<IActionResult> DeleteQuestion(string pollId, string questionId, CancellationToken ct)
     {
-        await _pollService.DeleteQuestionAsync(pollId, questionId, ct);
+        await pollService.DeleteQuestionAsync(pollId, questionId, ct);
         return NoContent();
     }
 }

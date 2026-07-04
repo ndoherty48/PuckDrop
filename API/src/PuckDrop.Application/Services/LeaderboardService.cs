@@ -3,17 +3,8 @@ using PuckDrop.Domain.Repositories;
 
 namespace PuckDrop.Application.Services;
 
-public class LeaderboardService
+public class LeaderboardService(ILeaderboardRepository leaderboardRepository, SeasonService seasonService)
 {
-    private readonly ILeaderboardRepository _leaderboardRepository;
-    private readonly SeasonService _seasonService;
-
-    public LeaderboardService(ILeaderboardRepository leaderboardRepository, SeasonService seasonService)
-    {
-        _leaderboardRepository = leaderboardRepository;
-        _seasonService = seasonService;
-    }
-
     /// <summary>
     /// Gets the leaderboard for a season. Defaults to the current season if seasonId is null.
     /// Entries are returned sorted by points descending. Rank is calculated with shared ranks for ties.
@@ -22,14 +13,14 @@ public class LeaderboardService
     {
         if (seasonId is null)
         {
-            var currentSeason = await _seasonService.GetCurrentSeasonAsync(cancellationToken);
+            var currentSeason = await seasonService.GetCurrentSeasonAsync(cancellationToken);
             if (currentSeason is null)
                 return new LeaderboardResult(Season.DeriveSeasonId(DateOnly.FromDateTime(DateTime.UtcNow)), []);
 
             seasonId = currentSeason.SeasonId;
         }
 
-        var entries = await _leaderboardRepository.GetLeaderboardAsync(seasonId, cancellationToken);
+        var entries = await leaderboardRepository.GetLeaderboardAsync(seasonId, cancellationToken);
         var ranked = AssignRanks(entries);
 
         return new LeaderboardResult(seasonId, ranked);

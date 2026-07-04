@@ -6,15 +6,8 @@ namespace PuckDrop.Api.Controllers;
 
 [ApiController]
 [Route("leaderboard")]
-public class LeaderboardController : ControllerBase
+public class LeaderboardController(LeaderboardService leaderboardService) : ControllerBase
 {
-    private readonly LeaderboardService _leaderboardService;
-
-    public LeaderboardController(LeaderboardService leaderboardService)
-    {
-        _leaderboardService = leaderboardService;
-    }
-
     /// <summary>
     /// Get the season leaderboard. Defaults to current season if seasonId not provided.
     /// </summary>
@@ -23,7 +16,7 @@ public class LeaderboardController : ControllerBase
         [FromQuery] string? seasonId,
         CancellationToken cancellationToken)
     {
-        var result = await _leaderboardService.GetLeaderboardAsync(seasonId, cancellationToken);
+        var result = await leaderboardService.GetLeaderboardAsync(seasonId, cancellationToken);
 
         var entries = result.Entries.Select(e => new LeaderboardEntryResponse(
             e.Entry.UserId,
