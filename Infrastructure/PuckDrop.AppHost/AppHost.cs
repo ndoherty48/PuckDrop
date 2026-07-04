@@ -17,13 +17,13 @@ var dynamoDbLocal = builder.AddAWSDynamoDBLocal("dynamodb");
 // Create the PuckDrop table in DynamoDB Local after it's healthy
 var createTable = builder.AddExecutable("create-table", "aws", ".",
         builder.GetDynamoDbResourceParams(dynamoDbLocal.GetEndpoint("http")))
-    .WithEnvironment("AWS_ACCESS_KEY_ID", "local")
-    .WithEnvironment("AWS_SECRET_ACCESS_KEY", "local")
+    .WithAWSLocalCredentials()
     .WithParentRelationship(dynamoDbLocal)
     .WaitFor(dynamoDbLocal);
 
 var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.Api::PuckDrop.Api.LambdaEntryPoint::FunctionHandlerAsync")
     .WithReference(dynamoDbLocal)
+    .WithAWSLocalCredentials()
     .WaitForCompletion(createTable);
 
 var apiGateway = builder.AddAWSAPIGatewayEmulator("api-gateway", Aspire.Hosting.AWS.Lambda.APIGatewayType.HttpV2)

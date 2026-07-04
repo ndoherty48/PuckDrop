@@ -1,4 +1,5 @@
 using Amazon.DynamoDBv2;
+using Amazon.Extensions.NETCore.Setup;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PuckDrop.Application.Repositories;
@@ -10,20 +11,8 @@ public static class InfrastructureServiceCollectionExtensions
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // IAmazonDynamoDB is registered by Aspire's AWS hosting integration
-        // For non-Aspire environments, register it manually:
-        if (services.All(s => s.ServiceType != typeof(IAmazonDynamoDB)))
-        {
-            services.AddSingleton<IAmazonDynamoDB>(sp =>
-            {
-                var config = new AmazonDynamoDBConfig();
-                var serviceUrl = configuration["DynamoDb:ServiceUrl"];
-                if (!string.IsNullOrEmpty(serviceUrl))
-                    config.ServiceURL = serviceUrl;
-
-                return new AmazonDynamoDBClient(config);
-            });
-        }
+        services.AddDefaultAWSOptions(configuration.GetAWSOptions());
+        services.AddAWSService<IAmazonDynamoDB>();
 
         // Repositories
         services.AddScoped<ISeasonRepository, DynamoDbSeasonRepository>();

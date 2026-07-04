@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <PackageReference Include="AWSSDK.DynamoDBv2" />
+    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" />
   </ItemGroup>
 
   <ItemGroup>

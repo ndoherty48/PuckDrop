@@ -14,6 +14,7 @@
   <ItemGroup>
     <PackageVersion Include="Amazon.Lambda.AspNetCoreServer" Version="9.2.1" />
     <PackageVersion Include="AWSSDK.DynamoDBv2" Version="4.0.100.2" />
+    <PackageVersion Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.100.2" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
   </ItemGroup>
 

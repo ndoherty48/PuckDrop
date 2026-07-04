@@ -2,8 +2,20 @@ namespace PuckDrop.AppHost.Extensions;
 
 public static class DynamoDBExtensions
 {
+    public static IResourceBuilder<T> WithAWSLocalCredentials<T>(this IResourceBuilder<T>builder ) where T : IResourceWithEnvironment
+    {
+        if(builder.ApplicationBuilder.ExecutionContext.IsRunMode is false) 
+            return builder;
+
+        return builder
+            .WithEnvironment("AWS_ACCESS_KEY_ID", "local")
+            .WithEnvironment("AWS_SECRET_ACCESS_KEY", "local");
+    }
+
     extension(IDistributedApplicationBuilder builder)
     {
+
+
         public object[] GetDynamoDbResourceParams(EndpointReference dynamoDbLocalEndpoint)
         {
             return [
