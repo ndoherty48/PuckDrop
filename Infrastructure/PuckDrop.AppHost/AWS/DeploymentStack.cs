@@ -1,4 +1,5 @@
 using Amazon.CDK;
+using Amazon.CDK.AWS.Apigatewayv2;
 using Amazon.CDK.AWS.Cognito;
 using Amazon.CDK.AWS.DynamoDB;
 using Amazon.CDK.AWS.EC2;
@@ -20,6 +21,8 @@ public class DeploymentStack : Stack
     public Table PuckDropTable { get; private set; } = null!;
     public UserPool UserPool { get; private set; } = null!;
     public UserPoolClient UserPoolClient { get; private set; } = null!;
+    public CfnApi HttpApi { get; private set; } = null!;
+    public CfnAuthorizer JwtAuthorizer { get; private set; } = null!;
 
     public DeploymentStack(Construct scope, string id, IStackProps? props = null) : base(scope, id, props)
     {
@@ -33,6 +36,7 @@ public class DeploymentStack : Stack
 
         CreateDynamoDbTable();
         CreateCognitoResources();
+        CreateApiGateway();
         CreateOutputs();
     }
 
@@ -113,10 +117,85 @@ public class DeploymentStack : Stack
         });
     }
 
+    private void CreateApiGateway()
+    {
+        // HTTP API v2
+        HttpApi = new CfnApi(this, "PuckDropApi", new CfnApiProps
+        {
+            Name = "PuckDrop",
+            ProtocolType = "HTTP",
+            CorsConfiguration = new CfnApi.CorsProperty
+            {
+                AllowOrigins = ["*"],
+                AllowMethods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                AllowHeaders = ["Authorization", "Content-Type"]
+            }
+        });
+
+        // JWT Authorizer backed by Cognito
+        JwtAuthorizer = new CfnAuthorizer(this, "PuckDropJwtAuthorizer", new CfnAuthorizerProps
+        {
+            ApiId = HttpApi.Ref,
+            AuthorizerType = "JWT",
+            Name = "CognitoJwtAuthorizer",
+            IdentitySource = ["$request.header.Authorization"],
+            JwtConfiguration = new CfnAuthorizer.JWTConfigurationProperty
+            {
+                Issuer = $"https://cognito-idp.{Region}.amazonaws.com/{UserPool.UserPoolId}",
+                Audience = [UserPoolClient.UserPoolClientId]
+            }
+        });
+
+        // Auto-deploy stage
+        var stage = new CfnStage(this, "PuckDropApiStage", new CfnStageProps
+        {
+            ApiId = HttpApi.Ref,
+            StageName = "$default",
+            AutoDeploy = true
+        });
+    }
+
+    /// <summary>
+    /// Adds a Lambda integration and route to the HTTP API.
+    /// Called from the ConstructFunctionCallback in the AppHost.
+    /// </summary>
+    public void AddLambdaRoute(Amazon.CDK.AWS.Lambda.Function lambdaFunction)
+    {
+        // Lambda integration
+        var integration = new CfnIntegration(this, "PuckDropLambdaIntegration", new CfnIntegrationProps
+        {
+            ApiId = HttpApi.Ref,
+            IntegrationType = "AWS_PROXY",
+            IntegrationUri = lambdaFunction.FunctionArn,
+            PayloadFormatVersion = "2.0"
+        });
+
+        // Route: ANY /puckdrop/{proxy+} with JWT authorizer
+        _ = new Amazon.CDK.AWS.Apigatewayv2.CfnRoute(this, "PuckDropApiRoute", new Amazon.CDK.AWS.Apigatewayv2.CfnRouteProps
+        {
+            ApiId = HttpApi.Ref,
+            RouteKey = "ANY /puckdrop/{proxy+}",
+            Target = $"integrations/{integration.Ref}",
+            AuthorizationType = "JWT",
+            AuthorizerId = JwtAuthorizer.Ref
+        });
+
+        // Grant API Gateway permission to invoke the Lambda
+        lambdaFunction.AddPermission("ApiGatewayInvoke", new Amazon.CDK.AWS.Lambda.Permission
+        {
+            Principal = new Amazon.CDK.AWS.IAM.ServicePrincipal("apigateway.amazonaws.com"),
+            SourceArn = $"arn:aws:execute-api:{Region}:{Account}:{HttpApi.Ref}/*"
+        });
+    }
+
     private void CreateOutputs()
     {
         _ = new CfnOutput(this, "UserPoolId", new CfnOutputProps { Value = UserPool.UserPoolId });
         _ = new CfnOutput(this, "UserPoolClientId", new CfnOutputProps { Value = UserPoolClient.UserPoolClientId });
         _ = new CfnOutput(this, "DynamoDbTableName", new CfnOutputProps { Value = PuckDropTable.TableName });
+        _ = new CfnOutput(this, "ApiGatewayUrl", new CfnOutputProps
+        {
+            Value = Fn.Sub($"https://${{{HttpApi.Ref}}}.execute-api.{Region}.amazonaws.com")
+        });
     }
 }

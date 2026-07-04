@@ -43,6 +43,9 @@ var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.A
 
             // Grant DynamoDB read/write access
             stack.PuckDropTable.GrantReadWriteData(construct);
+
+            // Wire Lambda to API Gateway with JWT authorizer
+            stack.AddLambdaRoute(construct);
         }
     })
     .WaitForCompletion(createTable);
