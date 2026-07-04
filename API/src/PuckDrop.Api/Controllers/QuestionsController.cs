@@ -42,8 +42,10 @@ public class QuestionsController(PollService pollService) : ControllerBase
 
     private async Task<QuestionResponse> GetQuestionResponse(string pollId, string questionId, CancellationToken ct)
     {
-        var pollData = await pollService.GetPollWithQuestionsAsync(pollId, ct);
-        var (_, questions, allOptions) = pollData!.Value;
+        var pollData = await pollService.GetPollWithQuestionsAsync(pollId, ct)
+            ?? throw new KeyNotFoundException($"Poll '{pollId}' not found.");
+
+        var (_, questions, allOptions) = pollData;
 
         var question = questions.First(q => q.QuestionId == questionId);
         var questionOptions = allOptions.Where(o => o.QuestionId == questionId).ToList();

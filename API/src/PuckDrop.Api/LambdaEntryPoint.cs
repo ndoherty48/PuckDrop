@@ -54,7 +54,10 @@ public class LambdaEntryPoint : Amazon.Lambda.AspNetCoreServer.APIGatewayHttpApi
     public override async Task<APIGatewayHttpApiV2ProxyResponse> FunctionHandlerAsync(
         APIGatewayHttpApiV2ProxyRequest request, ILambdaContext lambdaContext)
     {
+        if (_tracerProvider is null)
+            return await base.FunctionHandlerAsync(request, lambdaContext);
+
         return await AWSLambdaWrapper.TraceAsync(
-            _tracerProvider!, base.FunctionHandlerAsync, request, lambdaContext);
+            _tracerProvider, base.FunctionHandlerAsync, request, lambdaContext);
     }
 }

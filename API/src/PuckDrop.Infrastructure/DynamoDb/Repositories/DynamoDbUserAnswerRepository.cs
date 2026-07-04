@@ -97,8 +97,8 @@ public class DynamoDbUserAnswerRepository(IAmazonDynamoDB dynamoDb) : IUserAnswe
         {
             ["PK"] = new(item.PK),
             ["SK"] = new(item.SK),
-            ["GSI1PK"] = new(item.GSI1PK!),
-            ["GSI1SK"] = new(item.GSI1SK!),
+            ["GSI1PK"] = new(DynamoDbKeys.PollPK(answer.PollId)),
+            ["GSI1SK"] = new(DynamoDbKeys.UserAnswerGSI1SK(answer.UserId, answer.QuestionId)),
             ["userId"] = new(item.UserId),
             ["pollId"] = new(item.PollId),
             ["questionId"] = new(item.QuestionId),
