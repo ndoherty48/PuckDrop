@@ -1,4 +1,5 @@
 using PuckDrop.Domain.Entities;
+using PuckDrop.Domain.Models;
 using PuckDrop.Domain.Repositories;
 using PuckDrop.Domain.Services;
 
@@ -16,7 +17,7 @@ public class ScoringService(
     /// </summary>
     public async Task ScorePollAsync(
         string pollId,
-        IReadOnlyList<(string QuestionId, string CorrectOptionId)> correctAnswers,
+        IReadOnlyList<QuestionScore> correctAnswers,
         CancellationToken cancellationToken = default)
     {
         // 1. Load the poll with questions
@@ -24,7 +25,8 @@ public class ScoringService(
         if (pollData is null)
             throw new KeyNotFoundException($"Poll '{pollId}' not found.");
 
-        var (poll, questions, options) = pollData.Value;
+        var poll = pollData.Poll;
+        var questions = pollData.Questions;
 
         // Validate poll can be scored
         var utcNow = DateTime.UtcNow;
@@ -32,12 +34,12 @@ public class ScoringService(
 
         // 2. Set correct options on questions
         var questionMap = questions.ToDictionary(q => q.QuestionId);
-        foreach (var (questionId, correctOptionId) in correctAnswers)
+        foreach (var score in correctAnswers)
         {
-            if (!questionMap.TryGetValue(questionId, out var question))
-                throw new ArgumentException($"Question '{questionId}' not found in poll '{pollId}'.");
+            if (!questionMap.TryGetValue(score.QuestionId, out var question))
+                throw new ArgumentException($"Question '{score.QuestionId}' not found in poll '{pollId}'.");
 
-            question.SetCorrectOption(correctOptionId);
+            question.SetCorrectOption(score.CorrectOptionId);
         }
 
         // Persist updated questions (with correctOptionId set)

@@ -1,4 +1,5 @@
 using PuckDrop.Domain.Entities;
+using PuckDrop.Domain.Models;
 using PuckDrop.Domain.Repositories;
 
 namespace PuckDrop.Application.Services;
@@ -23,7 +24,7 @@ public class AnswerService(IUserAnswerRepository answerRepository, IPollReposito
     public async Task<IReadOnlyList<UserAnswer>> SubmitAnswersAsync(
         string userId,
         string pollId,
-        IReadOnlyList<(string QuestionId, string SelectedOptionId)> answers,
+        IReadOnlyList<AnswerSubmission> answers,
         CancellationToken cancellationToken = default)
     {
         // Load poll with questions and options for validation
@@ -31,7 +32,9 @@ public class AnswerService(IUserAnswerRepository answerRepository, IPollReposito
         if (pollData is null)
             throw new KeyNotFoundException($"Poll '{pollId}' not found.");
 
-        var (poll, questions, options) = pollData.Value;
+        var poll = pollData.Poll;
+        var questions = pollData.Questions;
+        var options = pollData.Options;
 
         // Check poll is accepting answers
         var utcNow = DateTime.UtcNow;
@@ -50,20 +53,20 @@ public class AnswerService(IUserAnswerRepository answerRepository, IPollReposito
 
         var userAnswers = new List<UserAnswer>();
 
-        foreach (var (questionId, selectedOptionId) in answers)
+        foreach (var answer in answers)
         {
-            if (!questionIds.Contains(questionId))
-                throw new ArgumentException($"Question '{questionId}' does not belong to poll '{pollId}'.");
+            if (!questionIds.Contains(answer.QuestionId))
+                throw new ArgumentException($"Question '{answer.QuestionId}' does not belong to poll '{pollId}'.");
 
-            if (!optionsByQuestion.TryGetValue(questionId, out var validOptions) || !validOptions.Contains(selectedOptionId))
-                throw new ArgumentException($"Option '{selectedOptionId}' does not belong to question '{questionId}'.");
+            if (!optionsByQuestion.TryGetValue(answer.QuestionId, out var validOptions) || !validOptions.Contains(answer.SelectedOptionId))
+                throw new ArgumentException($"Option '{answer.SelectedOptionId}' does not belong to question '{answer.QuestionId}'.");
 
             userAnswers.Add(new UserAnswer
             {
                 UserId = userId,
                 PollId = pollId,
-                QuestionId = questionId,
-                SelectedOptionId = selectedOptionId,
+                QuestionId = answer.QuestionId,
+                SelectedOptionId = answer.SelectedOptionId,
                 SubmittedAt = utcNow
             });
         }

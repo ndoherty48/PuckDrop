@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using PuckDrop.Domain.Entities;
 using PuckDrop.Domain.Enums;
+using PuckDrop.Domain.Models;
 using PuckDrop.Domain.Repositories;
 using PuckDrop.Infrastructure.DynamoDb.Items;
 using PuckDrop.Infrastructure.DynamoDb.Mappers;
@@ -29,7 +30,7 @@ public class DynamoDbPollRepository(IAmazonDynamoDB dynamoDb) : IPollRepository
         return MapPollFromAttributes(response.Item);
     }
 
-    public async Task<(GameDayPoll Poll, IReadOnlyList<Question> Questions, IReadOnlyList<Option> Options)?> GetWithQuestionsAsync(
+    public async Task<PollWithQuestions?> GetWithQuestionsAsync(
         string pollId, CancellationToken cancellationToken = default)
     {
         // Query GSI1 to get poll + questions + options in a single query
@@ -72,7 +73,7 @@ public class DynamoDbPollRepository(IAmazonDynamoDB dynamoDb) : IPollRepository
         if (poll is null)
             return null;
 
-        return (poll, questions, options);
+        return new PollWithQuestions(poll, questions, options);
     }
 
     public async Task<IReadOnlyList<GameDayPoll>> ListBySeasonAsync(string seasonId, CancellationToken cancellationToken = default)

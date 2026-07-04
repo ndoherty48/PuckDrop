@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using PuckDrop.Api.Contracts;
 using PuckDrop.Api.Mappings;
 using PuckDrop.Application.Services;
+using PuckDrop.Domain.Models;
 
 namespace PuckDrop.Api.Controllers;
 
@@ -23,8 +24,11 @@ public class AnswersController(AnswerService answerService) : ControllerBase
         string pollId, [FromBody] SubmitAnswersRequest request, CancellationToken ct)
     {
         var userId = GetUserId();
-        var answerTuples = request.Answers.Select(a => (a.QuestionId, a.SelectedOptionId)).ToList();
-        var answers = await answerService.SubmitAnswersAsync(userId, pollId, answerTuples, ct);
+        var submissions = request.Answers
+            .Select(a => new AnswerSubmission(a.QuestionId, a.SelectedOptionId))
+            .ToList();
+
+        var answers = await answerService.SubmitAnswersAsync(userId, pollId, submissions, ct);
         return Ok(answers.Select(a => a.ToResponse()).ToList());
     }
 

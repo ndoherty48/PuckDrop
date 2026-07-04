@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using PuckDrop.Api.Contracts;
 using PuckDrop.Application.Services;
+using PuckDrop.Domain.Models;
 
 namespace PuckDrop.Api.Controllers;
 
@@ -12,7 +13,10 @@ public class ScoringController(ScoringService scoringService) : ControllerBase
     public async Task<IActionResult> ScorePoll(
         string pollId, [FromBody] ScorePollRequest request, CancellationToken ct)
     {
-        var correctAnswers = request.Answers.Select(a => (a.QuestionId, a.CorrectOptionId)).ToList();
+        var correctAnswers = request.Answers
+            .Select(a => new QuestionScore(a.QuestionId, a.CorrectOptionId))
+            .ToList();
+
         await scoringService.ScorePollAsync(pollId, correctAnswers, ct);
         return Ok(new { message = "Poll scored successfully." });
     }

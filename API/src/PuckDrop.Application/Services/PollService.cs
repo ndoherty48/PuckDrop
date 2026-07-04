@@ -1,5 +1,6 @@
 using PuckDrop.Domain.Entities;
 using PuckDrop.Domain.Enums;
+using PuckDrop.Domain.Models;
 using PuckDrop.Domain.Repositories;
 
 namespace PuckDrop.Application.Services;
@@ -90,7 +91,7 @@ public class PollService(IPollRepository pollRepository, SeasonService seasonSer
     /// <summary>
     /// Gets a poll with all questions and options.
     /// </summary>
-    public async Task<(GameDayPoll Poll, IReadOnlyList<Question> Questions, IReadOnlyList<Option> Options)?> GetPollWithQuestionsAsync(
+    public async Task<PollWithQuestions?> GetPollWithQuestionsAsync(
         string pollId, CancellationToken cancellationToken = default)
     {
         return await pollRepository.GetWithQuestionsAsync(pollId, cancellationToken);
@@ -119,7 +120,7 @@ public class PollService(IPollRepository pollRepository, SeasonService seasonSer
         string pollId,
         string text,
         int sortOrder,
-        IReadOnlyList<(string Text, int SortOrder)> options,
+        IReadOnlyList<OptionDefinition> options,
         CancellationToken cancellationToken = default)
     {
         var poll = await GetPollOrThrowAsync(pollId, cancellationToken);

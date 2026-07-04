@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using PuckDrop.Api.Contracts;
 using PuckDrop.Api.Mappings;
 using PuckDrop.Application.Services;
+using PuckDrop.Domain.Models;
 
 namespace PuckDrop.Api.Controllers;
 
@@ -13,7 +14,7 @@ public class QuestionsController(PollService pollService) : ControllerBase
     public async Task<ActionResult<QuestionResponse>> AddQuestion(
         string pollId, [FromBody] CreateQuestionRequest request, CancellationToken ct)
     {
-        var options = request.Options.Select(o => (o.Text, o.SortOrder)).ToList();
+        var options = request.Options.Select(o => new OptionDefinition(o.Text, o.SortOrder)).ToList();
         var question = await pollService.AddQuestionAsync(pollId, request.Text, request.SortOrder, options, ct);
 
         var response = await GetQuestionResponse(pollId, question.QuestionId, ct);
@@ -26,7 +27,7 @@ public class QuestionsController(PollService pollService) : ControllerBase
     {
         await pollService.DeleteQuestionAsync(pollId, questionId, ct);
 
-        var options = request.Options.Select(o => (o.Text, o.SortOrder)).ToList();
+        var options = request.Options.Select(o => new OptionDefinition(o.Text, o.SortOrder)).ToList();
         var question = await pollService.AddQuestionAsync(pollId, request.Text, request.SortOrder, options, ct);
 
         var response = await GetQuestionResponse(pollId, question.QuestionId, ct);
@@ -45,10 +46,8 @@ public class QuestionsController(PollService pollService) : ControllerBase
         var pollData = await pollService.GetPollWithQuestionsAsync(pollId, ct)
             ?? throw new KeyNotFoundException($"Poll '{pollId}' not found.");
 
-        var (_, questions, allOptions) = pollData;
-
-        var question = questions.First(q => q.QuestionId == questionId);
-        var questionOptions = allOptions.Where(o => o.QuestionId == questionId).ToList();
+        var question = pollData.Questions.First(q => q.QuestionId == questionId);
+        var questionOptions = pollData.Options.Where(o => o.QuestionId == questionId).ToList();
 
         return question.ToResponse(questionOptions);
     }

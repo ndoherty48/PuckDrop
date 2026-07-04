@@ -1,5 +1,5 @@
 using PuckDrop.Domain.Entities;
-using PuckDrop.Domain.Enums;
+using PuckDrop.Domain.Models;
 
 namespace PuckDrop.Domain.Repositories;
 
@@ -10,8 +10,7 @@ public interface IPollRepository
     /// <summary>
     /// Gets a poll with all its questions and options loaded.
     /// </summary>
-    Task<(GameDayPoll Poll, IReadOnlyList<Question> Questions, IReadOnlyList<Option> Options)?> GetWithQuestionsAsync(
-        string pollId, CancellationToken cancellationToken = default);
+    Task<PollWithQuestions?> GetWithQuestionsAsync(string pollId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<GameDayPoll>> ListBySeasonAsync(string seasonId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<GameDayPoll>> GetActiveAsync(string seasonId, CancellationToken cancellationToken = default);

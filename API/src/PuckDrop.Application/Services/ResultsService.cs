@@ -1,5 +1,6 @@
 using PuckDrop.Domain.Entities;
 using PuckDrop.Domain.Enums;
+using PuckDrop.Domain.Models;
 using PuckDrop.Domain.Repositories;
 
 namespace PuckDrop.Application.Services;
@@ -15,9 +16,7 @@ public class ResultsService(IPollRepository pollRepository, IUserAnswerRepositor
         if (pollData is null)
             throw new KeyNotFoundException($"Poll '{pollId}' not found.");
 
-        var (poll, questions, options) = pollData.Value;
-
-        if (poll.Status != PollStatus.Scored)
+        if (pollData.Poll.Status != PollStatus.Scored)
             throw new InvalidOperationException("Results are only available for scored polls.");
 
         var allAnswers = await answerRepository.GetAllAnswersForPollAsync(pollId, cancellationToken);
@@ -31,7 +30,7 @@ public class ResultsService(IPollRepository pollRepository, IUserAnswerRepositor
             .OrderByDescending(u => u.Points)
             .ToList();
 
-        return new PollResults(poll, questions, options, userResults);
+        return new PollResults(pollData.Poll, pollData.Questions, pollData.Options, userResults);
     }
 }
 

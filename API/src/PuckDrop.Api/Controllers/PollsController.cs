@@ -32,8 +32,7 @@ public class PollsController(PollService pollService) : ControllerBase
         if (result is null)
             return NotFound(new ErrorResponse("POLL_NOT_FOUND", $"Poll '{pollId}' not found."));
 
-        var (poll, questions, options) = result.Value;
-        return Ok(poll.ToDetailResponse(questions, options));
+        return Ok(result.Poll.ToDetailResponse(result.Questions, result.Options));
     }
 
     [HttpPost]
