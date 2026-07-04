@@ -2,7 +2,9 @@ using Amazon.DynamoDBv2;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PuckDrop.Domain.Repositories;
+using PuckDrop.Domain.Services;
 using PuckDrop.Infrastructure.DynamoDb.Repositories;
+using PuckDrop.Infrastructure.Identity;
 
 namespace PuckDrop.Infrastructure;
 
@@ -24,6 +26,9 @@ public static class InfrastructureServiceCollectionExtensions
                 return new AmazonDynamoDBClient(config);
             });
         }
+
+        // Identity
+        services.AddScoped<IUserProfileService, DefaultUserProfileService>();
 
         // Repositories
         services.AddScoped<ISeasonRepository, DynamoDbSeasonRepository>();

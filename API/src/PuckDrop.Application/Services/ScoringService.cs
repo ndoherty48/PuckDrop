@@ -1,24 +1,22 @@
 using PuckDrop.Domain.Entities;
 using PuckDrop.Domain.Repositories;
+using PuckDrop.Domain.Services;
 
 namespace PuckDrop.Application.Services;
 
 public class ScoringService(
     IPollRepository pollRepository,
     IUserAnswerRepository answerRepository,
-    ILeaderboardRepository leaderboardRepository)
+    ILeaderboardRepository leaderboardRepository,
+    IUserProfileService userProfileService)
 {
     /// <summary>
     /// Scores a poll: marks correct answers on questions, evaluates all user answers,
     /// updates the leaderboard, and transitions the poll to Scored.
     /// </summary>
-    /// <param name="pollId">The poll to score.</param>
-    /// <param name="correctAnswers">Map of questionId → correctOptionId.</param>
-    /// <param name="displayNameResolver">Function to resolve userId → displayName for new leaderboard entries.</param>
     public async Task ScorePollAsync(
         string pollId,
         IReadOnlyList<(string QuestionId, string CorrectOptionId)> correctAnswers,
-        Func<string, string> displayNameResolver,
         CancellationToken cancellationToken = default)
     {
         // 1. Load the poll with questions
@@ -86,7 +84,7 @@ public class ScoringService(
                 {
                     UserId = userScore.UserId,
                     SeasonId = poll.SeasonId,
-                    DisplayName = displayNameResolver(userScore.UserId)
+                    DisplayName = userProfileService.GetDisplayName(userScore.UserId)
                 };
                 entry.AddPollResults(userScore.CorrectCount, userScore.TotalAnswered);
                 await leaderboardRepository.SaveEntryAsync(entry, cancellationToken: cancellationToken);

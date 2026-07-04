@@ -13,12 +13,7 @@ public class ScoringController(ScoringService scoringService) : ControllerBase
         string pollId, [FromBody] ScorePollRequest request, CancellationToken ct)
     {
         var correctAnswers = request.Answers.Select(a => (a.QuestionId, a.CorrectOptionId)).ToList();
-
-        // TODO: Resolve display names from Cognito in Phase 5
-        string DisplayNameResolver(string userId) => userId;
-
-        await scoringService.ScorePollAsync(pollId, correctAnswers, DisplayNameResolver, ct);
-
+        await scoringService.ScorePollAsync(pollId, correctAnswers, ct);
         return Ok(new { message = "Poll scored successfully." });
     }
 }
