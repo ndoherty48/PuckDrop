@@ -2,7 +2,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using PuckDrop.Domain.Entities;
 using PuckDrop.Domain.Enums;
-using PuckDrop.Domain.Models;
+using PuckDrop.Application.Models;
 using PuckDrop.Application.Repositories;
 using PuckDrop.Infrastructure.DynamoDb.Items;
 using PuckDrop.Infrastructure.DynamoDb.Mappers;

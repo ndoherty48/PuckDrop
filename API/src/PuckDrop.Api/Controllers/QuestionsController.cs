@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using PuckDrop.Api.Contracts;
 using PuckDrop.Api.Mappings;
 using PuckDrop.Application.Services;
-using PuckDrop.Domain.Models;
+using PuckDrop.Application.Models;
 
 namespace PuckDrop.Api.Controllers;
 

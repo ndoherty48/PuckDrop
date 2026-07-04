@@ -1,6 +1,6 @@
 using PuckDrop.Domain.Entities;
 
-namespace PuckDrop.Domain.Models;
+namespace PuckDrop.Application.Models;
 
 /// <summary>
 /// A poll with all its questions and options loaded.

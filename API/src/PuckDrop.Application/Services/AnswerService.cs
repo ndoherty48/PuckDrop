@@ -1,5 +1,5 @@
 using PuckDrop.Domain.Entities;
-using PuckDrop.Domain.Models;
+using PuckDrop.Application.Models;
 using PuckDrop.Application.Repositories;
 
 namespace PuckDrop.Application.Services;
