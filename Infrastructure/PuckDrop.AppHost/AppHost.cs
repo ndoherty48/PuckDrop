@@ -1,12 +1,18 @@
 using Amazon;
 using Aspire.Hosting.AWS.Deployment;
 using Aspire.Hosting.AWS.DynamoDB;
+using PuckDrop.AppHost.AWS;
 using PuckDrop.AppHost.Extensions;
 #pragma warning disable ASPIREAWSPUBLISHERS001 
 #pragma warning disable ASPIREBROWSERLOGS001
 
 var builder = DistributedApplication.CreateBuilder(args);
-builder.AddAWSCDKEnvironment("puckdrop-cdk", CDKDefaultsProviderFactory.Preview_V1);
+
+builder.AddAWSCDKEnvironment(
+    "puckdrop-cdk", 
+    CDKDefaultsProviderFactory.Preview_V1, 
+    stackFactory: (app, props) => new DeploymentStack(app, "PuckDrop", props));
+
 
 var dynamoDbLocal = builder.AddAWSDynamoDBLocal("dynamodb", new DynamoDBLocalOptions
 {
