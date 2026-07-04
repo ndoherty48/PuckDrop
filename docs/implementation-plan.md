@@ -92,11 +92,12 @@ All entities stored in one `PuckDrop` table with composite keys. See [DynamoDB D
 
 ---
 
-## Phase 4 — API Controllers
+## Phase 4 — API Controllers ✅
 
-**Status:** Not started
+**Status:** Complete  
+**Commit:** `feat: add API controllers`
 
-### Planned
+### What was built
 
 | Controller | Endpoints |
 |-----------|-----------|
@@ -106,13 +107,19 @@ All entities stored in one `PuckDrop` table with composite keys. See [DynamoDB D
 | `AnswersController` | `GET /polls/{id}/answers`, `PUT /polls/{id}/answers` |
 | `ScoringController` | `POST /polls/{id}/score` |
 | `ResultsController` | `GET /polls/{id}/results` |
-| `LeaderboardController` | `GET /leaderboard` |
+| `LeaderboardController` | `GET /leaderboard?seasonId=` |
 
-### Design approach
+Supporting files:
+- `Contracts/ApiContracts.cs` — all request/response DTOs as records
 
-- Minimal controllers — validate input, call application service, return response
-- Consistent error responses (`error` code + `message`)
-- Route prefix `/puckdrop` applied via middleware (already configured in `LambdaEntryPoint`)
+### Design decisions
+
+- Thin controllers — validate input, call service, map to response
+- Consistent `ErrorResponse` shape with error code + message
+- `KeyNotFoundException` → 404, `InvalidOperationException` → 400, `ArgumentException` → 400
+- `GetUserId()` placeholder extracts from JWT `sub` claim (wired up in Phase 5)
+- `DisplayNameResolver` placeholder in scoring (resolved from Cognito in Phase 5)
+- Removed template `ValuesController`
 
 ---
 
