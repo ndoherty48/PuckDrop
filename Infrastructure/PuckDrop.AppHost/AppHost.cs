@@ -1,19 +1,29 @@
 using Amazon;
 using Aspire.Hosting.AWS.Deployment;
+using PuckDrop.AppHost.Extensions;
 #pragma warning disable ASPIREAWSPUBLISHERS001 
 #pragma warning disable ASPIREBROWSERLOGS001
 
 var builder = DistributedApplication.CreateBuilder(args);
 
 var awsSdk = builder.AddAWSSDKConfig()
-    .WithRegion(RegionEndpoint.EUWest2)
+    .WithRegion(RegionEndpoint.EUWest1)
     .WithProfile("PuckDrop-Dublin");
 
 builder.AddAWSCDKEnvironment("puckdrop-cdk", CDKDefaultsProviderFactory.Preview_V1);
 
 var dynamoDbLocal = builder.AddAWSDynamoDBLocal("dynamodb");
+
+// Create the PuckDrop table in DynamoDB Local after it's healthy
+var createTable = builder.AddExecutable("create-table", "aws", ".",
+        builder.GetDynamoDbResourceParams(dynamoDbLocal.GetEndpoint("http")))
+    .WithParentRelationship(dynamoDbLocal)
+    .WaitFor(dynamoDbLocal);
+
 var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.Api::PuckDrop.Api.LambdaEntryPoint::FunctionHandlerAsync")
-    .WithReference(dynamoDbLocal);
+    .WithReference(dynamoDbLocal)
+    .WaitForCompletion(createTable);
+
 var apiGateway = builder.AddAWSAPIGatewayEmulator("api-gateway", Aspire.Hosting.AWS.Lambda.APIGatewayType.HttpV2)
     .WithReference(api, Aspire.Hosting.AWS.Lambda.Method.Any, "/puckdrop/{proxy+}")
     .WithHttpEndpoint(port: 8080)
