@@ -56,6 +56,16 @@ public static class ApiServiceCollectionExtensions
                 .AddPolicy(AdminPolicy, policy => policy.RequireAssertion(_ => true));
         }
 
+        services.AddCors(options =>
+        {
+            options.AddDefaultPolicy(policy =>
+            {
+                policy.AllowAnyOrigin()
+                      .AllowAnyMethod()
+                      .AllowAnyHeader();
+            });
+        });
+
         services.AddLambdaServiceDefaults();
         return services;
     }
@@ -63,6 +73,7 @@ public static class ApiServiceCollectionExtensions
     public static IApplicationBuilder UseApis(this IApplicationBuilder app)
     {
         app.UseHttpsRedirection();
+        app.UseCors();
         app.UseRouting();
         app.UseAuthentication();
         app.UseAuthorization();

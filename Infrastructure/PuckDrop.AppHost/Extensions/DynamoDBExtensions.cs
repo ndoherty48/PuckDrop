@@ -8,6 +8,7 @@ public static class DynamoDBExtensions
             return builder;
 
         return builder
+            .WithEnvironment("AWS_REGION", "eu-west-1")
             .WithEnvironment("AWS_ACCESS_KEY_ID", "local")
             .WithEnvironment("AWS_SECRET_ACCESS_KEY", "local");
     }
@@ -23,7 +24,6 @@ public static class DynamoDBExtensions
                 "--endpoint-url", dynamoDbLocalEndpoint,
                 "--table-name", "PuckDrop",
                 "--billing-mode", "PAY_PER_REQUEST",
-                "--region", "eu-west-1",
                 "--attribute-definitions",
                     "AttributeName=PK,AttributeType=S",
                     "AttributeName=SK,AttributeType=S",

@@ -1,5 +1,4 @@
 using Amazon.DynamoDBv2;
-using Amazon.Extensions.NETCore.Setup;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PuckDrop.Application.Repositories;
