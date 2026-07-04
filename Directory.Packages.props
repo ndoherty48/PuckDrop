@@ -5,10 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting.AWS" Version="13.2.0" />
-    <PackageVersion Include="Aspire.Hosting.Blazor" Version="13.4.2-preview.1.26303.6" />
-    <PackageVersion Include="Aspire.Hosting.Browsers" Version="13.4.2-preview.1.26303.6" />
-    <PackageVersion Include="Aspire.Hosting.DevTunnels" Version="13.4.2" />
+    <PackageVersion Include="Aspire.Hosting.AWS" Version="13.3.1" />
+    <PackageVersion Include="Aspire.Hosting.Blazor" Version="13.4.6-preview.1.26319.6" />
+    <PackageVersion Include="Aspire.Hosting.Browsers" Version="13.4.6-preview.1.26319.6" />
+    <PackageVersion Include="Aspire.Hosting.DevTunnels" Version="13.4.6" />
   </ItemGroup>
 
   <ItemGroup>

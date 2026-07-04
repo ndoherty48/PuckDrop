@@ -13,9 +13,16 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 builder.Configuration.AddEnvironmentVariables();
 builder.AddBlazorClientServiceDefaults();
 
-// Register PuckDropApiClient with the API Gateway base URL
-var apiBaseUrl = builder.Configuration["ApiClientSettings:BaseUrl"] ?? builder.HostEnvironment.BaseAddress;
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl.TrimEnd('/') + "/puckdrop/") });
+// Register PuckDropApiClient with API Gateway base URL.
+// The API Gateway emulator uses fixed ports configured in the AppHost.
+var apiBaseUrl = builder.Configuration["services:api-gateway:http:0"]
+    ?? builder.Configuration["ApiClientSettings:BaseUrl"]
+    ?? "http://api-gateway-puckdrop.dev.localhost:8080";
+
+Console.WriteLine($"[PuckDrop] API base URL: {apiBaseUrl}");
+
+var baseUri = new Uri(apiBaseUrl.TrimEnd('/') + "/puckdrop/");
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = baseUri });
 builder.Services.AddScoped<PuckDropApiClient>();
 
 var app = builder.Build();
