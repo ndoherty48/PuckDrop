@@ -12,14 +12,14 @@ namespace PuckDrop.AppHost.AWS;
 public class DeploymentStack : Stack
 {
     [DefaultVpc]
-    public IVpc DefaultVpc { get; private set; }
+    public IVpc DefaultVpc { get; private set; } = null!;
 
     [DefaultECSCluster]
-    public ICluster DefaultECSCluster { get; private set; }
+    public ICluster DefaultECSCluster { get; private set; } = null!;
 
-    public Table PuckDropTable { get; private set; }
-    public UserPool UserPool { get; private set; }
-    public UserPoolClient UserPoolClient { get; private set; }
+    public Table PuckDropTable { get; private set; } = null!;
+    public UserPool UserPool { get; private set; } = null!;
+    public UserPoolClient UserPoolClient { get; private set; } = null!;
 
     public DeploymentStack(Construct scope, string id, IStackProps? props = null) : base(scope, id, props)
     {

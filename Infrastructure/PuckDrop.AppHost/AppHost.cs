@@ -33,11 +33,16 @@ var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.A
         ConstructFunctionCallback = (ctx, construct) =>
         {
             var stack = ctx.GetDeploymentStack<DeploymentStack>();
+
+            // Cognito configuration
             construct
                 .AddEnvironment("Cognito__UserPoolId", stack.UserPool.UserPoolId)
                 .AddEnvironment("Cognito__ClientId", stack.UserPoolClient.UserPoolClientId)
                 .AddEnvironment("Cognito__Region", stack.Region)
                 .AddEnvironment("Cognito__AdminGroupName", "admin");
+
+            // Grant DynamoDB read/write access
+            stack.PuckDropTable.GrantReadWriteData(construct);
         }
     })
     .WaitForCompletion(createTable);
