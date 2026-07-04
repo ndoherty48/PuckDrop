@@ -8,11 +8,10 @@ using PuckDrop.AppHost.Extensions;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-builder.AddAWSCDKEnvironment(
+var deployedCdk = builder.AddAWSCDKEnvironment(
     "puckdrop-cdk", 
     CDKDefaultsProviderFactory.Preview_V1, 
     stackFactory: (app, props) => new DeploymentStack(app, "PuckDrop", props));
-
 
 var dynamoDbLocal = builder.AddAWSDynamoDBLocal("dynamodb", new DynamoDBLocalOptions
 {
@@ -29,6 +28,17 @@ var createTable = builder.AddExecutable("create-table", "aws", ".",
 var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.Api::PuckDrop.Api.LambdaEntryPoint::FunctionHandlerAsync")
     .WithReference(dynamoDbLocal)
     .WithAWSLocalCredentials()
+    .PublishAsLambdaFunction(new PublishLambdaFunctionConfig
+    {
+        ConstructFunctionCallback = (ctx, construct) =>
+        {
+            var stack = ctx.GetDeploymentStack<DeploymentStack>();
+            construct.AddEnvironment("Cognito__UserPoolId", stack.UserPool.UserPoolId)
+                .AddEnvironment("Cognito__ClientId", stack.UserPoolClient.UserPoolClientId)
+                .AddEnvironment("Cognito__Region", stack.Region)
+                .AddEnvironment("Cognito__AdminGroupName", "admin");
+        }
+    })
     .WaitForCompletion(createTable);
 
 var apiGateway = builder.AddAWSAPIGatewayEmulator("api-gateway", Aspire.Hosting.AWS.Lambda.APIGatewayType.HttpV2)
