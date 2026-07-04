@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Amazon.Lambda.AspNetCoreServer" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\PuckDrop.Application\PuckDrop.Application.csproj" />

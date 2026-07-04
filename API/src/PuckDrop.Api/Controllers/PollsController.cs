@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PuckDrop.Api.Auth;
 using PuckDrop.Api.Contracts;
 using PuckDrop.Api.Mappings;
 using PuckDrop.Application.Services;
 
 namespace PuckDrop.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("polls")]
 public class PollsController(PollService pollService) : ControllerBase
@@ -35,6 +38,7 @@ public class PollsController(PollService pollService) : ControllerBase
         return Ok(result.Poll.ToDetailResponse(result.Questions, result.Options));
     }
 
+    [Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
     [HttpPost]
     public async Task<ActionResult<PollResponse>> CreatePoll(
         [FromBody] CreatePollRequest request, CancellationToken ct)
@@ -43,12 +47,13 @@ public class PollsController(PollService pollService) : ControllerBase
             request.Title,
             DateOnly.ParseExact(request.GameDate, "yyyy-MM-dd"),
             DateTime.Parse(request.Deadline).ToUniversalTime(),
-            GetUserId(),
+            User.GetUserId(),
             ct);
 
         return CreatedAtAction(nameof(GetPoll), new { pollId = poll.PollId }, poll.ToResponse());
     }
 
+    [Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
     [HttpPut("{pollId}")]
     public async Task<ActionResult<PollResponse>> UpdatePoll(
         string pollId, [FromBody] UpdatePollRequest request, CancellationToken ct)
@@ -61,6 +66,7 @@ public class PollsController(PollService pollService) : ControllerBase
         return Ok(poll.ToResponse());
     }
 
+    [Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
     [HttpPost("{pollId}/publish")]
     public async Task<ActionResult<PollResponse>> PublishPoll(string pollId, CancellationToken ct)
     {
@@ -68,6 +74,7 @@ public class PollsController(PollService pollService) : ControllerBase
         return Ok(poll.ToResponse());
     }
 
+    [Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
     [HttpPost("{pollId}/close")]
     public async Task<ActionResult<PollResponse>> ClosePoll(string pollId, CancellationToken ct)
     {
@@ -75,5 +82,4 @@ public class PollsController(PollService pollService) : ControllerBase
         return Ok(poll.ToResponse());
     }
 
-    private string GetUserId() => User.FindFirst("sub")?.Value ?? "anonymous";
 }

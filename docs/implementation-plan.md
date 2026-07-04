@@ -146,18 +146,30 @@ Supporting infrastructure:
 
 ---
 
-## Phase 5 — Authentication & Authorisation
+## Phase 5 — Authentication & Authorisation ✅
 
-**Status:** Not started
+**Status:** Complete
 
-### Planned
+### What was built
 
-- Cognito JWT validation via API Gateway authoriser
-- User ID extracted from `sub` claim (replace `GetUserId()` placeholder)
-- Admin role from Cognito group / custom claim
-- `[Authorize]` attributes on controllers
-- Custom `AdminOnly` policy for poll management and scoring endpoints
-- Cognito-backed `IUserProfileService` implementation (replace `DefaultUserProfileService`)
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `CognitoSettings` | `Api/Auth/` | Configuration model (UserPoolId, ClientId, Region, AdminGroupName) |
+| JWT middleware | `ApiServiceCollectionExtensions` | Bearer token validation against Cognito issuer |
+| `AdminOnly` policy | `ApiServiceCollectionExtensions` | Requires `cognito:groups` contains "admin" |
+| `ClaimsPrincipalExtensions` | `Api/Auth/` | `GetUserId()` and `GetDisplayName()` from JWT claims |
+| `CognitoUserProfileService` | `Api/Auth/` | Implements `IUserProfileService` using HTTP context claims |
+| `[Authorize]` attributes | All controllers | User-level auth on all endpoints |
+| `[Authorize(Policy = "AdminOnly")]` | Poll CRUD, Questions, Scoring | Admin-only on write endpoints |
+
+### Design decisions
+
+- In-app JWT validation (works locally without API Gateway authorizer)
+- Auth is optional (graceful if `Cognito` config section is missing — for local dev)
+- `CognitoUserProfileService` lives in Api layer (depends on `IHttpContextAccessor`)
+- Claims fallback chain: `name` → `cognito:username` → `email` → `sub`
+- `UnauthorizedAccessException` thrown if `sub` claim is missing (shouldn't happen with valid JWT)
+- Admin policy checks `cognito:groups` claim value (Cognito group membership)
 
 ---
 

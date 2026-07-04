@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PuckDrop.Api.Contracts;
 using PuckDrop.Api.Mappings;
@@ -6,6 +7,7 @@ using PuckDrop.Application.Models;
 
 namespace PuckDrop.Api.Controllers;
 
+[Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
 [ApiController]
 [Route("polls/{pollId}/questions")]
 public class QuestionsController(PollService pollService) : ControllerBase

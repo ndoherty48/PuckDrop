@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PuckDrop.Api.Contracts;
 using PuckDrop.Api.Mappings;
@@ -5,6 +6,7 @@ using PuckDrop.Application.Services;
 
 namespace PuckDrop.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("leaderboard")]
 public class LeaderboardController(LeaderboardService leaderboardService) : ControllerBase
