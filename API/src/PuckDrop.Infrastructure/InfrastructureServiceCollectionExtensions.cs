@@ -26,10 +26,10 @@ public static class InfrastructureServiceCollectionExtensions
         }
 
         // Repositories
-        services.AddSingleton<ISeasonRepository, DynamoDbSeasonRepository>();
-        services.AddSingleton<IPollRepository, DynamoDbPollRepository>();
-        services.AddSingleton<IUserAnswerRepository, DynamoDbUserAnswerRepository>();
-        services.AddSingleton<ILeaderboardRepository, DynamoDbLeaderboardRepository>();
+        services.AddScoped<ISeasonRepository, DynamoDbSeasonRepository>();
+        services.AddScoped<IPollRepository, DynamoDbPollRepository>();
+        services.AddScoped<IUserAnswerRepository, DynamoDbUserAnswerRepository>();
+        services.AddScoped<ILeaderboardRepository, DynamoDbLeaderboardRepository>();
 
         return services;
     }

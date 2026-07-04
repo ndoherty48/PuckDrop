@@ -66,25 +66,29 @@ All entities stored in one `PuckDrop` table with composite keys. See [DynamoDB D
 
 ---
 
-## Phase 3 — Application Layer (Use Cases)
+## Phase 3 — Application Layer (Use Cases) ✅
 
-**Status:** Not started
+**Status:** Complete  
+**Commit:** `feat: add application service layer`
 
-### Planned
+### What was built
 
 | Service | Operations |
 |---------|-----------|
-| `SeasonService` | Get current season, list seasons |
-| `PollService` | Create poll, publish, close, get poll with user's answers, list polls |
-| `AnswerService` | Submit/update answers (with deadline validation) |
-| `ScoringService` | Score a poll — evaluate all answers, update leaderboard |
-| `LeaderboardService` | Get season leaderboard |
+| `SeasonService` | `GetCurrentSeason`, `ListSeasons`, `EnsureSeasonExists` (auto-creates from game date) |
+| `PollService` | `CreatePoll`, `UpdatePoll`, `PublishPoll`, `ClosePoll`, `GetPoll`, `GetPollWithQuestions`, `ListPolls`, `GetActivePolls`, `AddQuestion`, `DeleteQuestion` |
+| `AnswerService` | `SubmitAnswers` (validates poll open, deadline, question/option IDs), `GetUserAnswers` |
+| `ScoringService` | `ScorePoll` (evaluates answers, aggregates points, updates leaderboard, transitions status) |
+| `LeaderboardService` | `GetLeaderboard` (defaults to current season, shared ranks for ties: 1,2,2,4) |
 
-### Design approach
+### Design decisions
 
-- Thin service classes orchestrating domain entities + repositories
-- No business logic in services — delegate to entity methods
-- Services validate preconditions, load aggregates, call domain methods, persist
+- Thin orchestration services — business logic delegated to entity methods
+- Scoped DI lifetime (one instance per HTTP request)
+- `Guid.CreateVersion7()` for time-ordered unique IDs (native .NET 10, no external package)
+- Services validate preconditions before calling domain methods
+- `ScoringService` is the most complex — coordinates questions, answers, leaderboard in sequence
+- `LeaderboardResult` and `RankedEntry` records for clean return types
 
 ---
 
