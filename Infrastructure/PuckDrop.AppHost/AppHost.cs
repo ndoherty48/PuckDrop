@@ -17,6 +17,8 @@ var dynamoDbLocal = builder.AddAWSDynamoDBLocal("dynamodb");
 // Create the PuckDrop table in DynamoDB Local after it's healthy
 var createTable = builder.AddExecutable("create-table", "aws", ".",
         builder.GetDynamoDbResourceParams(dynamoDbLocal.GetEndpoint("http")))
+    .WithEnvironment("AWS_ACCESS_KEY_ID", "local")
+    .WithEnvironment("AWS_SECRET_ACCESS_KEY", "local")
     .WithParentRelationship(dynamoDbLocal)
     .WaitFor(dynamoDbLocal);
 
