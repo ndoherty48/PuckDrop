@@ -22,7 +22,7 @@ public static class ApiServiceCollectionExtensions
 
         var cognitoSettings = configuration.GetSection(CognitoSettings.SectionName).Get<CognitoSettings>();
 
-        if (cognitoSettings is not null)
+        if (cognitoSettings is not null && !cognitoSettings.UserPoolId.Contains("PLACEHOLDER"))
         {
             services.AddSingleton(cognitoSettings);
 
@@ -45,6 +45,15 @@ public static class ApiServiceCollectionExtensions
                     policy.RequireAssertion(context =>
                         context.User.HasClaim(c =>
                             c.Type == "cognito:groups" && c.Value == cognitoSettings.AdminGroupName)));
+        }
+        else
+        {
+            // Dev mode: no real auth configured. Allow all requests.
+            services.AddAuthentication("DevScheme")
+                .AddScheme<DevAuthenticationOptions, DevAuthenticationHandler>("DevScheme", null);
+
+            services.AddAuthorizationBuilder()
+                .AddPolicy(AdminPolicy, policy => policy.RequireAssertion(_ => true));
         }
 
         services.AddLambdaServiceDefaults();
