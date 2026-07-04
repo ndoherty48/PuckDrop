@@ -13,6 +13,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<AnswerService>();
         services.AddScoped<ScoringService>();
         services.AddScoped<LeaderboardService>();
+        services.AddScoped<ResultsService>();
 
         return services;
     }

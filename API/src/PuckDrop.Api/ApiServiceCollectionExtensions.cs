@@ -1,10 +1,15 @@
-﻿namespace PuckDrop.Api;
+using PuckDrop.Api.Filters;
+
+namespace PuckDrop.Api;
 
 public static class ApiServiceCollectionExtensions
 {
     public static IServiceCollection AddApis(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddControllers();
+        services.AddControllers(options =>
+        {
+            options.Filters.Add<DomainExceptionFilter>();
+        });
         services.AddLambdaServiceDefaults();
         return services;
     }

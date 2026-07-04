@@ -15,107 +15,53 @@ public class QuestionsController : ControllerBase
         _pollService = pollService;
     }
 
-    /// <summary>
-    /// Add a question with options to a poll (admin only).
-    /// </summary>
     [HttpPost]
     public async Task<ActionResult<QuestionResponse>> AddQuestion(
-        string pollId,
-        [FromBody] CreateQuestionRequest request,
-        CancellationToken cancellationToken)
+        string pollId, [FromBody] CreateQuestionRequest request, CancellationToken ct)
     {
-        try
-        {
-            var options = request.Options.Select(o => (o.Text, o.SortOrder)).ToList();
-            var question = await _pollService.AddQuestionAsync(pollId, request.Text, request.SortOrder, options, cancellationToken);
+        var options = request.Options.Select(o => (o.Text, o.SortOrder)).ToList();
+        var question = await _pollService.AddQuestionAsync(pollId, request.Text, request.SortOrder, options, ct);
 
-            // Return the created question (options have their generated IDs)
-            var pollData = await _pollService.GetPollWithQuestionsAsync(pollId, cancellationToken);
-            if (pollData is null)
-                return NotFound(new ErrorResponse("POLL_NOT_FOUND", $"Poll '{pollId}' not found."));
+        // Read back to get generated option IDs
+        var pollData = await _pollService.GetPollWithQuestionsAsync(pollId, ct);
+        var (_, questions, allOptions) = pollData!.Value;
 
-            var (_, questions, allOptions) = pollData.Value;
-            var createdQuestion = questions.FirstOrDefault(q => q.QuestionId == question.QuestionId);
-            if (createdQuestion is null)
-                return StatusCode(500, new ErrorResponse("INTERNAL_ERROR", "Failed to retrieve created question."));
+        var created = questions.First(q => q.QuestionId == question.QuestionId);
+        var questionOptions = allOptions
+            .Where(o => o.QuestionId == question.QuestionId)
+            .Select(o => new OptionResponse(o.OptionId, o.Text, o.SortOrder))
+            .ToList();
 
-            var questionOptions = allOptions
-                .Where(o => o.QuestionId == question.QuestionId)
-                .Select(o => new OptionResponse(o.OptionId, o.Text, o.SortOrder))
-                .ToList();
-
-            return Created($"polls/{pollId}/questions/{question.QuestionId}",
-                new QuestionResponse(createdQuestion.QuestionId, createdQuestion.Text, createdQuestion.SortOrder, createdQuestion.CorrectOptionId, questionOptions));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound(new ErrorResponse("POLL_NOT_FOUND", $"Poll '{pollId}' not found."));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new ErrorResponse("VALIDATION_ERROR", ex.Message));
-        }
+        return Created(
+            $"polls/{pollId}/questions/{question.QuestionId}",
+            new QuestionResponse(created.QuestionId, created.Text, created.SortOrder, created.CorrectOptionId, questionOptions));
     }
 
-    /// <summary>
-    /// Edit a question and its options (admin only).
-    /// Replaces the question and options entirely.
-    /// </summary>
     [HttpPut("{questionId}")]
     public async Task<ActionResult<QuestionResponse>> UpdateQuestion(
-        string pollId,
-        string questionId,
-        [FromBody] UpdateQuestionRequest request,
-        CancellationToken cancellationToken)
+        string pollId, string questionId, [FromBody] UpdateQuestionRequest request, CancellationToken ct)
     {
-        try
-        {
-            // Delete old and re-create with same ID
-            await _pollService.DeleteQuestionAsync(pollId, questionId, cancellationToken);
+        await _pollService.DeleteQuestionAsync(pollId, questionId, ct);
 
-            var options = request.Options.Select(o => (o.Text, o.SortOrder)).ToList();
-            // Re-use the existing questionId by calling the repo directly via a new service method
-            // For now, delete + add (which generates a new ID) — this is a simplification
-            var question = await _pollService.AddQuestionAsync(pollId, request.Text, request.SortOrder, options, cancellationToken);
+        var options = request.Options.Select(o => (o.Text, o.SortOrder)).ToList();
+        var question = await _pollService.AddQuestionAsync(pollId, request.Text, request.SortOrder, options, ct);
 
-            var pollData = await _pollService.GetPollWithQuestionsAsync(pollId, cancellationToken);
-            var (_, questions, allOptions) = pollData!.Value;
-            var updatedQuestion = questions.First(q => q.QuestionId == question.QuestionId);
-            var questionOptions = allOptions
-                .Where(o => o.QuestionId == question.QuestionId)
-                .Select(o => new OptionResponse(o.OptionId, o.Text, o.SortOrder))
-                .ToList();
+        var pollData = await _pollService.GetPollWithQuestionsAsync(pollId, ct);
+        var (_, questions, allOptions) = pollData!.Value;
 
-            return Ok(new QuestionResponse(updatedQuestion.QuestionId, updatedQuestion.Text, updatedQuestion.SortOrder, updatedQuestion.CorrectOptionId, questionOptions));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound(new ErrorResponse("POLL_NOT_FOUND", $"Poll '{pollId}' not found."));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new ErrorResponse("VALIDATION_ERROR", ex.Message));
-        }
+        var updated = questions.First(q => q.QuestionId == question.QuestionId);
+        var questionOptions = allOptions
+            .Where(o => o.QuestionId == question.QuestionId)
+            .Select(o => new OptionResponse(o.OptionId, o.Text, o.SortOrder))
+            .ToList();
+
+        return Ok(new QuestionResponse(updated.QuestionId, updated.Text, updated.SortOrder, updated.CorrectOptionId, questionOptions));
     }
 
-    /// <summary>
-    /// Delete a question and its options (admin only).
-    /// </summary>
     [HttpDelete("{questionId}")]
-    public async Task<IActionResult> DeleteQuestion(string pollId, string questionId, CancellationToken cancellationToken)
+    public async Task<IActionResult> DeleteQuestion(string pollId, string questionId, CancellationToken ct)
     {
-        try
-        {
-            await _pollService.DeleteQuestionAsync(pollId, questionId, cancellationToken);
-            return NoContent();
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound(new ErrorResponse("POLL_NOT_FOUND", $"Poll '{pollId}' not found."));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new ErrorResponse("VALIDATION_ERROR", ex.Message));
-        }
+        await _pollService.DeleteQuestionAsync(pollId, questionId, ct);
+        return NoContent();
     }
 }
