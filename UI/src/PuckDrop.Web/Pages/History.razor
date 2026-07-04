@@ -66,9 +66,9 @@ else if (_polls is not null)
                 .OrderByDescending(p => p.GameDate)
                 .ToList() ?? [];
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _error = $"Failed to load history: {ex.Message}";
+            _error = "Unable to load history. Please try again later.";
         }
         finally
         {

@@ -11,7 +11,11 @@ else if (_error is not null)
 {
     <div class="alert alert-danger">@_error</div>
 }
-else if (_leaderboard is not null)
+else if (_leaderboard is null || _leaderboard.Entries.Count == 0)
+{
+    <p class="text-muted">No leaderboard data yet.</p>
+}
+else
 {
     <table class="table table-striped">
         <thead>
@@ -49,9 +53,9 @@ else if (_leaderboard is not null)
         {
             _leaderboard = await Api.GetLeaderboardAsync();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _error = $"Failed to load leaderboard: {ex.Message}";
+            _error = "Unable to load leaderboard. Please try again later.";
         }
         finally
         {

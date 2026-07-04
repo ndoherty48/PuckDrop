@@ -7,7 +7,11 @@
     <a href="/admin/polls/create" class="btn btn-primary">Create Poll</a>
 </div>
 
-@if (_loading)
+@if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_loading)
 {
     <p>Loading polls...</p>
 }
@@ -60,6 +64,7 @@ else
 @code {
     private List<PollModel>? _polls;
     private bool _loading = true;
+    private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
@@ -69,12 +74,27 @@ else
     private async Task LoadPollsAsync()
     {
         _loading = true;
-        var season = await Api.GetCurrentSeasonAsync();
-        if (season is not null)
+        _error = null;
+        try
         {
-            _polls = await Api.GetPollsAsync(season.SeasonId);
+            var season = await Api.GetCurrentSeasonAsync();
+            if (season is not null)
+            {
+                _polls = await Api.GetPollsAsync(season.SeasonId);
+            }
+            else
+            {
+                _polls = [];
+            }
         }
-        _loading = false;
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task PublishAsync(string pollId)
