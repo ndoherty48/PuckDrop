@@ -1,0 +1,119 @@
+@page "/results/{PollId}"
+@inject PuckDropApiClient Api
+
+<h2>Poll Results</h2>
+
+@if (_loading)
+{
+    <p><em>Loading results...</em></p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_results is not null)
+{
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4 class="mb-0">@_poll?.Title</h4>
+        </div>
+        <div class="card-body">
+            @foreach (var question in _results.Questions)
+            {
+                <div class="mb-4">
+                    <h5>@question.Text</h5>
+                    <table class="table table-bordered table-sm">
+                        <thead>
+                            <tr>
+                                <th>Option</th>
+                                @foreach (var user in _results.UserResults)
+                                {
+                                    <th>@user.DisplayName</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var option in question.Options.OrderBy(o => o.SortOrder))
+                            {
+                                var isCorrect = option.OptionId == question.CorrectOptionId;
+                                <tr class="@(isCorrect ? "table-success" : "")">
+                                    <td>
+                                        @option.Text
+                                        @if (isCorrect)
+                                        {
+                                            <span class="badge bg-success ms-1">Correct</span>
+                                        }
+                                    </td>
+                                    @foreach (var user in _results.UserResults)
+                                    {
+                                        var answer = user.Answers.FirstOrDefault(a => a.QuestionId == question.QuestionId);
+                                        <td class="text-center">
+                                            @if (answer?.SelectedOptionId == option.OptionId)
+                                            {
+                                                if (answer.IsCorrect == true)
+                                                {
+                                                    <span class="text-success fw-bold">✓</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-danger fw-bold">✗</span>
+                                                }
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <hr />
+
+            <h5>Summary</h5>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Points</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in _results.UserResults.OrderByDescending(u => u.Points))
+                    {
+                        <tr>
+                            <td>@user.DisplayName</td>
+                            <td>@user.Points</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string PollId { get; set; } = default!;
+
+    private PollResultsModel? _results;
+    private PollDetailModel? _poll;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _poll = await Api.GetPollAsync(PollId);
+            _results = await Api.GetResultsAsync(PollId);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load results: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

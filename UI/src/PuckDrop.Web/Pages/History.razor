@@ -1,0 +1,85 @@
+@page "/history"
+@inject PuckDropApiClient Api
+
+<h2>Poll History</h2>
+
+@if (_loading)
+{
+    <p><em>Loading history...</em></p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_polls is not null)
+{
+    @if (!_polls.Any())
+    {
+        <p>No past polls found.</p>
+    }
+    else
+    {
+        <div class="list-group">
+            @foreach (var poll in _polls)
+            {
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-1">@poll.Title</h5>
+                            <small class="text-muted">@poll.GameDate</small>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge @GetStatusBadgeClass(poll.Status)">@poll.Status</span>
+                            @if (poll.Status == "Scored")
+                            {
+                                <a href="/results/@poll.PollId" class="btn btn-sm btn-outline-primary">
+                                    View Results
+                                </a>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private List<PollModel>? _polls;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var season = await Api.GetCurrentSeasonAsync();
+            if (season is null)
+            {
+                _error = "No current season found.";
+                return;
+            }
+
+            var allPolls = await Api.GetPollsAsync(season.SeasonId);
+            _polls = allPolls?
+                .Where(p => p.Status is "Closed" or "Scored")
+                .OrderByDescending(p => p.GameDate)
+                .ToList() ?? [];
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load history: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "Scored" => "bg-success",
+        "Closed" => "bg-secondary",
+        _ => "bg-info"
+    };
+}

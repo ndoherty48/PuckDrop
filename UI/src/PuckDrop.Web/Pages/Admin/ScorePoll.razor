@@ -1,0 +1,93 @@
+@page "/admin/polls/{PollId}/score"
+@inject PuckDropApiClient Api
+@inject NavigationManager Nav
+
+<h3 class="mb-4">Score Poll</h3>
+
+@if (_loading)
+{
+    <p>Loading poll...</p>
+}
+else if (_poll is null)
+{
+    <p class="text-danger">Poll not found.</p>
+}
+else
+{
+    <p class="text-muted mb-4">Select the correct answer for each question.</p>
+
+    @foreach (var question in _poll.Questions.OrderBy(q => q.SortOrder))
+    {
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6 class="card-title">@question.Text</h6>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    @foreach (var option in question.Options.OrderBy(o => o.SortOrder))
+                    {
+                        var isSelected = _correctAnswers.TryGetValue(question.QuestionId, out var selectedId)
+                                         && selectedId == option.OptionId;
+                        <button class="btn @(isSelected ? "btn-success" : "btn-outline-secondary")"
+                                @onclick="() => SelectAnswer(question.QuestionId, option.OptionId)">
+                            @option.Text
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="mt-4">
+        <button class="btn btn-primary btn-lg" @onclick="SubmitScoresAsync"
+                disabled="@(!AllQuestionsAnswered || _submitting)">
+            @(_submitting ? "Submitting..." : "Submit Scores")
+        </button>
+        <a href="/admin/polls" class="btn btn-outline-secondary btn-lg ms-2">Cancel</a>
+    </div>
+
+    @if (!AllQuestionsAnswered)
+    {
+        <p class="text-muted mt-2">
+            Please select an answer for all @_poll.Questions.Count questions
+            (@_correctAnswers.Count of @_poll.Questions.Count selected).
+        </p>
+    }
+}
+
+@code {
+    [Parameter] public string PollId { get; set; } = "";
+
+    private PollDetailModel? _poll;
+    private bool _loading = true;
+    private bool _submitting;
+    private Dictionary<string, string> _correctAnswers = new();
+
+    private bool AllQuestionsAnswered =>
+        _poll is not null && _correctAnswers.Count == _poll.Questions.Count;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        _poll = await Api.GetPollAsync(PollId);
+        _loading = false;
+    }
+
+    private void SelectAnswer(string questionId, string optionId)
+    {
+        _correctAnswers[questionId] = optionId;
+    }
+
+    private async Task SubmitScoresAsync()
+    {
+        if (!AllQuestionsAnswered)
+            return;
+
+        _submitting = true;
+
+        var request = new ScorePollRequest(
+            _correctAnswers.Select(kv => new ScoreItem(kv.Key, kv.Value)).ToList()
+        );
+
+        await Api.ScorePollAsync(PollId, request);
+        Nav.NavigateTo($"/results/{PollId}");
+    }
+}

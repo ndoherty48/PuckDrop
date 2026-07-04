@@ -1,0 +1,73 @@
+@page "/admin/polls/create"
+@inject PuckDropApiClient Api
+@inject NavigationManager Nav
+
+<h3 class="mb-4">Create Poll</h3>
+
+<div class="row">
+    <div class="col-md-6">
+        <EditForm Model="_model" OnValidSubmit="HandleSubmitAsync" FormName="CreatePollForm">
+            <div class="mb-3">
+                <label for="title" class="form-label">Title</label>
+                <InputText id="title" class="form-control" @bind-Value="_model.Title" />
+            </div>
+
+            <div class="mb-3">
+                <label for="gameDate" class="form-label">Game Date</label>
+                <InputDate id="gameDate" class="form-control" @bind-Value="_model.GameDate" />
+            </div>
+
+            <div class="mb-3">
+                <label for="deadline" class="form-label">Deadline</label>
+                <input id="deadline" type="datetime-local" class="form-control"
+                       value="@_model.Deadline?.ToString("yyyy-MM-ddTHH:mm")"
+                       @onchange="OnDeadlineChanged" />
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled="@_submitting">
+                @(_submitting ? "Creating..." : "Create Poll")
+            </button>
+            <a href="/admin/polls" class="btn btn-outline-secondary ms-2">Cancel</a>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private CreatePollFormModel _model = new();
+    private bool _submitting;
+
+    private void OnDeadlineChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+        {
+            _model.Deadline = dt;
+        }
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _submitting = true;
+
+        var request = new CreatePollRequest(
+            _model.Title,
+            _model.GameDate?.ToString("yyyy-MM-dd") ?? "",
+            _model.Deadline?.ToString("o") ?? ""
+        );
+
+        var poll = await Api.CreatePollAsync(request);
+
+        if (poll is not null)
+        {
+            Nav.NavigateTo($"/admin/polls/{poll.PollId}/edit");
+        }
+
+        _submitting = false;
+    }
+
+    private class CreatePollFormModel
+    {
+        public string Title { get; set; } = "";
+        public DateTime? GameDate { get; set; } = DateTime.Today;
+        public DateTime? Deadline { get; set; } = DateTime.Today;
+    }
+}

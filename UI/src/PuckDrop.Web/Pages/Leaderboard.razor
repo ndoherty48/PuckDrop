@@ -1,0 +1,66 @@
+@page "/leaderboard"
+@inject PuckDropApiClient Api
+
+<h2>Leaderboard</h2>
+
+@if (_loading)
+{
+    <p><em>Loading leaderboard...</em></p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_leaderboard is not null)
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Name</th>
+                <th>Points</th>
+                <th>Games Played</th>
+                <th>Accuracy %</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var entry in _leaderboard.Entries.OrderBy(e => e.Rank))
+            {
+                <tr>
+                    <td>@entry.Rank</td>
+                    <td>@entry.DisplayName</td>
+                    <td>@entry.TotalPoints</td>
+                    <td>@entry.TotalAnswered</td>
+                    <td>@(CalculateAccuracy(entry))%</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private LeaderboardModel? _leaderboard;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _leaderboard = await Api.GetLeaderboardAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load leaderboard: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string CalculateAccuracy(LeaderboardEntryModel entry) =>
+        entry.TotalAnswered > 0
+            ? ((double)entry.TotalPoints / entry.TotalAnswered * 100).ToString("F1")
+            : "0.0";
+}

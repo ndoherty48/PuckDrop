@@ -1,0 +1,146 @@
+@page "/poll/{PollId}"
+
+@inject PuckDropApiClient Api
+
+<div class="container-fluid">
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">
+            @errorMessage
+        </div>
+    }
+    else if (poll is null)
+    {
+        <p>Loading poll...</p>
+    }
+    else
+    {
+        <div class="d-flex align-items-center mb-3">
+            <h2 class="mb-0">@poll.Title</h2>
+            @if (IsVotingClosed)
+            {
+                <span class="badge bg-secondary ms-3">Voting closed</span>
+            }
+        </div>
+
+        <p class="text-muted">Deadline: @poll.Deadline</p>
+
+        @if (successMessage is not null)
+        {
+            <div class="alert alert-success" role="alert">
+                @successMessage
+            </div>
+        }
+
+        @foreach (var question in poll.Questions)
+        {
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">@question.Text</h5>
+
+                    @foreach (var option in question.Options.OrderBy(o => o.SortOrder))
+                    {
+                        var inputId = $"{question.QuestionId}_{option.OptionId}";
+                        var isSelected = selectedOptions.TryGetValue(question.QuestionId, out var sel) && sel == option.OptionId;
+
+                        <div class="form-check">
+                            <input class="form-check-input"
+                                   type="radio"
+                                   name="@question.QuestionId"
+                                   id="@inputId"
+                                   value="@option.OptionId"
+                                   checked="@isSelected"
+                                   disabled="@IsVotingClosed"
+                                   @onchange="() => SelectOption(question.QuestionId, option.OptionId)" />
+                            <label class="form-check-label" for="@inputId">
+                                @option.Text
+                            </label>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (!IsVotingClosed)
+        {
+            <button class="btn btn-primary" @onclick="SubmitPicks" disabled="@isSubmitting">
+                @(isSubmitting ? "Submitting..." : "Submit Picks")
+            </button>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string PollId { get; set; } = default!;
+
+    private PollDetailModel? poll;
+    private Dictionary<string, string> selectedOptions = new();
+    private string? errorMessage;
+    private string? successMessage;
+    private bool isSubmitting;
+
+    private bool IsVotingClosed =>
+        poll is not null && DateTime.Parse(poll.Deadline) < DateTime.UtcNow;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            poll = await Api.GetPollAsync(PollId);
+
+            if (poll is null)
+            {
+                errorMessage = "Poll not found.";
+                return;
+            }
+
+            // Pre-populate from existing answers
+            var existingAnswers = await Api.GetAnswersAsync(PollId);
+            if (existingAnswers is not null)
+            {
+                foreach (var answer in existingAnswers)
+                {
+                    selectedOptions[answer.QuestionId] = answer.SelectedOptionId;
+                }
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load poll. Please try again later.";
+        }
+    }
+
+    private void SelectOption(string questionId, string optionId)
+    {
+        selectedOptions[questionId] = optionId;
+        successMessage = null;
+    }
+
+    private async Task SubmitPicks()
+    {
+        if (isSubmitting) return;
+
+        isSubmitting = true;
+        successMessage = null;
+        errorMessage = null;
+
+        try
+        {
+            var answers = selectedOptions
+                .Select(kv => new AnswerItem(kv.Key, kv.Value))
+                .ToList();
+
+            await Api.SubmitAnswersAsync(PollId, new SubmitAnswersRequest(answers));
+            successMessage = "Your picks have been submitted!";
+        }
+        catch (Exception)
+        {
+            errorMessage = "Failed to submit picks. Please try again.";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

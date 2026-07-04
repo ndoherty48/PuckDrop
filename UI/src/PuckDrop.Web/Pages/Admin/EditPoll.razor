@@ -1,0 +1,152 @@
+@page "/admin/polls/{PollId}/edit"
+@inject PuckDropApiClient Api
+
+<h3 class="mb-4">Edit Poll</h3>
+
+@if (_loading)
+{
+    <p>Loading poll...</p>
+}
+else if (_poll is null)
+{
+    <p class="text-danger">Poll not found.</p>
+}
+else
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">@_poll.Title</h5>
+            <p class="card-text text-muted">
+                Game Date: @_poll.GameDate &bull; Deadline: @_poll.Deadline
+            </p>
+        </div>
+    </div>
+
+    <h5 class="mb-3">Questions</h5>
+
+    @if (_poll.Questions.Count == 0)
+    {
+        <p class="text-muted">No questions yet. Add one below.</p>
+    }
+    else
+    {
+        @foreach (var question in _poll.Questions.OrderBy(q => q.SortOrder))
+        {
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="card-title">@question.Text</h6>
+                            <ul class="list-unstyled mb-0">
+                                @foreach (var option in question.Options.OrderBy(o => o.SortOrder))
+                                {
+                                    <li class="ms-3">• @option.Text</li>
+                                }
+                            </ul>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => DeleteQuestionAsync(question.QuestionId)">
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+    <div class="card border-primary">
+        <div class="card-header bg-primary text-white">Add Question</div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Question Text</label>
+                <input type="text" class="form-control" @bind="_newQuestionText" />
+            </div>
+
+            @for (var i = 0; i < _newOptions.Count; i++)
+            {
+                var index = i;
+                <div class="mb-2 d-flex align-items-center">
+                    <label class="form-label me-2 mb-0">Option @(index + 1)</label>
+                    <input type="text" class="form-control"
+                           value="@_newOptions[index]"
+                           @onchange="(e) => _newOptions[index] = e.Value?.ToString() ?? string.Empty" />
+                    @if (i >= 2)
+                    {
+                        <button class="btn btn-sm btn-outline-danger ms-2"
+                                @onclick="() => _newOptions.RemoveAt(index)">✕</button>
+                    }
+                </div>
+            }
+
+            <button class="btn btn-sm btn-outline-secondary mb-3" @onclick="AddOptionInput">
+                + Add Option
+            </button>
+
+            <div>
+                <button class="btn btn-primary" @onclick="AddQuestionAsync" disabled="@_addingQuestion">
+                    @(_addingQuestion ? "Adding..." : "Add Question")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string PollId { get; set; } = "";
+
+    private PollDetailModel? _poll;
+    private bool _loading = true;
+    private bool _addingQuestion;
+
+    private string _newQuestionText = "";
+    private List<string> _newOptions = new() { "", "" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPollAsync();
+    }
+
+    private async Task LoadPollAsync()
+    {
+        _loading = true;
+        _poll = await Api.GetPollAsync(PollId);
+        _loading = false;
+    }
+
+    private void AddOptionInput()
+    {
+        _newOptions.Add("");
+    }
+
+    private async Task AddQuestionAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newQuestionText))
+            return;
+
+        var options = _newOptions
+            .Where(o => !string.IsNullOrWhiteSpace(o))
+            .Select((text, i) => new CreateOptionRequest(text, i + 1))
+            .ToList();
+
+        if (options.Count < 2)
+            return;
+
+        _addingQuestion = true;
+
+        var sortOrder = (_poll?.Questions.Count ?? 0) + 1;
+        var request = new CreateQuestionRequest(_newQuestionText, sortOrder, options);
+        await Api.AddQuestionAsync(PollId, request);
+
+        _newQuestionText = "";
+        _newOptions = new List<string> { "", "" };
+
+        await LoadPollAsync();
+        _addingQuestion = false;
+    }
+
+    private async Task DeleteQuestionAsync(string questionId)
+    {
+        await Api.DeleteQuestionAsync(PollId, questionId);
+        await LoadPollAsync();
+    }
+}

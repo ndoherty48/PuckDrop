@@ -1,0 +1,100 @@
+@page "/admin/polls"
+@inject PuckDropApiClient Api
+
+<h3 class="mb-4">Manage Polls</h3>
+
+<div class="mb-3">
+    <a href="/admin/polls/create" class="btn btn-primary">Create Poll</a>
+</div>
+
+@if (_loading)
+{
+    <p>Loading polls...</p>
+}
+else if (_polls is null || _polls.Count == 0)
+{
+    <p class="text-muted">No polls found for the current season.</p>
+}
+else
+{
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Game Date</th>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var poll in _polls)
+            {
+                <tr>
+                    <td>@poll.GameDate</td>
+                    <td>@poll.Title</td>
+                    <td><span class="badge bg-@GetStatusColor(poll.Status)">@poll.Status</span></td>
+                    <td>
+                        @if (poll.Status is "Draft" or "Open")
+                        {
+                            <a href="/admin/polls/@poll.PollId/edit" class="btn btn-sm btn-outline-secondary me-1">Edit</a>
+                        }
+                        @if (poll.Status == "Draft")
+                        {
+                            <button class="btn btn-sm btn-success me-1" @onclick="() => PublishAsync(poll.PollId)">Publish</button>
+                        }
+                        @if (poll.Status == "Open")
+                        {
+                            <button class="btn btn-sm btn-warning me-1" @onclick="() => CloseAsync(poll.PollId)">Close</button>
+                        }
+                        @if (poll.Status == "Closed")
+                        {
+                            <a href="/admin/polls/@poll.PollId/score" class="btn btn-sm btn-info">Score</a>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<PollModel>? _polls;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPollsAsync();
+    }
+
+    private async Task LoadPollsAsync()
+    {
+        _loading = true;
+        var season = await Api.GetCurrentSeasonAsync();
+        if (season is not null)
+        {
+            _polls = await Api.GetPollsAsync(season.SeasonId);
+        }
+        _loading = false;
+    }
+
+    private async Task PublishAsync(string pollId)
+    {
+        await Api.PublishPollAsync(pollId);
+        await LoadPollsAsync();
+    }
+
+    private async Task CloseAsync(string pollId)
+    {
+        await Api.ClosePollAsync(pollId);
+        await LoadPollsAsync();
+    }
+
+    private static string GetStatusColor(string status) => status switch
+    {
+        "Draft" => "secondary",
+        "Open" => "success",
+        "Closed" => "warning",
+        "Scored" => "info",
+        _ => "light"
+    };
+}

@@ -173,18 +173,37 @@ Supporting infrastructure:
 
 ---
 
-## Phase 6 — Blazor WASM Frontend
+## Phase 6 — Blazor WASM Frontend ✅
 
-**Status:** Not started
+**Status:** Complete
 
-### Planned (priority order)
+### What was built
 
-1. Poll submission flow (core UX)
-2. Results page
-3. Leaderboard
-4. Home page (dashboard)
-5. Admin: create/edit/score polls
-6. History page
+| Page | Route | Purpose |
+|------|-------|---------|
+| Home | `/` | Dashboard with active poll CTA, quick leaderboard |
+| Poll | `/poll/{id}` | View questions, submit/edit answers, deadline countdown |
+| Results | `/results/{id}` | Per-question breakdown with correct/incorrect per user |
+| Leaderboard | `/leaderboard` | Season standings table with rank, points, accuracy |
+| History | `/history` | Past polls list with status badges and result links |
+| Admin: Polls | `/admin/polls` | List/manage all polls with contextual action buttons |
+| Admin: Create | `/admin/polls/create` | Create poll form (title, date, deadline) |
+| Admin: Edit | `/admin/polls/{id}/edit` | Edit poll, add/remove questions with options |
+| Admin: Score | `/admin/polls/{id}/score` | Mark correct answers per question |
+
+Supporting infrastructure:
+- `Services/PuckDropApiClient.cs` — typed HTTP client wrapping all API endpoints
+- `Services/Models.cs` — client-side records matching API contracts
+- `Layout/MainLayout.razor` — Bootstrap navbar, mobile-first, dark theme
+
+### Design decisions
+
+- Bootstrap 5 for styling (already in template, mobile-first)
+- No client-side auth yet — API handles auth; UI will add Cognito OIDC later
+- Graceful error handling with try/catch and user-friendly messages
+- API base URL from Aspire environment variable (`ApiClientSettings__BaseUrl`)
+- No state management library — simple per-page state
+- Removed template pages (Counter, Weather) and sample-data
 
 ---
 
