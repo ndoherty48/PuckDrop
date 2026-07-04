@@ -11,23 +11,33 @@ namespace PuckDrop.AppHost.AWS;
 
 public class DeploymentStack : Stack
 {
+    [DefaultVpc]
+    public IVpc DefaultVpc { get; private set; }
+
+    [DefaultECSCluster]
+    public ICluster DefaultECSCluster { get; private set; }
+
+    public Table PuckDropTable { get; private set; }
+    public UserPool UserPool { get; private set; }
+    public UserPoolClient UserPoolClient { get; private set; }
+
     public DeploymentStack(Construct scope, string id, IStackProps? props = null) : base(scope, id, props)
     {
-        // Use the account's default VPC instead of creating a new one
-        DefaultVpc = Vpc.FromLookup(this, "DefaultVpc", new VpcLookupOptions
-        {
-            IsDefault = true
-        });
-        
-        // Create a custom ECS cluster with specific configuration
+        DefaultVpc = Vpc.FromLookup(this, "DefaultVpc", new VpcLookupOptions { IsDefault = true });
+
         DefaultECSCluster = new Cluster(this, "MyCluster", new ClusterProps
         {
             Vpc = DefaultVpc,
             ClusterName = "my-aspire-cluster"
         });
 
-        // ─── DynamoDB ─────────────────────────────────────────────────────────
+        CreateDynamoDbTable();
+        CreateCognitoResources();
+        CreateOutputs();
+    }
 
+    private void CreateDynamoDbTable()
+    {
         PuckDropTable = new Table(this, "PuckDropTable", new TableProps
         {
             TableName = "PuckDrop",
@@ -37,27 +47,23 @@ public class DeploymentStack : Stack
             SortKey = new Attribute { Name = "SK", Type = AttributeType.STRING }
         });
 
-        // GSI1 — Poll-centric queries (poll + questions + options, all answers for a poll)
+        AddGsi("GSI1", "GSI1PK", "GSI1SK");
+        AddGsi("GSI2", "GSI2PK", "GSI2SK");
+    }
+
+    private void AddGsi(string indexName, string partitionKey, string sortKey)
+    {
         PuckDropTable.AddGlobalSecondaryIndex(new GlobalSecondaryIndexProps
         {
-            IndexName = "GSI1",
-            PartitionKey = new Attribute { Name = "GSI1PK", Type = AttributeType.STRING },
-            SortKey = new Attribute { Name = "GSI1SK", Type = AttributeType.STRING },
+            IndexName = indexName,
+            PartitionKey = new Attribute { Name = partitionKey, Type = AttributeType.STRING },
+            SortKey = new Attribute { Name = sortKey, Type = AttributeType.STRING },
             ProjectionType = ProjectionType.ALL
         });
+    }
 
-        // GSI2 — Active poll lookup by season + status
-        PuckDropTable.AddGlobalSecondaryIndex(new GlobalSecondaryIndexProps
-        {
-            IndexName = "GSI2",
-            PartitionKey = new Attribute { Name = "GSI2PK", Type = AttributeType.STRING },
-            SortKey = new Attribute { Name = "GSI2SK", Type = AttributeType.STRING },
-            ProjectionType = ProjectionType.ALL
-        });
-
-        // ─── Cognito ──────────────────────────────────────────────────────────
-
-        // User Pool
+    private void CreateCognitoResources()
+    {
         UserPool = new UserPool(this, "PuckDropUserPool", new UserPoolProps
         {
             UserPoolName = "PuckDrop",
@@ -80,14 +86,10 @@ public class DeploymentStack : Stack
             RemovalPolicy = RemovalPolicy.RETAIN
         });
 
-        // App client for the Blazor WASM frontend
         UserPoolClient = UserPool.AddClient("PuckDropWebClient", new UserPoolClientOptions
         {
             UserPoolClientName = "PuckDrop-Web",
-            AuthFlows = new AuthFlow
-            {
-                UserSrp = true
-            },
+            AuthFlows = new AuthFlow { UserSrp = true },
             OAuth = new OAuthSettings
             {
                 Flows = new OAuthFlows { AuthorizationCodeGrant = true },
@@ -98,7 +100,6 @@ public class DeploymentStack : Stack
             PreventUserExistenceErrors = true
         });
 
-        // Admin group — matches the cognito:groups claim checked by the API
         _ = new CfnUserPoolGroup(this, "AdminGroup", new CfnUserPoolGroupProps
         {
             UserPoolId = UserPool.UserPoolId,
@@ -106,43 +107,16 @@ public class DeploymentStack : Stack
             Description = "Administrators who can create/score polls"
         });
 
-        // Hosted UI domain (Cognito's built-in login page)
         UserPool.AddDomain("PuckDropDomain", new UserPoolDomainOptions
         {
-            CognitoDomain = new CognitoDomainOptions
-            {
-                DomainPrefix = "puckdrop"
-            }
-        });
-
-        // ─── Outputs ──────────────────────────────────────────────────────────
-
-        _ = new CfnOutput(this, "UserPoolId", new CfnOutputProps
-        {
-            Value = UserPool.UserPoolId,
-            Description = "Cognito User Pool ID for API appsettings"
-        });
-
-        _ = new CfnOutput(this, "UserPoolClientId", new CfnOutputProps
-        {
-            Value = UserPoolClient.UserPoolClientId,
-            Description = "Cognito App Client ID for API appsettings"
-        });
-
-        _ = new CfnOutput(this, "DynamoDbTableName", new CfnOutputProps
-        {
-            Value = PuckDropTable.TableName,
-            Description = "DynamoDB table name"
+            CognitoDomain = new CognitoDomainOptions { DomainPrefix = "puckdrop" }
         });
     }
 
-    [DefaultVpc]
-    public IVpc DefaultVpc { get; private set; }
-    
-    [DefaultECSCluster]
-    public ICluster DefaultECSCluster { get; private set; }
-
-    public Table PuckDropTable { get; private set; }
-    public UserPool UserPool { get; private set; }
-    public UserPoolClient UserPoolClient { get; private set; }
+    private void CreateOutputs()
+    {
+        _ = new CfnOutput(this, "UserPoolId", new CfnOutputProps { Value = UserPool.UserPoolId });
+        _ = new CfnOutput(this, "UserPoolClientId", new CfnOutputProps { Value = UserPoolClient.UserPoolClientId });
+        _ = new CfnOutput(this, "DynamoDbTableName", new CfnOutputProps { Value = PuckDropTable.TableName });
+    }
 }

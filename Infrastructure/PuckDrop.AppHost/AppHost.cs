@@ -33,7 +33,8 @@ var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.A
         ConstructFunctionCallback = (ctx, construct) =>
         {
             var stack = ctx.GetDeploymentStack<DeploymentStack>();
-            construct.AddEnvironment("Cognito__UserPoolId", stack.UserPool.UserPoolId)
+            construct
+                .AddEnvironment("Cognito__UserPoolId", stack.UserPool.UserPoolId)
                 .AddEnvironment("Cognito__ClientId", stack.UserPoolClient.UserPoolClientId)
                 .AddEnvironment("Cognito__Region", stack.Region)
                 .AddEnvironment("Cognito__AdminGroupName", "admin");
