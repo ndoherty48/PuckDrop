@@ -4,12 +4,37 @@
 
 PuckDrop is built incrementally, bottom-up. Each phase produces a working, buildable solution and is committed independently.
 
+### Architecture
+
+```
+PuckDrop.Domain (zero dependencies)
+├── Entities/          # Business objects with behaviour
+└── Enums/             # PollStatus
+
+PuckDrop.Application (→ Domain)
+├── Models/            # PollWithQuestions, AnswerSubmission, QuestionScore, OptionDefinition
+├── Repositories/      # Interface contracts (ports)
+├── Services/          # Use case orchestration
+└── Services/Abstractions/  # IUserProfileService
+
+PuckDrop.Infrastructure (→ Application → Domain)
+├── DynamoDb/          # Repository implementations (adapters)
+└── Identity/          # DefaultUserProfileService
+
+PuckDrop.Api (→ Application, Infrastructure)
+├── Controllers/       # Thin HTTP handlers
+├── Contracts/         # Request/response DTOs
+├── Filters/           # DomainExceptionFilter
+└── Mappings/          # Per-type ToResponse() extension methods
+```
+
+Dependencies only flow inward. Domain is pure entities and business rules with zero outward-facing contracts.
+
 ---
 
 ## Phase 1 — Domain Layer ✅
 
-**Status:** Complete  
-**Commit:** `feat: add domain entities and business rules`
+**Status:** Complete
 
 ### What was built
 
@@ -27,29 +52,27 @@ PuckDrop is built incrementally, bottom-up. Each phase produces a working, build
 
 - Rich domain model — behaviour on entities, not in services
 - Private setters on guarded properties (`Status`, `CorrectOptionId`, `IsCorrect`)
-- Zero infrastructure dependencies in Domain layer
+- Zero dependencies — Domain references nothing
 - `DateTime` stored as UTC throughout
 
 ---
 
 ## Phase 2 — Infrastructure (DynamoDB Repositories) ✅
 
-**Status:** Complete  
-**Commit:** `feat: add DynamoDB infrastructure layer`
+**Status:** Complete
 
 ### What was built
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| Repository interfaces | `PuckDrop.Domain/Repositories/` | Contracts for data access (no DynamoDB knowledge) |
-| `DynamoDbKeys` | `PuckDrop.Infrastructure/DynamoDb/` | Key construction constants and helpers |
-| DynamoDB item models | `PuckDrop.Infrastructure/DynamoDb/Items/` | PK/SK/GSI shapes matching `dynamodb-design.md` |
-| `DynamoDbMapper` | `PuckDrop.Infrastructure/DynamoDb/Mappers/` | Bidirectional mapping between domain entities and DynamoDB items |
-| `DynamoDbSeasonRepository` | `PuckDrop.Infrastructure/DynamoDb/Repositories/` | Season CRUD + list (transact writes for dual items) |
-| `DynamoDbPollRepository` | `PuckDrop.Infrastructure/DynamoDb/Repositories/` | Poll CRUD, list by season, active polls (GSI2), full poll with questions/options (GSI1) |
-| `DynamoDbUserAnswerRepository` | `PuckDrop.Infrastructure/DynamoDb/Repositories/` | Submit/get answers, bulk results query via GSI1, batch score updates |
-| `DynamoDbLeaderboardRepository` | `PuckDrop.Infrastructure/DynamoDb/Repositories/` | Leaderboard read (inverted sort key), update (transact delete old SK + put new SK) |
-| DI registration | `InfrastructureServiceCollectionExtensions.cs` | `IAmazonDynamoDB` fallback + all 4 repository singletons |
+| `DynamoDbKeys` | `Infrastructure/DynamoDb/` | Key construction constants and helpers |
+| DynamoDB item models | `Infrastructure/DynamoDb/Items/` | PK/SK/GSI shapes matching `dynamodb-design.md` |
+| `DynamoDbMapper` | `Infrastructure/DynamoDb/Mappers/` | Bidirectional mapping between domain entities and DynamoDB items |
+| `DynamoDbSeasonRepository` | `Infrastructure/DynamoDb/Repositories/` | Season CRUD + list (transact writes for dual items) |
+| `DynamoDbPollRepository` | `Infrastructure/DynamoDb/Repositories/` | Poll CRUD, list by season, active polls (GSI2), full poll with questions/options (GSI1) |
+| `DynamoDbUserAnswerRepository` | `Infrastructure/DynamoDb/Repositories/` | Submit/get answers, bulk results query via GSI1, batch score updates |
+| `DynamoDbLeaderboardRepository` | `Infrastructure/DynamoDb/Repositories/` | Leaderboard read (inverted sort key), update (transact delete old SK + put new SK) |
+| DI registration | `InfrastructureServiceCollectionExtensions.cs` | `IAmazonDynamoDB` singleton + scoped repositories + `IUserProfileService` |
 
 ### Design decisions
 
@@ -60,42 +83,39 @@ PuckDrop is built incrementally, bottom-up. Each phase produces a working, build
 - Batch writes in chunks of 25 for scoring (DynamoDB limit)
 - Aspire provides `IAmazonDynamoDB` normally; fallback registration for non-Aspire environments
 
-### Single-table design
-
-All entities stored in one `PuckDrop` table with composite keys. See [DynamoDB Design](dynamodb-design.md) for full key schema, GSI definitions, and access patterns.
-
 ---
 
 ## Phase 3 — Application Layer (Use Cases) ✅
 
-**Status:** Complete  
-**Commit:** `feat: add application service layer`
+**Status:** Complete
 
 ### What was built
 
-| Service | Operations |
-|---------|-----------|
+| Component | Purpose |
+|-----------|---------|
+| `Repositories/` | Interface contracts: `IPollRepository`, `ISeasonRepository`, `IUserAnswerRepository`, `ILeaderboardRepository` |
+| `Services/Abstractions/IUserProfileService` | Display name resolution (implemented by Infrastructure) |
+| `Models/ApplicationModels.cs` | `PollWithQuestions`, `AnswerSubmission`, `QuestionScore`, `OptionDefinition` |
 | `SeasonService` | `GetCurrentSeason`, `ListSeasons`, `EnsureSeasonExists` (auto-creates from game date) |
 | `PollService` | `CreatePoll`, `UpdatePoll`, `PublishPoll`, `ClosePoll`, `GetPoll`, `GetPollWithQuestions`, `ListPolls`, `GetActivePolls`, `AddQuestion`, `DeleteQuestion` |
 | `AnswerService` | `SubmitAnswers` (validates poll open, deadline, question/option IDs), `GetUserAnswers` |
 | `ScoringService` | `ScorePoll` (evaluates answers, aggregates points, updates leaderboard, transitions status) |
 | `LeaderboardService` | `GetLeaderboard` (defaults to current season, shared ranks for ties: 1,2,2,4) |
+| `ResultsService` | `GetPollResults` (full scored poll with all users' answers) |
 
 ### Design decisions
 
 - Thin orchestration services — business logic delegated to entity methods
 - Scoped DI lifetime (one instance per HTTP request)
-- `Guid.CreateVersion7()` for time-ordered unique IDs (native .NET 10, no external package)
-- Services validate preconditions before calling domain methods
-- `ScoringService` is the most complex — coordinates questions, answers, leaderboard in sequence
-- `LeaderboardResult` and `RankedEntry` records for clean return types
+- `Guid.CreateVersion7()` for time-ordered unique IDs (native .NET 10)
+- Named record types instead of tuples for all method parameters and return types
+- `IUserProfileService` injected into `ScoringService` (no `Func` parameters)
 
 ---
 
 ## Phase 4 — API Controllers ✅
 
-**Status:** Complete  
-**Commit:** `feat: add API controllers`
+**Status:** Complete
 
 ### What was built
 
@@ -109,17 +129,20 @@ All entities stored in one `PuckDrop` table with composite keys. See [DynamoDB D
 | `ResultsController` | `GET /polls/{id}/results` |
 | `LeaderboardController` | `GET /leaderboard?seasonId=` |
 
-Supporting files:
+Supporting infrastructure:
 - `Contracts/ApiContracts.cs` — all request/response DTOs as records
+- `Filters/DomainExceptionFilter.cs` — global exception-to-HTTP mapping
+- `Mappings/` — per-type `ToResponse()` extension methods (7 files)
 
 ### Design decisions
 
-- Thin controllers — validate input, call service, map to response
-- Consistent `ErrorResponse` shape with error code + message
-- `KeyNotFoundException` → 404, `InvalidOperationException` → 400, `ArgumentException` → 400
+- Thin controllers — extract input, call service, map response via extensions
+- Primary constructors throughout (no field + constructor boilerplate)
+- Global exception filter: `KeyNotFoundException` → 404, `InvalidOperationException` → 400, `ArgumentException` → 400
+- No null-forgiving (`!`) operators — proper null handling everywhere
+- No tuples — named records for all data passing
+- Per-type mapping extension classes (not one monolithic mapper)
 - `GetUserId()` placeholder extracts from JWT `sub` claim (wired up in Phase 5)
-- `DisplayNameResolver` placeholder in scoring (resolved from Cognito in Phase 5)
-- Removed template `ValuesController`
 
 ---
 
@@ -130,10 +153,11 @@ Supporting files:
 ### Planned
 
 - Cognito JWT validation via API Gateway authoriser
-- User ID extracted from `sub` claim
+- User ID extracted from `sub` claim (replace `GetUserId()` placeholder)
 - Admin role from Cognito group / custom claim
 - `[Authorize]` attributes on controllers
-- Custom `AdminOnly` policy
+- Custom `AdminOnly` policy for poll management and scoring endpoints
+- Cognito-backed `IUserProfileService` implementation (replace `DefaultUserProfileService`)
 
 ---
 
@@ -158,7 +182,25 @@ Supporting files:
 
 ### Planned
 
-- Unit tests for domain entities
+- Unit tests for domain entities (status transitions, scoring, season derivation)
+- Unit tests for application services (with mocked repositories)
 - Integration tests against DynamoDB Local
 - API endpoint tests via WebApplicationFactory
 - Blazor component tests (bUnit)
+
+---
+
+## Code Standards
+
+Established through implementation and refactoring:
+
+| Standard | Approach |
+|----------|----------|
+| Constructors | Primary constructors (no field + ctor boilerplate) |
+| DI lifetimes | Singleton for `IAmazonDynamoDB`; Scoped for repositories and services |
+| ID generation | `Guid.CreateVersion7().ToString("N")` |
+| Null handling | Proper null checks; no null-forgiving `!` operators |
+| Data passing | Named records; no value tuples in method signatures |
+| Response mapping | Per-type static extension classes with `ToResponse()` |
+| Error handling | Global `DomainExceptionFilter`; no try/catch in controllers |
+| Architecture | Domain pure (zero deps); Application defines ports; Infrastructure implements |
