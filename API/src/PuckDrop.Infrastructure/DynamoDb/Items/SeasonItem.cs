@@ -16,8 +16,8 @@ public class SeasonItem : DynamoDbItem
     public string Name { get; set; } = default!;
 
     [DynamoDBProperty("startDate")]
-    public string StartDate { get; set; } = default!;
+    public DateOnly StartDate { get; set; } = default!;
 
     [DynamoDBProperty("endDate")]
-    public string EndDate { get; set; } = default!;
+    public DateOnly EndDate { get; set; } = default!;
 }

@@ -102,7 +102,7 @@ public class DynamoDbLeaderboardRepository(IAmazonDynamoDB dynamoDb) : ILeaderbo
             ["displayName"] = new(item.DisplayName),
             ["totalPoints"] = new() { N = item.TotalPoints.ToString() },
             ["totalAnswered"] = new() { N = item.TotalAnswered.ToString() },
-            ["lastUpdated"] = new(item.LastUpdated)
+            ["lastUpdated"] = new(item.LastUpdated.ToString())
         };
     }
 
@@ -117,7 +117,7 @@ public class DynamoDbLeaderboardRepository(IAmazonDynamoDB dynamoDb) : ILeaderbo
             DisplayName = attrs["displayName"].S,
             TotalPoints = int.Parse(attrs["totalPoints"].N),
             TotalAnswered = int.Parse(attrs["totalAnswered"].N),
-            LastUpdated = attrs["lastUpdated"].S
+            LastUpdated = DateTime.Parse(attrs["lastUpdated"].S)
         };
         return DynamoDbMapper.ToDomain(item);
     }

@@ -20,7 +20,7 @@
             <div class="mb-3">
                 <label for="deadline" class="form-label">Deadline</label>
                 <input id="deadline" type="datetime-local" class="form-control"
-                       value="@_model.Deadline?.ToString("yyyy-MM-ddTHH:mm")"
+                       value="@_model.Deadline"
                        @onchange="OnDeadlineChanged" />
             </div>
 
@@ -50,8 +50,8 @@
 
         var request = new CreatePollRequest(
             _model.Title,
-            _model.GameDate?.ToString("yyyy-MM-dd") ?? "",
-            _model.Deadline?.ToString("o") ?? ""
+            _model.GameDate,
+            _model.Deadline
         );
 
         var poll = await Api.CreatePollAsync(request);
@@ -67,7 +67,7 @@
     private class CreatePollFormModel
     {
         public string Title { get; set; } = "";
-        public DateTime? GameDate { get; set; } = DateTime.Today;
-        public DateTime? Deadline { get; set; } = DateTime.Today;
+        public DateOnly GameDate { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow);
+        public DateTime Deadline { get; set; } = DateTime.Today;
     }
 }

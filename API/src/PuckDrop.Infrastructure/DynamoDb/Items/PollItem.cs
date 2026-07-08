@@ -18,13 +18,13 @@ public class PollItem : DynamoDbItem
     public string SeasonId { get; set; } = default!;
 
     [DynamoDBProperty("gameDate")]
-    public string GameDate { get; set; } = default!;
+    public DateOnly GameDate { get; set; } = default!;
 
     [DynamoDBProperty("title")]
     public string Title { get; set; } = default!;
 
     [DynamoDBProperty("deadline")]
-    public string Deadline { get; set; } = default!;
+    public DateTime Deadline { get; set; } = DateTime.UtcNow;
 
     [DynamoDBProperty("status")]
     public string Status { get; set; } = default!;
@@ -33,5 +33,5 @@ public class PollItem : DynamoDbItem
     public string CreatedBy { get; set; } = default!;
 
     [DynamoDBProperty("createdAt")]
-    public string CreatedAt { get; set; } = default!;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

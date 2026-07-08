@@ -64,8 +64,8 @@ public class DynamoDbSeasonRepository(IAmazonDynamoDB dynamoDb) : ISeasonReposit
         ["SK"] = new(item.SK),
         ["seasonId"] = new(item.SeasonId),
         ["name"] = new(item.Name),
-        ["startDate"] = new(item.StartDate),
-        ["endDate"] = new(item.EndDate)
+        ["startDate"] = new(item.StartDate.ToString()),
+        ["endDate"] = new(item.EndDate.ToString())
     };
 
     private static Season MapFromAttributes(Dictionary<string, AttributeValue> attrs) =>
@@ -75,7 +75,7 @@ public class DynamoDbSeasonRepository(IAmazonDynamoDB dynamoDb) : ISeasonReposit
             SK = attrs["SK"].S,
             SeasonId = attrs["seasonId"].S,
             Name = attrs["name"].S,
-            StartDate = attrs["startDate"].S,
-            EndDate = attrs["endDate"].S
+            StartDate = DateOnly.Parse(attrs["startDate"].S),
+            EndDate = DateOnly.Parse(attrs["endDate"].S)
         });
 }

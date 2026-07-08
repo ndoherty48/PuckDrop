@@ -223,12 +223,12 @@ public class DynamoDbPollRepository(IAmazonDynamoDB dynamoDb) : IPollRepository
             ["SK"] = new(item.SK),
             ["pollId"] = new(item.PollId),
             ["seasonId"] = new(item.SeasonId),
-            ["gameDate"] = new(item.GameDate),
+            ["gameDate"] = new(item.GameDate.ToString()),
             ["title"] = new(item.Title),
-            ["deadline"] = new(item.Deadline),
+            ["deadline"] = new(item.Deadline.ToString()),
             ["status"] = new(item.Status),
             ["createdBy"] = new(item.CreatedBy),
-            ["createdAt"] = new(item.CreatedAt)
+            ["createdAt"] = new(item.CreatedAt.ToString())
         };
 
         if (item.GSI1PK is not null) attrs["GSI1PK"] = new(item.GSI1PK);
@@ -284,12 +284,12 @@ public class DynamoDbPollRepository(IAmazonDynamoDB dynamoDb) : IPollRepository
             SK = attrs["SK"].S,
             PollId = attrs["pollId"].S,
             SeasonId = attrs["seasonId"].S,
-            GameDate = attrs["gameDate"].S,
+            GameDate = DateOnly.Parse(attrs["gameDate"].S),
             Title = attrs["title"].S,
-            Deadline = attrs["deadline"].S,
+            Deadline = DateTime.Parse(attrs["deadline"].S),
             Status = attrs["status"].S,
             CreatedBy = attrs["createdBy"].S,
-            CreatedAt = attrs["createdAt"].S
+            CreatedAt = DateTime.Parse(attrs["createdAt"].S)
         };
         return DynamoDbMapper.ToDomainWithStatus(item);
     }

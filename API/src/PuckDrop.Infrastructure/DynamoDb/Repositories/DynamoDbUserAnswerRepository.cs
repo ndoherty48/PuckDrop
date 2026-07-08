@@ -103,7 +103,7 @@ public class DynamoDbUserAnswerRepository(IAmazonDynamoDB dynamoDb) : IUserAnswe
             ["pollId"] = new(item.PollId),
             ["questionId"] = new(item.QuestionId),
             ["selectedOptionId"] = new(item.SelectedOptionId),
-            ["submittedAt"] = new(item.SubmittedAt)
+            ["submittedAt"] = new(item.SubmittedAt.ToString())
         };
 
         if (item.IsCorrect.HasValue)
@@ -122,7 +122,7 @@ public class DynamoDbUserAnswerRepository(IAmazonDynamoDB dynamoDb) : IUserAnswe
             PollId = attrs["pollId"].S,
             QuestionId = attrs["questionId"].S,
             SelectedOptionId = attrs["selectedOptionId"].S,
-            SubmittedAt = attrs["submittedAt"].S,
+            SubmittedAt = DateTime.Parse(attrs["submittedAt"].S),
             IsCorrect = attrs.TryGetValue("isCorrect", out var val) ? val.BOOL : null
         };
 

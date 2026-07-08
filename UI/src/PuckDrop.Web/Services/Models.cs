@@ -2,17 +2,17 @@ namespace PuckDrop.Web.Services;
 
 // ─── Seasons ──────────────────────────────────────────────────────────────────
 
-public record SeasonModel(string SeasonId, string Name, string StartDate, string EndDate);
+public record SeasonModel(string SeasonId, string Name, DateOnly StartDate, DateOnly EndDate);
 
 // ─── Polls ────────────────────────────────────────────────────────────────────
 
 public record PollModel(
-    string PollId, string SeasonId, string GameDate, string Title,
-    string Deadline, string Status, string CreatedBy, string CreatedAt);
+    string PollId, string SeasonId, DateOnly GameDate, string Title,
+    DateTime Deadline, string Status, string CreatedBy, DateTime CreatedAt);
 
 public record PollDetailModel(
-    string PollId, string SeasonId, string GameDate, string Title,
-    string Deadline, string Status, string CreatedBy, string CreatedAt,
+    string PollId, string SeasonId, DateOnly GameDate, string Title,
+    DateTime Deadline, string Status, string CreatedBy, DateTime CreatedAt,
     List<QuestionModel> Questions);
 
 public record QuestionModel(
@@ -23,7 +23,7 @@ public record OptionModel(string OptionId, string Text, int SortOrder);
 
 // ─── Answers ──────────────────────────────────────────────────────────────────
 
-public record UserAnswerModel(string QuestionId, string SelectedOptionId, string SubmittedAt, bool? IsCorrect);
+public record UserAnswerModel(string QuestionId, string SelectedOptionId, DateTime SubmittedAt, bool? IsCorrect);
 
 // ─── Results ──────────────────────────────────────────────────────────────────
 
@@ -42,7 +42,7 @@ public record LeaderboardEntryModel(
 
 // ─── Requests ─────────────────────────────────────────────────────────────────
 
-public record CreatePollRequest(string Title, string GameDate, string Deadline);
+public record CreatePollRequest(string Title, DateOnly GameDate, DateTime Deadline);
 
 public record CreateQuestionRequest(string Text, int SortOrder, List<CreateOptionRequest> Options);
 

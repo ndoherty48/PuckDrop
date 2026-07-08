@@ -17,8 +17,8 @@ public static class DynamoDbMapper
         SK = DynamoDbKeys.SeasonSK,
         SeasonId = season.SeasonId,
         Name = season.Name,
-        StartDate = season.StartDate.ToString("yyyy-MM-dd"),
-        EndDate = season.EndDate.ToString("yyyy-MM-dd")
+        StartDate = season.StartDate,
+        EndDate = season.EndDate
     };
 
     public static SeasonItem ToCollectionItem(Season season) => new()
@@ -27,16 +27,16 @@ public static class DynamoDbMapper
         SK = DynamoDbKeys.SeasonCollectionSK(season.SeasonId),
         SeasonId = season.SeasonId,
         Name = season.Name,
-        StartDate = season.StartDate.ToString("yyyy-MM-dd"),
-        EndDate = season.EndDate.ToString("yyyy-MM-dd")
+        StartDate = season.StartDate,
+        EndDate = season.EndDate
     };
 
     public static Season ToDomain(SeasonItem item) => new()
     {
         SeasonId = item.SeasonId,
         Name = item.Name,
-        StartDate = DateOnly.ParseExact(item.StartDate, "yyyy-MM-dd"),
-        EndDate = DateOnly.ParseExact(item.EndDate, "yyyy-MM-dd")
+        StartDate = item.StartDate,
+        EndDate = item.EndDate
     };
 
     // ─── Poll ─────────────────────────────────────────────────────────────────
@@ -51,12 +51,12 @@ public static class DynamoDbMapper
         GSI2SK = DynamoDbKeys.GSI2SK_Deadline(poll.Deadline),
         PollId = poll.PollId,
         SeasonId = poll.SeasonId,
-        GameDate = poll.GameDate.ToString("yyyy-MM-dd"),
+        GameDate = poll.GameDate,
         Title = poll.Title,
-        Deadline = poll.Deadline.ToString("O"),
+        Deadline = poll.Deadline,
         Status = poll.Status.ToString(),
         CreatedBy = poll.CreatedBy,
-        CreatedAt = poll.CreatedAt.ToString("O")
+        CreatedAt = poll.CreatedAt
     };
 
     public static PollItem ToSeasonCollectionItem(GameDayPoll poll) => new()
@@ -65,23 +65,23 @@ public static class DynamoDbMapper
         SK = DynamoDbKeys.PollSeasonSK(poll.GameDate, poll.PollId),
         PollId = poll.PollId,
         SeasonId = poll.SeasonId,
-        GameDate = poll.GameDate.ToString("yyyy-MM-dd"),
+        GameDate = poll.GameDate,
         Title = poll.Title,
-        Deadline = poll.Deadline.ToString("O"),
+        Deadline = poll.Deadline,
         Status = poll.Status.ToString(),
         CreatedBy = poll.CreatedBy,
-        CreatedAt = poll.CreatedAt.ToString("O")
+        CreatedAt = poll.CreatedAt
     };
 
     public static GameDayPoll ToDomain(PollItem item) => new()
     {
         PollId = item.PollId,
         SeasonId = item.SeasonId,
-        GameDate = DateOnly.ParseExact(item.GameDate, "yyyy-MM-dd"),
+        GameDate = item.GameDate,
         Title = item.Title,
-        Deadline = DateTime.Parse(item.Deadline).ToUniversalTime(),
+        Deadline = item.Deadline,
         CreatedBy = item.CreatedBy,
-        CreatedAt = DateTime.Parse(item.CreatedAt).ToUniversalTime()
+        CreatedAt = item.CreatedAt
     };
 
     /// <summary>
@@ -162,7 +162,7 @@ public static class DynamoDbMapper
         PollId = answer.PollId,
         QuestionId = answer.QuestionId,
         SelectedOptionId = answer.SelectedOptionId,
-        SubmittedAt = answer.SubmittedAt.ToString("O"),
+        SubmittedAt = answer.SubmittedAt,
         IsCorrect = answer.IsCorrect
     };
 
@@ -172,7 +172,7 @@ public static class DynamoDbMapper
         PollId = item.PollId,
         QuestionId = item.QuestionId,
         SelectedOptionId = item.SelectedOptionId,
-        SubmittedAt = DateTime.Parse(item.SubmittedAt).ToUniversalTime()
+        SubmittedAt = item.SubmittedAt
     };
 
     public static UserAnswer ToDomainWithScore(UserAnswerItem item)
@@ -194,7 +194,7 @@ public static class DynamoDbMapper
         DisplayName = entry.DisplayName,
         TotalPoints = entry.TotalPoints,
         TotalAnswered = entry.TotalAnswered,
-        LastUpdated = entry.LastUpdated.ToString("O")
+        LastUpdated = entry.LastUpdated
     };
 
     public static LeaderboardEntry ToDomain(LeaderboardItem item) => new()
@@ -204,7 +204,7 @@ public static class DynamoDbMapper
         DisplayName = item.DisplayName,
         TotalPoints = item.TotalPoints,
         TotalAnswered = item.TotalAnswered,
-        LastUpdated = DateTime.Parse(item.LastUpdated).ToUniversalTime()
+        LastUpdated = item.LastUpdated
     };
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

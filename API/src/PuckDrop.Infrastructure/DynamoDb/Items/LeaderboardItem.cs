@@ -25,5 +25,5 @@ public class LeaderboardItem : DynamoDbItem
     public int TotalAnswered { get; set; }
 
     [DynamoDBProperty("lastUpdated")]
-    public string LastUpdated { get; set; } = default!;
+    public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
 }

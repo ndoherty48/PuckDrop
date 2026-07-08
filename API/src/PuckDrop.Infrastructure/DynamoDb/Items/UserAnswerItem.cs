@@ -22,7 +22,7 @@ public class UserAnswerItem : DynamoDbItem
     public string SelectedOptionId { get; set; } = default!;
 
     [DynamoDBProperty("submittedAt")]
-    public string SubmittedAt { get; set; } = default!;
+    public DateTime SubmittedAt { get; set; } = DateTime.UtcNow;
 
     [DynamoDBProperty("isCorrect")]
     public bool? IsCorrect { get; set; }

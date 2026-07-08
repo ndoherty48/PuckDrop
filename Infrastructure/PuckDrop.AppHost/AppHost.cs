@@ -1,4 +1,3 @@
-using Amazon;
 using Aspire.Hosting.AWS.Deployment;
 using Aspire.Hosting.AWS.DynamoDB;
 using PuckDrop.AppHost.AWS;

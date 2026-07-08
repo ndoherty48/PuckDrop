@@ -81,7 +81,7 @@
     private bool isSubmitting;
 
     private bool IsVotingClosed =>
-        poll is not null && DateTime.Parse(poll.Deadline) < DateTime.UtcNow;
+        poll is not null && poll.Deadline < DateTime.UtcNow;
 
     protected override async Task OnInitializedAsync()
     {
