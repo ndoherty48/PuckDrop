@@ -21,6 +21,7 @@ public static class ApiServiceCollectionExtensions
         services.AddScoped<IUserProfileService, CognitoUserProfileService>();
 
         var cognitoSettings = configuration.GetSection(CognitoSettings.SectionName).Get<CognitoSettings>();
+        var keycloakSettings = configuration.GetSection(KeycloakSettings.SectionName).Get<KeycloakSettings>();
 
         if (cognitoSettings is not null && !cognitoSettings.UserPoolId.Contains("PLACEHOLDER"))
         {
@@ -46,6 +47,33 @@ public static class ApiServiceCollectionExtensions
                         context.User.HasClaim(c =>
                             c.Type == "cognito:groups" && c.Value == cognitoSettings.AdminGroupName)));
         }
+        else if (keycloakSettings is not null && !keycloakSettings.Realm.Contains("PLACEHOLDER"))
+        {
+            services.AddSingleton(keycloakSettings);
+
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.Authority = $"{keycloakSettings.ServerUrl}/realms/{keycloakSettings.Realm}";
+                    options.Audience = keycloakSettings.ClientId;
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidIssuer = $"{keycloakSettings.ServerUrl}/realms/{keycloakSettings.Realm}",
+                        ValidateAudience = true,
+                        ValidAudience = keycloakSettings.ClientId,
+                        ValidateLifetime = true
+                    };
+                });
+
+            services.AddAuthorizationBuilder()
+                .AddPolicy(AdminPolicy, policy =>
+                    policy.RequireAssertion(context =>
+                        context.User.HasClaim(c =>
+                            c.Type == "realm_access" && 
+                            c.Value.Contains(keycloakSettings.AdminRoleName))));
+        }
+        #if DEBUG
         else
         {
             // Dev mode: no real auth configured. Allow all requests.
@@ -55,6 +83,7 @@ public static class ApiServiceCollectionExtensions
             services.AddAuthorizationBuilder()
                 .AddPolicy(AdminPolicy, policy => policy.RequireAssertion(_ => true));
         }
+        #endif
 
         services.AddCors(options =>
         {
