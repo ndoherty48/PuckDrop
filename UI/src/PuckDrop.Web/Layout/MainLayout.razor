@@ -1,4 +1,6 @@
 @inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@inject NavigationManager navigationManager;
 
 <div class="container-fluid p-0">
     <nav class="navbar navbar-expand-md navbar-dark bg-dark sticky-top">
@@ -23,6 +25,22 @@
                     </li>
                 </ul>
             </div>
+            <AuthorizeView>
+                <Authorized>
+                    <p>Hello, @context.User.Identity?.Name</p>
+
+                    <button @onclick="Logout">
+                        Logout
+                    </button>
+                </Authorized>
+
+                <NotAuthorized>
+                    <button @onclick="Login">
+                        Login
+                    </button>
+                </NotAuthorized>
+            </AuthorizeView>
+
         </div>
     </nav>
 
@@ -35,4 +53,14 @@
     private bool collapseNav = true;
     private string NavCss => collapseNav ? "collapse navbar-collapse" : "navbar-collapse";
     private void ToggleNav() => collapseNav = !collapseNav;
+
+    private void Login()
+    {
+        navigationManager.NavigateTo("authentication/login");
+    }
+
+    private void Logout()
+    {
+        navigationManager.NavigateTo("authentication/logout");
+    }
 }

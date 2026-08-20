@@ -21,9 +21,25 @@ var apiBaseUrl = builder.Configuration["services:api-gateway:http:0"]
 
 Console.WriteLine($"[PuckDrop] API base URL: {apiBaseUrl}");
 
-var baseUri = new Uri(apiBaseUrl.TrimEnd('/') + "/puckdrop/");
+var baseUri = new Uri(apiBaseUrl.TrimEnd('/') + "/api/");
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = baseUri });
 builder.Services.AddScoped<PuckDropApiClient>();
+
+builder.Services.AddOidcAuthentication(options =>
+{
+    var config = builder.Configuration.GetSection("Keycloak");
+    options.ProviderOptions.Authority = config["Authority"];
+        // "https://localhost:8080/realms/myapp";
+
+    options.ProviderOptions.ClientId = config["ClientId"];
+        // "blazor-client";
+
+    options.ProviderOptions.ResponseType = config["ResponseType"];
+        // "code";
+
+    options.ProviderOptions.DefaultScopes.Add("openid");
+    options.ProviderOptions.DefaultScopes.Add("profile");
+});
 
 var app = builder.Build();
 
