@@ -8,14 +8,28 @@ using PuckDrop.AppHost.Extensions;
 var builder = DistributedApplication.CreateBuilder(args);
 
 var deployedCdk = builder.AddAWSCDKEnvironment(
-    "puckdrop-cdk", 
-    CDKDefaultsProviderFactory.Preview_V1, 
+    "puckdrop-cdk",
+    CDKDefaultsProviderFactory.Preview_V1,
     stackFactory: (app, props) => new DeploymentStack(app, "PuckDrop", props));
 
 var dynamoDbLocal = builder.AddAWSDynamoDBLocal("dynamodb", new DynamoDBLocalOptions
 {
     SharedDb = true
 });
+
+var keycloakUsername = builder.AddParameter("keycloak-username", value: "keycloak").ExcludeFromManifest();
+var keycloakPassword = builder.AddParameter("keycloak-password", secret: true, value: new GenerateParameterDefault
+    {
+        MinUpper = 1,
+        MinLength = 8,
+        MinNumeric = 1,
+        MinSpecial = 1
+    }, persist: true)
+    .ExcludeFromManifest();
+var keycloak = builder
+    .AddKeycloak("keycloak", adminUsername: keycloakUsername, adminPassword: keycloakPassword)
+    .WithRealmImport("./Keycloak/PuckDrop-realm.json")
+    .ExcludeFromManifest();
 
 // Create the PuckDrop table in DynamoDB Local after it's healthy
 var createTable = builder.AddExecutable("create-table", "aws", ".",
@@ -26,6 +40,15 @@ var createTable = builder.AddExecutable("create-table", "aws", ".",
 
 var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.Api::PuckDrop.Api.LambdaEntryPoint::FunctionHandlerAsync")
     .WithReference(dynamoDbLocal)
+    .WithEnvironment(x =>
+    {
+        if(x.ExecutionContext.IsRunMode is false)
+            return;
+        
+        x.EnvironmentVariables["Keycloak__ServerUrl"] = keycloak.GetEndpoint("http");
+        x.EnvironmentVariables["Keycloak__Realm"] = "PuckDrop";
+        x.EnvironmentVariables["Keycloak__ClientId"] = "PuckDrop-API";
+    })
     .WithAWSLocalCredentials()
     .PublishAsLambdaFunction(new PublishLambdaFunctionConfig
     {
@@ -50,12 +73,18 @@ var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.A
     .WaitForCompletion(createTable);
 
 var apiGateway = builder.AddAWSAPIGatewayEmulator("api-gateway", Aspire.Hosting.AWS.Lambda.APIGatewayType.HttpV2)
-    .WithReference(api, Aspire.Hosting.AWS.Lambda.Method.Any, "/puckdrop/{proxy+}")
+    .WithReference(api, Aspire.Hosting.AWS.Lambda.Method.Any, "/api/{proxy+}")
     .WithHttpEndpoint(port: 8080)
     .WithHttpsEndpoint(port: 8081);
 
 var web = builder.AddBlazorWasmProject<Projects.PuckDrop_Web>("web")
-    .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"));
+    .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"))
+    .WithEnvironment(x =>
+    {
+        x.EnvironmentVariables["Keycloak__Authority"] = ReferenceExpression.Create($"{keycloak.GetEndpoint("http")}/realms/PuckDrop");
+        x.EnvironmentVariables["Keycloak__ClientId"] = "";
+        x.EnvironmentVariables["Keycloak__ResponseType"] = "code";
+    });
 
 builder.AddBlazorGateway("blazor-gateway")
     .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"))
