@@ -1,4 +1,4 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.4.6">
+<Project Sdk="Aspire.AppHost.Sdk/13.5.1">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -10,6 +10,7 @@
     <PackageReference Include="Aspire.Hosting.Blazor" />
     <PackageReference Include="Aspire.Hosting.Browsers" />
     <PackageReference Include="Aspire.Hosting.DevTunnels" />
+    <PackageReference Include="Aspire.Hosting.Keycloak" />
   </ItemGroup>
 
   <ItemGroup>
