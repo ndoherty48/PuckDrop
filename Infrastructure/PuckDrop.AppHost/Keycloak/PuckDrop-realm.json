@@ -739,6 +739,19 @@
         "offline_access",
         "organization",
         "microprofile-jwt"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience-puckdrop-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "PuckDrop-API",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
       ]
     },
     {

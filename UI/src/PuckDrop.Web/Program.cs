@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.Hosting;
 using OpenTelemetry.Metrics;
@@ -22,9 +23,16 @@ var apiBaseUrl = builder.Configuration["services:api-gateway:http:0"]
 
 Console.WriteLine($"[PuckDrop] API base URL: {apiBaseUrl}");
 
-var baseUri = new Uri(apiBaseUrl.TrimEnd('/') + "/api/");
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = baseUri });
-builder.Services.AddScoped<PuckDropApiClient>();
+// "/puckdrop" matches LambdaEntryPoint.UsePathBase("/puckdrop"), which the local API Gateway
+// emulator route (AppHost.cs) and the production API Gateway route (DeploymentStack) both target.
+var baseUri = new Uri(apiBaseUrl.TrimEnd('/') + "/puckdrop/");
+
+// AddHttpMessageHandler<AuthorizationMessageHandler> is what actually attaches the
+// "Authorization: Bearer <access_token>" header - every PuckDrop.Api controller
+// requires [Authorize], so without this every call 401s regardless of login state.
+builder.Services.AddHttpClient<PuckDropApiClient>(client => client.BaseAddress = baseUri)
+    .AddHttpMessageHandler(sp => sp.GetRequiredService<AuthorizationMessageHandler>()
+        .ConfigureHandler(authorizedUrls: [apiBaseUrl]));
 
 builder.Services.AddOidcAuthentication(options =>
 {

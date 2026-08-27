@@ -480,3 +480,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# playwright-cli debug snapshots/logs
+.playwright-cli/

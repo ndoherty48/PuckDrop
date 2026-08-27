@@ -26,8 +26,12 @@ var keycloakPassword = builder.AddParameter("keycloak-password", secret: true, v
         MinSpecial = 1
     }, persist: true)
     .ExcludeFromManifest();
+// Pinned (not dynamically allocated): the Blazor WASM app can't read AppHost-injected env
+// vars at runtime (see Program.cs), so its Keycloak authority is baked into
+// UI/src/PuckDrop.Web/wwwroot/appsettings.json at build time. A stable port here means that
+// file only needs to be set once instead of updated by hand on every `aspire start`.
 var keycloak = builder
-    .AddKeycloak("keycloak", adminUsername: keycloakUsername, adminPassword: keycloakPassword)
+    .AddKeycloak("keycloak", port: 8543, adminUsername: keycloakUsername, adminPassword: keycloakPassword)
     .WithRealmImport("./Keycloak/PuckDrop-realm.json")
     .ExcludeFromManifest();
 
@@ -73,7 +77,7 @@ var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.A
     .WaitForCompletion(createTable);
 
 var apiGateway = builder.AddAWSAPIGatewayEmulator("api-gateway", Aspire.Hosting.AWS.Lambda.APIGatewayType.HttpV2)
-    .WithReference(api, Aspire.Hosting.AWS.Lambda.Method.Any, "/api/{proxy+}")
+    .WithReference(api, Aspire.Hosting.AWS.Lambda.Method.Any, "/puckdrop/{proxy+}")
     .WithHttpEndpoint(port: 8080)
     .WithHttpsEndpoint(port: 8081);
 
