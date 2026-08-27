@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using PuckDrop.Web;
+using PuckDrop.Web.Auth;
 using PuckDrop.Web.Services;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -39,7 +40,15 @@ builder.Services.AddOidcAuthentication(options =>
 
     options.ProviderOptions.DefaultScopes.Add("openid");
     options.ProviderOptions.DefaultScopes.Add("profile");
-});
+}).AddAccountClaimsPrincipalFactory<KeycloakAccountClaimsPrincipalFactory>();
+
+// Note: unlike ASP.NET Core endpoint routing, Blazor WASM's AuthorizeRouteView does
+// NOT consult AuthorizationOptions.FallbackPolicy - a page with no [Authorize]/[AllowAnonymous]
+// attribute at all is simply never checked. There is no "secure by default" here, so every
+// page needs an explicit @attribute [Authorize] (mirroring PuckDrop.Api, where every
+// controller carries a class-level [Authorize]); Authentication.razor and Unauthorized.razor
+// are explicitly [AllowAnonymous] so login/logout and the "not authorized" page stay reachable.
+builder.Services.AddAuthorizationCore();
 
 var app = builder.Build();
 

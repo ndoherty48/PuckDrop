@@ -86,6 +86,13 @@
         "clientRole": false,
         "containerId": "b89c1582-3a55-49c1-9764-a488c8b6ca97",
         "attributes": {}
+      },
+      {
+        "name": "admin",
+        "description": "Grants access to PuckDrop admin features (create/score polls).",
+        "composite": false,
+        "clientRole": false,
+        "attributes": {}
       }
     ],
     "client": {
@@ -987,7 +994,8 @@
             "access.token.claim": "true",
             "claim.name": "resource_access.${client_id}.roles",
             "jsonType.label": "String",
-            "multivalued": "true"
+            "multivalued": "true",
+            "id.token.claim": "true"
           }
         },
         {
@@ -1013,7 +1021,8 @@
             "access.token.claim": "true",
             "claim.name": "realm_access.roles",
             "jsonType.label": "String",
-            "multivalued": "true"
+            "multivalued": "true",
+            "id.token.claim": "true"
           }
         }
       ]
@@ -2604,5 +2613,44 @@
   },
   "clientPolicies": {
     "policies": []
-  }
+  },
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "admin@puckdrop.local",
+      "firstName": "Admin",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin",
+        "default-roles-PuckDrop"
+      ]
+    },
+    {
+      "username": "friend",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "friend@puckdrop.local",
+      "firstName": "Friend",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "friend",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-PuckDrop"
+      ]
+    }
+  ]
 }

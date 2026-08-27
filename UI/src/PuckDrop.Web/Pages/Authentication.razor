@@ -1,9 +1,66 @@
 @page "/authentication/{action}"
+@attribute [AllowAnonymous]
 
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
 
-<p>Action: @Action</p>
-<RemoteAuthenticatorView Action="@Action" />
+<div class="container-fluid">
+    <RemoteAuthenticatorView Action="@Action">
+        <LoggingIn>
+            <p><em>Checking login state...</em></p>
+        </LoggingIn>
+        <CompletingLoggingIn>
+            <p><em>Completing login...</em></p>
+        </CompletingLoggingIn>
+        <LogInFailed>
+            <div class="text-center py-5">
+                <h1 class="mb-3">🏒 PuckDrop</h1>
+                <div class="alert alert-warning d-inline-block" role="alert">
+                    We couldn't log you in. Please try again.
+                </div>
+                <p>
+                    <a href="authentication/login" class="btn btn-primary">Try Again</a>
+                    <a href="" class="btn btn-outline-secondary">Back to Home</a>
+                </p>
+            </div>
+        </LogInFailed>
+        <LogOut>
+            <p><em>Logging out...</em></p>
+        </LogOut>
+        <CompletingLogOut>
+            <p><em>Completing logout...</em></p>
+        </CompletingLogOut>
+        <LogOutSucceeded>
+            <div class="text-center py-5">
+                <h1 class="mb-3">🏒 PuckDrop</h1>
+                <p class="lead">You've been logged out.</p>
+                <a href="" class="btn btn-primary">Back to Home</a>
+            </div>
+        </LogOutSucceeded>
+        <LogOutFailed>
+            <div class="text-center py-5">
+                <h1 class="mb-3">🏒 PuckDrop</h1>
+                <div class="alert alert-warning d-inline-block" role="alert">
+                    We couldn't log you out cleanly, but your session may still have been cleared locally.
+                </div>
+                <a href="" class="btn btn-primary">Back to Home</a>
+            </div>
+        </LogOutFailed>
+        <Registering>
+            <div class="text-center py-5">
+                <h1 class="mb-3">🏒 PuckDrop</h1>
+                <p class="lead">Account registration isn't available here — contact an admin for access.</p>
+                <a href="" class="btn btn-primary">Back to Home</a>
+            </div>
+        </Registering>
+        <UserProfile>
+            <div class="text-center py-5">
+                <h1 class="mb-3">🏒 PuckDrop</h1>
+                <p class="lead">Profile editing isn't available here.</p>
+                <a href="" class="btn btn-primary">Back to Home</a>
+            </div>
+        </UserProfile>
+    </RemoteAuthenticatorView>
+</div>
 
 @code {
     [Parameter]

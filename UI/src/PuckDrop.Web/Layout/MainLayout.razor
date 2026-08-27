@@ -20,9 +20,11 @@
                     <li class="nav-item">
                         <NavLink class="nav-link" href="history">History</NavLink>
                     </li>
-                    <li class="nav-item">
-                        <NavLink class="nav-link" href="admin/polls">Admin</NavLink>
-                    </li>
+                    <AuthorizeView Roles="admin">
+                        <li class="nav-item">
+                            <NavLink class="nav-link" href="admin/polls">Admin</NavLink>
+                        </li>
+                    </AuthorizeView>
                 </ul>
             </div>
             <AuthorizeView>
@@ -61,6 +63,6 @@
 
     private void Logout()
     {
-        navigationManager.NavigateTo("authentication/logout");
+        navigationManager.NavigateToLogout("authentication/logout");
     }
 }
