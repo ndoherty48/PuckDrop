@@ -1,8 +1,9 @@
 @page "/admin/polls"
 @attribute [Authorize(Roles = "admin")]
 @inject PuckDropApiClient Api
+@inject IJSRuntime JS
 
-<h3 class="mb-4">Manage Polls</h3>
+<h2 class="mb-4">Manage Polls</h2>
 
 <div class="mb-3">
     <a href="admin/polls/create" class="btn btn-primary">Create Poll</a>
@@ -45,11 +46,11 @@ else
                         }
                         @if (poll.Status == "Draft")
                         {
-                            <button class="btn btn-sm btn-success me-1" @onclick="() => PublishAsync(poll.PollId)">Publish</button>
+                            <button class="btn btn-sm btn-success me-1" disabled="@_actionInProgress" @onclick="() => PublishAsync(poll.PollId)">Publish</button>
                         }
                         @if (poll.Status == "Open")
                         {
-                            <button class="btn btn-sm btn-warning me-1" @onclick="() => CloseAsync(poll.PollId)">Close</button>
+                            <button class="btn btn-sm btn-warning me-1" disabled="@_actionInProgress" @onclick="() => CloseAsync(poll.PollId)">Close</button>
                         }
                         @if (poll.Status == "Closed")
                         {
@@ -65,6 +66,7 @@ else
 @code {
     private List<PollModel>? _polls;
     private bool _loading = true;
+    private bool _actionInProgress;
     private string? _error;
 
     protected override async Task OnInitializedAsync()
@@ -100,14 +102,48 @@ else
 
     private async Task PublishAsync(string pollId)
     {
-        await Api.PublishPollAsync(pollId);
-        await LoadPollsAsync();
+        if (_actionInProgress) return;
+        if (!await JS.InvokeAsync<bool>("confirm", "Publish this poll? It will open for voting immediately."))
+            return;
+
+        _actionInProgress = true;
+        _error = null;
+        try
+        {
+            await Api.PublishPollAsync(pollId);
+            await LoadPollsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to publish poll: {ex.Message}";
+        }
+        finally
+        {
+            _actionInProgress = false;
+        }
     }
 
     private async Task CloseAsync(string pollId)
     {
-        await Api.ClosePollAsync(pollId);
-        await LoadPollsAsync();
+        if (_actionInProgress) return;
+        if (!await JS.InvokeAsync<bool>("confirm", "Close voting for this poll? This cannot be undone."))
+            return;
+
+        _actionInProgress = true;
+        _error = null;
+        try
+        {
+            await Api.ClosePollAsync(pollId);
+            await LoadPollsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to close poll: {ex.Message}";
+        }
+        finally
+        {
+            _actionInProgress = false;
+        }
     }
 
     private static string GetStatusColor(string status) => status switch

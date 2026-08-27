@@ -1,6 +1,7 @@
 @page "/leaderboard"
 @attribute [Authorize]
 @inject PuckDropApiClient Api
+@inject AuthenticationStateProvider AuthStateProvider
 
 <h2>Leaderboard</h2>
 
@@ -31,9 +32,16 @@ else
         <tbody>
             @foreach (var entry in _leaderboard.Entries.OrderBy(e => e.Rank))
             {
-                <tr>
+                var isYou = entry.UserId == _currentUserId;
+                <tr class="@(isYou ? "table-primary" : "")">
                     <td>@entry.Rank</td>
-                    <td>@entry.DisplayName</td>
+                    <td>
+                        @entry.DisplayName
+                        @if (isYou)
+                        {
+                            <span class="badge bg-primary ms-1">You</span>
+                        }
+                    </td>
                     <td>@entry.TotalPoints</td>
                     <td>@entry.TotalAnswered</td>
                     <td>@(CalculateAccuracy(entry))%</td>
@@ -47,11 +55,18 @@ else
     private LeaderboardModel? _leaderboard;
     private bool _loading = true;
     private string? _error;
+    private string? _currentUserId;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            // Blazor WASM's claims factory keeps claim types as-issued (no ASP.NET Core-style
+            // remapping of "sub" -> ClaimTypes.NameIdentifier happens client-side), so check
+            // the raw "sub" claim to match PuckDrop.Api's User.GetUserId().
+            _currentUserId = authState.User.FindFirst("sub")?.Value;
+
             _leaderboard = await Api.GetLeaderboardAsync();
         }
         catch (Exception)

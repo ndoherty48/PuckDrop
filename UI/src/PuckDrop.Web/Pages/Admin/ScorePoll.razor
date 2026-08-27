@@ -2,8 +2,9 @@
 @attribute [Authorize(Roles = "admin")]
 @inject PuckDropApiClient Api
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
-<h3 class="mb-4">Score Poll</h3>
+<h2 class="mb-4">Score Poll</h2>
 
 @if (_loading)
 {
@@ -11,10 +12,15 @@
 }
 else if (_poll is null)
 {
-    <p class="text-danger">Poll not found.</p>
+    <p class="text-danger">@(_error ?? "Poll not found.")</p>
 }
 else
 {
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
     <p class="text-muted mb-4">Select the correct answer for each question.</p>
 
     @foreach (var question in _poll.Questions.OrderBy(q => q.SortOrder))
@@ -27,7 +33,8 @@ else
                     {
                         var isSelected = _correctAnswers.TryGetValue(question.QuestionId, out var selectedId)
                                          && selectedId == option.OptionId;
-                        <button class="btn @(isSelected ? "btn-success" : "btn-outline-secondary")"
+                        <button type="button" class="btn @(isSelected ? "btn-success" : "btn-outline-secondary")"
+                                aria-pressed="@isSelected"
                                 @onclick="() => SelectAnswer(question.QuestionId, option.OptionId)">
                             @option.Text
                         </button>
@@ -60,6 +67,7 @@ else
     private PollDetailModel? _poll;
     private bool _loading = true;
     private bool _submitting;
+    private string? _error;
     private Dictionary<string, string> _correctAnswers = new();
 
     private bool AllQuestionsAnswered =>
@@ -68,8 +76,18 @@ else
     protected override async Task OnInitializedAsync()
     {
         _loading = true;
-        _poll = await Api.GetPollAsync(PollId);
-        _loading = false;
+        try
+        {
+            _poll = await Api.GetPollAsync(PollId);
+        }
+        catch (Exception)
+        {
+            _error = "Unable to load poll. Please try again later.";
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private void SelectAnswer(string questionId, string optionId)
@@ -79,16 +97,30 @@ else
 
     private async Task SubmitScoresAsync()
     {
-        if (!AllQuestionsAnswered)
+        if (!AllQuestionsAnswered || _submitting)
+            return;
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            "Submit these scores? This sets the correct answers and updates the leaderboard.");
+        if (!confirmed)
             return;
 
         _submitting = true;
+        _error = null;
 
-        var request = new ScorePollRequest(
-            _correctAnswers.Select(kv => new ScoreItem(kv.Key, kv.Value)).ToList()
-        );
+        try
+        {
+            var request = new ScorePollRequest(
+                _correctAnswers.Select(kv => new ScoreItem(kv.Key, kv.Value)).ToList()
+            );
 
-        await Api.ScorePollAsync(PollId, request);
-        Nav.NavigateTo($"results/{PollId}");
+            await Api.ScorePollAsync(PollId, request);
+            Nav.NavigateTo($"results/{PollId}");
+        }
+        catch (Exception)
+        {
+            _error = "Failed to submit scores. Please try again.";
+            _submitting = false;
+        }
     }
 }

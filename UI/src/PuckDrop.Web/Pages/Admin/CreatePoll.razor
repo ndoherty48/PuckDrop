@@ -3,7 +3,7 @@
 @inject PuckDropApiClient Api
 @inject NavigationManager Nav
 
-<h3 class="mb-4">Create Poll</h3>
+<h2 class="mb-4">Create Poll</h2>
 
 <div class="row">
     <div class="col-md-6">
@@ -20,9 +20,7 @@
 
             <div class="mb-3">
                 <label for="deadline" class="form-label">Deadline</label>
-                <input id="deadline" type="datetime-local" class="form-control"
-                       value="@_model.Deadline"
-                       @onchange="OnDeadlineChanged" />
+                <InputDate id="deadline" class="form-control" Type="InputDateType.DateTimeLocal" @bind-Value="_model.Deadline" />
             </div>
 
             <button type="submit" class="btn btn-primary" disabled="@_submitting">
@@ -36,14 +34,6 @@
 @code {
     private CreatePollFormModel _model = new();
     private bool _submitting;
-
-    private void OnDeadlineChanged(ChangeEventArgs e)
-    {
-        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
-        {
-            _model.Deadline = dt;
-        }
-    }
 
     private async Task HandleSubmitAsync()
     {

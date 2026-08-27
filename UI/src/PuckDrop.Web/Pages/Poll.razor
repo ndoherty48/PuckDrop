@@ -64,9 +64,17 @@
 
         @if (!IsVotingClosed)
         {
-            <button class="btn btn-primary" @onclick="SubmitPicks" disabled="@isSubmitting">
+            <button class="btn btn-primary" @onclick="SubmitPicks" disabled="@(isSubmitting || !AllQuestionsAnswered)">
                 @(isSubmitting ? "Submitting..." : "Submit Picks")
             </button>
+
+            @if (!AllQuestionsAnswered)
+            {
+                <p class="text-muted mt-2">
+                    Please pick an answer for all @poll.Questions.Count questions
+                    (@selectedOptions.Count of @poll.Questions.Count selected).
+                </p>
+            }
         }
     }
 </div>
@@ -83,6 +91,9 @@
 
     private bool IsVotingClosed =>
         poll is not null && poll.Deadline < DateTime.UtcNow;
+
+    private bool AllQuestionsAnswered =>
+        poll is not null && selectedOptions.Count == poll.Questions.Count;
 
     protected override async Task OnInitializedAsync()
     {
@@ -120,7 +131,7 @@
 
     private async Task SubmitPicks()
     {
-        if (isSubmitting) return;
+        if (isSubmitting || !AllQuestionsAnswered) return;
 
         isSubmitting = true;
         successMessage = null;

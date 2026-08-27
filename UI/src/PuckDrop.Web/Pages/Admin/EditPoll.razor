@@ -2,7 +2,7 @@
 @attribute [Authorize(Roles = "admin")]
 @inject PuckDropApiClient Api
 
-<h3 class="mb-4">Edit Poll</h3>
+<h2 class="mb-4">Edit Poll</h2>
 
 @if (_loading)
 {
@@ -14,6 +14,11 @@ else if (_poll is null)
 }
 else
 {
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
     <div class="card mb-4">
         <div class="card-body">
             <h5 class="card-title">@_poll.Title</h5>
@@ -98,6 +103,7 @@ else
     private PollDetailModel? _poll;
     private bool _loading = true;
     private bool _addingQuestion;
+    private string? _error;
 
     private string _newQuestionText = "";
     private List<string> _newOptions = new() { "", "" };
@@ -133,21 +139,40 @@ else
             return;
 
         _addingQuestion = true;
+        _error = null;
 
-        var sortOrder = (_poll?.Questions.Count ?? 0) + 1;
-        var request = new CreateQuestionRequest(_newQuestionText, sortOrder, options);
-        await Api.AddQuestionAsync(PollId, request);
+        try
+        {
+            var sortOrder = (_poll?.Questions.Count ?? 0) + 1;
+            var request = new CreateQuestionRequest(_newQuestionText, sortOrder, options);
+            await Api.AddQuestionAsync(PollId, request);
 
-        _newQuestionText = "";
-        _newOptions = new List<string> { "", "" };
+            _newQuestionText = "";
+            _newOptions = new List<string> { "", "" };
 
-        await LoadPollAsync();
-        _addingQuestion = false;
+            await LoadPollAsync();
+        }
+        catch (Exception)
+        {
+            _error = "Failed to add question. Please try again.";
+        }
+        finally
+        {
+            _addingQuestion = false;
+        }
     }
 
     private async Task DeleteQuestionAsync(string questionId)
     {
-        await Api.DeleteQuestionAsync(PollId, questionId);
-        await LoadPollAsync();
+        _error = null;
+        try
+        {
+            await Api.DeleteQuestionAsync(PollId, questionId);
+            await LoadPollAsync();
+        }
+        catch (Exception)
+        {
+            _error = "Failed to delete question. Please try again.";
+        }
     }
 }

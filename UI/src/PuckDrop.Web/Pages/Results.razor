@@ -19,76 +19,54 @@ else if (_results is not null)
             <h4 class="mb-0">@_poll?.Title</h4>
         </div>
         <div class="card-body">
-            @foreach (var question in _results.Questions)
-            {
-                <div class="mb-4">
-                    <h5>@question.Text</h5>
-                    <table class="table table-bordered table-sm">
-                        <thead>
-                            <tr>
-                                <th>Option</th>
-                                @foreach (var user in _results.UserResults)
-                                {
-                                    <th>@user.DisplayName</th>
-                                }
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var option in question.Options.OrderBy(o => o.SortOrder))
+            @* One row per user, one column per question - keeps the table growing
+               vertically as the friend group grows, instead of gaining a new column
+               per user (which is the axis that's actually unbounded). *@
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            @foreach (var question in _results.Questions)
                             {
-                                var isCorrect = option.OptionId == question.CorrectOptionId;
-                                <tr class="@(isCorrect ? "table-success" : "")">
-                                    <td>
-                                        @option.Text
-                                        @if (isCorrect)
+                                var correctOption = question.Options.FirstOrDefault(o => o.OptionId == question.CorrectOptionId);
+                                <th>
+                                    @question.Text
+                                    <div class="fw-normal small text-success mt-1">
+                                        Correct: @(correctOption?.Text ?? "—")
+                                    </div>
+                                </th>
+                            }
+                            <th>Points</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in _results.UserResults.OrderByDescending(u => u.Points))
+                        {
+                            <tr>
+                                <td>@user.DisplayName</td>
+                                @foreach (var question in _results.Questions)
+                                {
+                                    var answer = user.Answers.FirstOrDefault(a => a.QuestionId == question.QuestionId);
+                                    var selectedOption = question.Options.FirstOrDefault(o => o.OptionId == answer?.SelectedOptionId);
+                                    <td class="@(answer?.IsCorrect switch { true => "table-success", false => "table-danger", null => "" })">
+                                        @if (selectedOption is not null)
                                         {
-                                            <span class="badge bg-success ms-1">Correct</span>
+                                            @selectedOption.Text
+                                            <span class="fw-bold ms-1">@(answer!.IsCorrect == true ? "✓" : "✗")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
                                         }
                                     </td>
-                                    @foreach (var user in _results.UserResults)
-                                    {
-                                        var answer = user.Answers.FirstOrDefault(a => a.QuestionId == question.QuestionId);
-                                        <td class="text-center">
-                                            @if (answer?.SelectedOptionId == option.OptionId)
-                                            {
-                                                if (answer.IsCorrect == true)
-                                                {
-                                                    <span class="text-success fw-bold">✓</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="text-danger fw-bold">✗</span>
-                                                }
-                                            }
-                                        </td>
-                                    }
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-
-            <hr />
-
-            <h5>Summary</h5>
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Points</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var user in _results.UserResults.OrderByDescending(u => u.Points))
-                    {
-                        <tr>
-                            <td>@user.DisplayName</td>
-                            <td>@user.Points</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+                                }
+                                <td class="fw-bold">@user.Points</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 }
