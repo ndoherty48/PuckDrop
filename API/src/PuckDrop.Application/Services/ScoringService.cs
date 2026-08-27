@@ -1,15 +1,13 @@
 using PuckDrop.Domain.Entities;
 using PuckDrop.Application.Models;
 using PuckDrop.Application.Repositories;
-using PuckDrop.Application.Services.Abstractions;
 
 namespace PuckDrop.Application.Services;
 
 public class ScoringService(
     IPollRepository pollRepository,
     IUserAnswerRepository answerRepository,
-    ILeaderboardRepository leaderboardRepository,
-    IUserProfileService userProfileService)
+    ILeaderboardRepository leaderboardRepository)
 {
     /// <summary>
     /// Scores a poll: marks correct answers on questions, evaluates all user answers,
@@ -65,6 +63,7 @@ public class ScoringService(
             .Select(g => new
             {
                 UserId = g.Key,
+                DisplayName = g.First().DisplayName,
                 CorrectCount = g.Count(a => a.IsCorrect == true),
                 TotalAnswered = g.Count()
             })
@@ -77,6 +76,9 @@ public class ScoringService(
             if (existingEntry is not null)
             {
                 var previousPoints = existingEntry.TotalPoints;
+                // Refresh the denormalised name on every scoring pass so a name captured
+                // incorrectly (or since changed) self-heals instead of staying stale forever.
+                existingEntry.DisplayName = userScore.DisplayName;
                 existingEntry.AddPollResults(userScore.CorrectCount, userScore.TotalAnswered);
                 await leaderboardRepository.SaveEntryAsync(existingEntry, previousPoints, cancellationToken);
             }
@@ -86,7 +88,7 @@ public class ScoringService(
                 {
                     UserId = userScore.UserId,
                     SeasonId = poll.SeasonId,
-                    DisplayName = userProfileService.GetDisplayName(userScore.UserId)
+                    DisplayName = userScore.DisplayName
                 };
                 entry.AddPollResults(userScore.CorrectCount, userScore.TotalAnswered);
                 await leaderboardRepository.SaveEntryAsync(entry, cancellationToken: cancellationToken);

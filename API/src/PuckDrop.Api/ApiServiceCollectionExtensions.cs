@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using PuckDrop.Api.Auth;
 using PuckDrop.Api.Filters;
-using PuckDrop.Application.Services.Abstractions;
 
 namespace PuckDrop.Api;
 
@@ -16,9 +15,6 @@ public static class ApiServiceCollectionExtensions
         {
             options.Filters.Add<DomainExceptionFilter>();
         });
-
-        services.AddHttpContextAccessor();
-        services.AddScoped<IUserProfileService, CognitoUserProfileService>();
 
         var cognitoSettings = configuration.GetSection(CognitoSettings.SectionName).Get<CognitoSettings>();
         var keycloakSettings = configuration.GetSection(KeycloakSettings.SectionName).Get<KeycloakSettings>();

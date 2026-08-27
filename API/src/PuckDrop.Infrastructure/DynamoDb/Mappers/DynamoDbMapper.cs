@@ -159,6 +159,7 @@ public static class DynamoDbMapper
         GSI1PK = DynamoDbKeys.PollPK(answer.PollId),
         GSI1SK = DynamoDbKeys.UserAnswerGSI1SK(answer.UserId, answer.QuestionId),
         UserId = answer.UserId,
+        DisplayName = answer.DisplayName,
         PollId = answer.PollId,
         QuestionId = answer.QuestionId,
         SelectedOptionId = answer.SelectedOptionId,
@@ -169,6 +170,7 @@ public static class DynamoDbMapper
     public static UserAnswer ToDomain(UserAnswerItem item) => new()
     {
         UserId = item.UserId,
+        DisplayName = item.DisplayName,
         PollId = item.PollId,
         QuestionId = item.QuestionId,
         SelectedOptionId = item.SelectedOptionId,

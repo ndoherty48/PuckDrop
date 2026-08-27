@@ -25,6 +25,7 @@ public class ResultsService(IPollRepository pollRepository, IUserAnswerRepositor
             .GroupBy(a => a.UserId)
             .Select(g => new UserPollResult(
                 UserId: g.Key,
+                DisplayName: g.First().DisplayName,
                 Answers: g.ToList(),
                 Points: g.Count(a => a.IsCorrect == true)))
             .OrderByDescending(u => u.Points)
@@ -40,4 +41,4 @@ public record PollResults(
     IReadOnlyList<Option> Options,
     IReadOnlyList<UserPollResult> UserResults);
 
-public record UserPollResult(string UserId, IReadOnlyList<UserAnswer> Answers, int Points);
+public record UserPollResult(string UserId, string DisplayName, IReadOnlyList<UserAnswer> Answers, int Points);

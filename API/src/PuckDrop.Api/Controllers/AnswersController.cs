@@ -27,11 +27,12 @@ public class AnswersController(AnswerService answerService) : ControllerBase
         string pollId, [FromBody] SubmitAnswersRequest request, CancellationToken ct)
     {
         var userId = User.GetUserId();
+        var displayName = User.GetDisplayName();
         var submissions = request.Answers
             .Select(a => new AnswerSubmission(a.QuestionId, a.SelectedOptionId))
             .ToList();
 
-        var answers = await answerService.SubmitAnswersAsync(userId, pollId, submissions, ct);
+        var answers = await answerService.SubmitAnswersAsync(userId, displayName, pollId, submissions, ct);
         return Ok(answers.Select(a => a.ToResponse()).ToList());
     }
 

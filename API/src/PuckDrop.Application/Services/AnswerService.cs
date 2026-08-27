@@ -23,6 +23,7 @@ public class AnswerService(IUserAnswerRepository answerRepository, IPollReposito
     /// </summary>
     public async Task<IReadOnlyList<UserAnswer>> SubmitAnswersAsync(
         string userId,
+        string displayName,
         string pollId,
         IReadOnlyList<AnswerSubmission> answers,
         CancellationToken cancellationToken = default)
@@ -64,6 +65,7 @@ public class AnswerService(IUserAnswerRepository answerRepository, IPollReposito
             userAnswers.Add(new UserAnswer
             {
                 UserId = userId,
+                DisplayName = displayName,
                 PollId = pollId,
                 QuestionId = answer.QuestionId,
                 SelectedOptionId = answer.SelectedOptionId,

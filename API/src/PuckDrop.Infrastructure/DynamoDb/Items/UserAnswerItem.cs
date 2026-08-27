@@ -12,6 +12,9 @@ public class UserAnswerItem : DynamoDbItem
     [DynamoDBProperty("userId")]
     public string UserId { get; set; } = default!;
 
+    [DynamoDBProperty("displayName")]
+    public string DisplayName { get; set; } = default!;
+
     [DynamoDBProperty("pollId")]
     public string PollId { get; set; } = default!;
 

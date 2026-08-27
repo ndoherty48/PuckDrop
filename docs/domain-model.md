@@ -64,6 +64,7 @@ A user's selected answer for a question.
 | Field | Type | Notes |
 |-------|------|-------|
 | UserId | string | Cognito user ID |
+| DisplayName | string | Denormalised, captured at submission time from the submitter's own claims - this is the only point it can be resolved correctly, and seeds `LeaderboardEntry.DisplayName` on first scoring |
 | QuestionId | string | Which question |
 | PollId | string | Which poll (denormalised for queries) |
 | SelectedOptionId | string | Their chosen option |

@@ -15,7 +15,7 @@ public static class PollResultsMappingExtensions
 
         var userResults = results.UserResults.Select(u => new UserResultResponse(
             u.UserId,
-            u.UserId, // TODO: Resolve display name from Cognito in Phase 5
+            u.DisplayName,
             u.Answers.Select(a => a.ToResponse()).ToList(),
             u.Points
         )).ToList();

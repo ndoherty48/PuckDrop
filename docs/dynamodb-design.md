@@ -92,7 +92,7 @@ SK: Q#{questionId}
 GSI1PK: POLL#{pollId}
 GSI1SK: ANSWER#{userId}#{questionId}
 ```
-Attributes: `userId`, `pollId`, `questionId`, `selectedOptionId`, `submittedAt`, `isCorrect`
+Attributes: `userId`, `displayName`, `pollId`, `questionId`, `selectedOptionId`, `submittedAt`, `isCorrect`
 
 ### LeaderboardEntry Item
 
