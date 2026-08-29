@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/API/tests/">
     <Project Path="API/tests/PuckDrop.Domain.Tests/PuckDrop.Domain.Tests.csproj" />
+    <Project Path="API/tests/PuckDrop.Application.Tests/PuckDrop.Application.Tests.csproj" />
   </Folder>
   <Folder Name="/UI/"></Folder>
   <Folder Name="/UI/src/">
