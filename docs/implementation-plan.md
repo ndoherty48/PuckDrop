@@ -221,13 +221,13 @@ full-HTTP-pipeline tests deferred
 |---------|----------|-------|--------|
 | `PuckDrop.Domain.Tests` | `API/tests/` | 42 | Entity state machines (`GameDayPoll`), boundary conditions, season derivation math |
 | `PuckDrop.Application.Tests` | `API/tests/` | 37 | All 6 services, with the 4 repository interfaces mocked via NSubstitute |
-| `PuckDrop.Api.Tests` | `API/tests/` | 28 | `DomainExceptionFilter`, both IdP claims transformations, `ClaimsPrincipalExtensions`, response mappings |
-| `PuckDrop.Web.Tests` | `UI/tests/` | 25 | `PuckDropApiClient`'s response handling, `PuckDropClaimsPrincipalFactory`'s role normalization, plus bUnit component tests (below) |
+| `PuckDrop.Api.Tests` | `API/tests/` | 34 | `DomainExceptionFilter`, both IdP claims transformations, `ClaimsPrincipalExtensions`, response mappings, `AddApis`'s provider-resolution/`AuthDiscoveryOptions` behavior, `AuthConfigController` |
+| `PuckDrop.Web.Tests` | `UI/tests/` | 26 | `PuckDropApiClient`'s response handling, `PuckDropClaimsPrincipalFactory`'s role normalization, `App.razor`'s auth-config-load-failure branch, plus bUnit component tests (below) |
 
 xUnit v3 on Microsoft.Testing.Platform (matches `global.json`'s `test.runner` setting — no
 `xunit.runner.visualstudio`/`Microsoft.NET.Test.Sdk` needed), NSubstitute for mocking, no
 FluentAssertions (v8+ requires a paid commercial license outside qualifying non-commercial use;
-xUnit v3's built-in `Assert` covers what's needed). All 132 tests build and pass together as part
+xUnit v3's built-in `Assert` covers what's needed). All 139 tests build and pass together as part
 of `dotnet build`/`dotnet test PuckDrop.slnx`.
 
 **bUnit component tests** (added to `PuckDrop.Web.Tests` rather than a separate project — the UI
