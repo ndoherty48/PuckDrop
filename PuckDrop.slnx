@@ -23,4 +23,7 @@
     <Project Path="Infrastructure/PuckDrop.ServiceDefaults/PuckDrop.ServiceDefaults.csproj" />
     <Project Path="Infrastructure/PuckDrop.ClientServiceDefaults/PuckDrop.ClientServiceDefaults.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PuckDrop.E2ETests/PuckDrop.E2ETests.csproj" />
+  </Folder>
 </Solution>

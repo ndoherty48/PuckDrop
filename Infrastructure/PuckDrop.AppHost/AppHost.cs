@@ -94,11 +94,24 @@ var apiGateway = builder.AddAWSAPIGatewayEmulator("api-gateway", Aspire.Hosting.
 var web = builder.AddBlazorWasmProject<Projects.PuckDrop_Web>("web")
     .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"));
 
-builder.AddBlazorGateway("blazor-gateway")
+var blazorGateway = builder.AddBlazorGateway("blazor-gateway")
     .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"))
-    .WithExternalHttpEndpoints()
-    .WithOtlpExporter(OtlpProtocol.HttpProtobuf)
-    .WithBlazorClientApp(web)
-    .WithBrowserLogs();
+    .WithExternalHttpEndpoints();
+
+// Both .WithOtlpExporter and .WithBrowserLogs (dashboard dev-tooling: tracks a browser tab and
+// reports its console diagnostics back via OTLP) require a real Aspire Dashboard supplying
+// ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL (set by `aspire start`/`aspire run`) - absent when
+// running under Aspire.Hosting.Testing (tests/PuckDrop.E2ETests boots the AppHost with no
+// dashboard, and drives its own separate Playwright browser - Aspire's tracked-browser-tab
+// tooling isn't wanted there anyway), where both fail resource startup hard instead of just
+// skipping. Guard both rather than break that test suite.
+var hasDashboard = !string.IsNullOrEmpty(builder.Configuration["ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL"]);
+if (hasDashboard)
+    blazorGateway.WithOtlpExporter(OtlpProtocol.HttpProtobuf);
+
+blazorGateway.WithBlazorClientApp(web);
+
+if (hasDashboard)
+    blazorGateway.WithBrowserLogs();
 
 builder.Build().Run();
