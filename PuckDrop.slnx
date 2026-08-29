@@ -6,7 +6,9 @@
     <Project Path="API/src/PuckDrop.Domain/PuckDrop.Domain.csproj" />
     <Project Path="API/src/PuckDrop.Infrastructure/PuckDrop.Infrastructure.csproj" />
   </Folder>
-  <Folder Name="/API/tests/"></Folder>
+  <Folder Name="/API/tests/">
+    <Project Path="API/tests/PuckDrop.Domain.Tests/PuckDrop.Domain.Tests.csproj" />
+  </Folder>
   <Folder Name="/UI/"></Folder>
   <Folder Name="/UI/src/">
     <Project Path="UI/src/PuckDrop.Web/PuckDrop.Web.csproj" />
