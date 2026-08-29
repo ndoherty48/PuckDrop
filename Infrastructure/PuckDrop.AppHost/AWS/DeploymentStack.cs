@@ -180,6 +180,19 @@ public class DeploymentStack : Stack
             AuthorizerId = JwtAuthorizer.Ref
         });
 
+        // Route: GET /puckdrop/auth-config, deliberately unauthenticated - the Blazor WASM app
+        // fetches its OIDC config from here at boot (see AuthConfigController), so it can't
+        // itself require a token yet. HTTP APIs match the most specific route over the
+        // {proxy+} catch-all above, so this exact-path route safely coexists with the blanket
+        // JWT authorizer on every other path under /puckdrop/ without opening anything else up.
+        _ = new Amazon.CDK.AWS.Apigatewayv2.CfnRoute(this, "PuckDropAuthConfigRoute", new Amazon.CDK.AWS.Apigatewayv2.CfnRouteProps
+        {
+            ApiId = HttpApi.Ref,
+            RouteKey = "GET /puckdrop/auth-config",
+            Target = $"integrations/{integration.Ref}",
+            AuthorizationType = "NONE"
+        });
+
         // Grant API Gateway permission to invoke the Lambda
         lambdaFunction.AddPermission("ApiGatewayInvoke", new Amazon.CDK.AWS.Lambda.Permission
         {

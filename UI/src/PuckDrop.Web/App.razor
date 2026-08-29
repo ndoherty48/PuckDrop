@@ -1,22 +1,38 @@
-﻿<CascadingAuthenticationState>
-    <Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-        <Found Context="routeData">
-            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
-                <NotAuthorized>
-                    @if (context.User.Identity?.IsAuthenticated == true)
-                    {
-                        <Unauthorized />
-                    }
-                    else
-                    {
-                        <RedirectToLogin />
-                    }
-                </NotAuthorized>
-                <Authorizing>
-                    <p><em>Checking login state...</em></p>
-                </Authorizing>
-            </AuthorizeRouteView>
-            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-        </Found>
-    </Router>
-</CascadingAuthenticationState>
+﻿@inject AuthConfigLoadResult AuthConfigLoadResult
+
+@if (!AuthConfigLoadResult.Success)
+{
+    @* OIDC config couldn't be fetched from the API at boot (see Program.cs) - render this
+       instead of the normal tree below, since AuthenticationStateProvider and friends were
+       never registered in that case. *@
+    <div class="container-fluid mt-5 text-center">
+        <h2>Couldn't reach the server</h2>
+        <p class="text-muted">@AuthConfigLoadResult.ErrorMessage</p>
+        <p>Please try again later.</p>
+    </div>
+}
+else
+{
+    <CascadingAuthenticationState>
+        <Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+            <Found Context="routeData">
+                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                    <NotAuthorized>
+                        @if (context.User.Identity?.IsAuthenticated == true)
+                        {
+                            <Unauthorized />
+                        }
+                        else
+                        {
+                            <RedirectToLogin />
+                        }
+                    </NotAuthorized>
+                    <Authorizing>
+                        <p><em>Checking login state...</em></p>
+                    </Authorizing>
+                </AuthorizeRouteView>
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </Found>
+        </Router>
+    </CascadingAuthenticationState>
+}

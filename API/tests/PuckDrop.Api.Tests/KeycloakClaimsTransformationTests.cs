@@ -11,7 +11,8 @@ public class KeycloakClaimsTransformationTests
     {
         ServerUrl = "https://keycloak.example.com",
         Realm = "PuckDrop",
-        ClientId = "PuckDrop-API"
+        ClientId = "PuckDrop-API",
+        UiClientId = "PuckDrop-UI"
         // AdminRoleName defaults to "admin"
     };
 

@@ -40,6 +40,14 @@ public record LeaderboardModel(string SeasonId, List<LeaderboardEntryModel> Entr
 public record LeaderboardEntryModel(
     string UserId, string DisplayName, int TotalPoints, int TotalAnswered, int Rank);
 
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// OIDC config fetched from the unauthenticated GET auth-config endpoint at boot, in Program.cs -
+/// matches PuckDrop.Api.Contracts.AuthConfigResponse.
+/// </summary>
+public record AuthConfigModel(string Authority, string ClientId, string ResponseType);
+
 // ─── Requests ─────────────────────────────────────────────────────────────────
 
 public record CreatePollRequest(string Title, DateOnly GameDate, DateTime Deadline);

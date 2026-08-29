@@ -24,6 +24,9 @@ public static class ApiServiceCollectionExtensions
         {
             services.AddSingleton(cognitoSettings);
             services.AddTransient<IClaimsTransformation, CognitoClaimsTransformation>();
+            // Cognito has only one UserPoolClient serving both the API's own JWT-audience
+            // validation and the browser's OIDC login flow, so ClientId is correct for both.
+            services.AddSingleton(new AuthDiscoveryOptions(cognitoSettings.Authority, cognitoSettings.ClientId, "code"));
 
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -43,6 +46,11 @@ public static class ApiServiceCollectionExtensions
         {
             services.AddSingleton(keycloakSettings);
             services.AddTransient<IClaimsTransformation, KeycloakClaimsTransformation>();
+            // Keycloak's realm has two separate clients: keycloakSettings.ClientId ("PuckDrop-API")
+            // is only for the API's own audience validation - the browser logs in with the
+            // different UiClientId ("PuckDrop-UI"), so that's what gets served to the UI here.
+            services.AddSingleton(new AuthDiscoveryOptions(
+                $"{keycloakSettings.ServerUrl}/realms/{keycloakSettings.Realm}", keycloakSettings.UiClientId, "code"));
 
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -59,16 +67,14 @@ public static class ApiServiceCollectionExtensions
                     };
                 });
         }
-        #if DEBUG
         else
         {
-            // Dev mode: no real auth configured. Allow all requests as an admin dev user
-            // (DevAuthenticationHandler emits the normalized admin role claim directly, since
-            // there's no real provider claim shape to transform here).
-            services.AddAuthentication("DevScheme")
-                .AddScheme<DevAuthenticationOptions, DevAuthenticationHandler>("DevScheme", null);
+            // No real auth configured, and no dev-auth bypass to fall back to (that was
+            // DevAuthenticationHandler, removed deliberately - a shipped auto-admin-bypass isn't
+            // worth carrying forward). Fail fast and clearly rather than come up with broken auth.
+            throw new InvalidOperationException(
+                "No identity provider configured: either the 'Cognito' or 'Keycloak' configuration section must be bound and non-placeholder.");
         }
-        #endif
 
         // One provider-agnostic admin policy. Whichever branch above ran has already normalized
         // that provider's own admin signal (Cognito's "cognito:groups", Keycloak's

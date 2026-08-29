@@ -71,18 +71,33 @@ this order:
    placeholder — JWT bearer against the Cognito issuer.
 2. **Keycloak** (`Keycloak` section) if `KeycloakSettings` is bound and `Realm` isn't a
    placeholder — JWT bearer against the Keycloak realm issuer.
-3. **`DevAuthenticationHandler`** (DEBUG builds only) if neither is configured — auto-authenticates
-   every request as an admin `dev-user`. Never active in Release builds.
+3. **Neither resolves** — throws `InvalidOperationException` at startup rather than coming up
+   with broken/no auth. (There used to be a third, DEBUG-only `DevAuthenticationHandler` fallback
+   that auto-authenticated every request as an admin; removed deliberately — a shipped
+   auto-admin-bypass wasn't worth carrying forward, even DEBUG-gated.)
 
 Only one of Cognito/Keycloak should be configured at a time — whichever resolves first wins.
 Each provider branch also registers an `IClaimsTransformation`
 (`CognitoClaimsTransformation` / `KeycloakClaimsTransformation`, in `Api/Auth/`) that normalizes
 that provider's own admin signal (Cognito's `cognito:groups` claim, Keycloak's
-`realm_access.roles`) into a standard `ClaimTypes.Role` "admin" claim — `DevAuthenticationHandler`
-emits it directly. There is a single, shared `AdminPolicy` (`policy.RequireRole("admin")`) used by
-every controller, so switching Cognito ↔ Keycloak is purely a config change, never a code change.
-The Blazor UI mirrors this with `PuckDropClaimsPrincipalFactory` (`UI/src/PuckDrop.Web/Auth/`),
-which normalizes the same two claim shapes client-side.
+`realm_access.roles`) into a standard `ClaimTypes.Role` "admin" claim. There is a single, shared
+`AdminPolicy` (`policy.RequireRole("admin")`) used by every controller, so switching Cognito ↔
+Keycloak is purely a config change, never a code change. The Blazor UI mirrors this with
+`PuckDropClaimsPrincipalFactory` (`UI/src/PuckDrop.Web/Auth/`), which normalizes the same two
+claim shapes client-side.
+
+Each branch also registers an `AuthDiscoveryOptions` (`Api/Auth/`) with the active provider's
+`Authority`/`ClientId`/`ResponseType`, served unauthenticated via `GET /auth-config`
+(`AuthConfigController`) so the Blazor UI can fetch its OIDC config at boot instead of it being
+baked into `wwwroot/appsettings.json` at build time — there's no way to inject CDK-provisioned
+values into a static WASM bundle the way the Lambda's env vars are injected at publish time (see
+`AppHost.cs`'s `ConstructFunctionCallback`). Cognito's `AuthDiscoveryOptions.ClientId` reuses
+`CognitoSettings.ClientId` (one `UserPoolClient` serves both the API's audience validation and
+the browser's login); Keycloak's uses the separate `KeycloakSettings.UiClientId`
+("PuckDrop-UI"), since Keycloak's own `ClientId` ("PuckDrop-API") is audience-validation-only and
+isn't the client the browser logs in with. In production this endpoint needs its own API Gateway
+route with `AuthorizationType = "NONE"` (`DeploymentStack.cs`), since the catch-all Lambda route
+otherwise requires a JWT for every path under `/puckdrop/`.
 
 Cognito is the production IdP (provisioned by CDK in `DeploymentStack`); Keycloak is used for
 local dev via Aspire (`AddKeycloak` + realm import from
@@ -109,9 +124,11 @@ local dev via Aspire (`AddKeycloak` + realm import from
 Blazor WebAssembly app (`UI/src/PuckDrop.Web`). `PuckDropApiClient` (in `Services/`) is the sole
 HTTP client to the API, pointed at the API Gateway emulator's base URL (resolved from Aspire
 service discovery config, falling back to `ApiClientSettings:BaseUrl`, then a hardcoded local
-default). Provider-agnostic OIDC auth (config in `wwwroot/appsettings.json`'s `Oidc` section,
-pointed at whichever of Cognito/Keycloak the API is currently using) is wired up in `Program.cs` —
-see "Auth" above. Pages are split into
+default). Provider-agnostic OIDC auth is wired up in `Program.cs`, which fetches its config from
+the API's `GET /auth-config` at boot rather than a static file — see "Auth" above. If that fetch
+fails, `Program.cs` registers an `AuthConfigLoadResult` that `App.razor` checks before rendering
+its normal `<Router>`/`<CascadingAuthenticationState>` tree, showing a clear error instead of a
+blank page. Pages are split into
 top-level (`Home`, `Poll`, `Leaderboard`, `History`, `Results`) and `Pages/Admin/*`
 (`CreatePoll`, `EditPoll`, `Polls`, `ScorePoll`) for the create/score workflow.
 

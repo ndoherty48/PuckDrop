@@ -6,13 +6,13 @@ using Microsoft.AspNetCore.Components.WebAssembly.Authentication.Internal;
 namespace PuckDrop.Web.Auth;
 
 /// <summary>
-/// Normalizes whichever identity provider is configured (Cognito or Keycloak - see
-/// <c>wwwroot/appsettings.json</c>'s "Oidc" section) into standard <see cref="ClaimTypes.Role"/>
-/// claims, so role-based authorization (<c>[Authorize(Roles = "...")]</c>,
-/// <c>&lt;AuthorizeView Roles="..."&gt;</c>) works the same way regardless of provider - the
-/// same normalization PuckDrop.Api does server-side via
+/// Normalizes whichever identity provider is configured (Cognito or Keycloak - config fetched
+/// from the API's <c>auth-config</c> endpoint at boot, see Program.cs) into standard
+/// <see cref="ClaimTypes.Role"/> claims, so role-based authorization
+/// (<c>[Authorize(Roles = "...")]</c>, <c>&lt;AuthorizeView Roles="..."&gt;</c>) works the same
+/// way regardless of provider - the same normalization PuckDrop.Api does server-side via
 /// <c>CognitoClaimsTransformation</c>/<c>KeycloakClaimsTransformation</c>. Switching providers
-/// is then purely a config change (which authority/client ID is configured), not a code change.
+/// is then purely a server-side config change, not a code change.
 /// </summary>
 /// <remarks>
 /// The Blazor OIDC pipeline merges claims from both the ID token and the userinfo endpoint

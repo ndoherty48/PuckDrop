@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -34,21 +35,49 @@ builder.Services.AddHttpClient<PuckDropApiClient>(client => client.BaseAddress =
     .AddHttpMessageHandler(sp => sp.GetRequiredService<AuthorizationMessageHandler>()
         .ConfigureHandler(authorizedUrls: [apiBaseUrl]));
 
-// Config is deliberately provider-agnostic (standard OIDC authorization-code-flow settings
-// work identically against Cognito or Keycloak's own discovery/token endpoints - there's no
-// per-provider divergence at the protocol level the way there is server-side, see
-// PuckDrop.Api.ApiServiceCollectionExtensions). Switching providers is just pointing
-// wwwroot/appsettings.json's "Oidc" section at a different authority/client ID.
-builder.Services.AddOidcAuthentication(options =>
+// OIDC config is fetched from the API at boot rather than baked into wwwroot/appsettings.json -
+// the real values (a Cognito User Pool, or local Keycloak) are only known server-side, where
+// CDK-provisioned config already flows in via the existing Lambda env-var seam (see
+// PuckDrop.Api.ApiServiceCollectionExtensions.AddApis / AppHost.cs's ConstructFunctionCallback).
+// A short timeout plus an explicit AuthConfigLoadResult flag (checked by App.razor) keeps the
+// app from booting into a blank white page if the API is unreachable at startup.
+AuthConfigModel? authConfig = null;
+AuthConfigLoadResult authConfigLoadResult;
+try
 {
-    var config = builder.Configuration.GetSection("Oidc");
-    options.ProviderOptions.Authority = config["Authority"];
-    options.ProviderOptions.ClientId = config["ClientId"];
-    options.ProviderOptions.ResponseType = config["ResponseType"];
+    using var bootstrapHttpClient = new HttpClient { BaseAddress = baseUri, Timeout = TimeSpan.FromSeconds(10) };
+    authConfig = await bootstrapHttpClient.GetFromJsonAsync<AuthConfigModel>("auth-config");
+    authConfigLoadResult = authConfig is not null
+        ? AuthConfigLoadResult.Ok
+        : new AuthConfigLoadResult(false, "The server returned no auth configuration.");
+}
+catch (Exception ex)
+{
+    authConfigLoadResult = new AuthConfigLoadResult(false, $"Could not reach the server: {ex.Message}");
+}
 
-    options.ProviderOptions.DefaultScopes.Add("openid");
-    options.ProviderOptions.DefaultScopes.Add("profile");
-}).AddAccountClaimsPrincipalFactory<PuckDropClaimsPrincipalFactory>();
+builder.Services.AddSingleton(authConfigLoadResult);
+
+if (authConfig is not null)
+{
+    // Config is deliberately provider-agnostic (standard OIDC authorization-code-flow settings
+    // work identically against Cognito or Keycloak's own discovery/token endpoints - there's no
+    // per-provider divergence at the protocol level the way there is server-side, see
+    // PuckDrop.Api.ApiServiceCollectionExtensions). Switching providers is purely a server-side
+    // config change now - the UI just reflects whatever auth-config returns.
+    builder.Services.AddOidcAuthentication(options =>
+    {
+        options.ProviderOptions.Authority = authConfig.Authority;
+        options.ProviderOptions.ClientId = authConfig.ClientId;
+        options.ProviderOptions.ResponseType = authConfig.ResponseType;
+
+        options.ProviderOptions.DefaultScopes.Add("openid");
+        options.ProviderOptions.DefaultScopes.Add("profile");
+    }).AddAccountClaimsPrincipalFactory<PuckDropClaimsPrincipalFactory>();
+}
+// If the fetch failed, OIDC services are deliberately left unregistered - App.razor checks
+// AuthConfigLoadResult before rendering anything that would need them (AuthenticationStateProvider
+// etc.), so nothing tries to resolve a service that was never configured.
 
 // Note: unlike ASP.NET Core endpoint routing, Blazor WASM's AuthorizeRouteView does
 // NOT consult AuthorizationOptions.FallbackPolicy - a page with no [Authorize]/[AllowAnonymous]

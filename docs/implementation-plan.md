@@ -271,9 +271,13 @@ worked with an older bUnit API shape.
 - **API full-HTTP-pipeline tests** (`[Authorize]`/`AdminPolicy` enforcement, routing, through the
   real MVC pipeline) — needs a custom test host since `PuckDrop.Api` has no `Program.cs`
   (`LambdaEntryPoint.Init` is the only wiring point); a `WebApplicationFactory<LambdaEntryPoint>`
-  subclass overriding `CreateHostBuilder` to replicate `Init`'s calls is the shape to use.
-  Lower marginal value than the above — controllers are 2–6 lines each, already covered
-  indirectly by the Application/Api-layer unit tests.
+  subclass overriding `CreateHostBuilder` to replicate `Init`'s calls is the shape to use. For
+  real JWTs to test against: use `Aspire.Hosting.Testing` against the real Keycloak AppHost
+  resource and pull tokens from the seeded `admin`/`friend` realm users — `DevAuthenticationHandler`
+  (the DEBUG-only auto-admin-bypass this would previously have leaned on) was removed deliberately,
+  so there's no dev-auth fallback to depend on here. Lower marginal value than the above —
+  controllers are 2–6 lines each, already covered indirectly by the Application/Api-layer unit
+  tests.
 - **CI** (`.github/workflows` running `dotnet test`) — explicit separate decision, not yet made;
   revisit now that a real test suite exists to run.
 
