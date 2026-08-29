@@ -115,3 +115,5 @@ shared `TargetFramework` (`net10.0`), nullable, and implicit usings for every pr
 - `docs/api-design.md` — API endpoint design
 - `docs/ui-pages.md` — page-by-page UI spec
 - `docs/implementation-plan.md` — build sequencing
+- `docs/multi-tenancy.md` — not planned; design sketch for adding multi-group/league support
+  if it's ever needed
