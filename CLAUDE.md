@@ -25,9 +25,9 @@ dotnet test PuckDrop.slnx         # Run all tests (xUnit v3 on Microsoft.Testing
 
 `API/tests/` and `UI/tests/` hold four xUnit v3 test projects — `PuckDrop.Domain.Tests`,
 `PuckDrop.Application.Tests`, `PuckDrop.Api.Tests` (all pure/fast, no external dependencies), and
-`PuckDrop.Web.Tests` — 120 tests total, covered in `docs/implementation-plan.md`'s Phase 7.
-Infrastructure integration tests (needs DynamoDB Local via Docker), Blazor component tests
-(bUnit), and API full-HTTP-pipeline tests are deliberate follow-ups, not yet built — also
+`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 132 tests total, covered in
+`docs/implementation-plan.md`'s Phase 7. Infrastructure integration tests (needs DynamoDB Local
+via Docker) and API full-HTTP-pipeline tests are deliberate follow-ups, not yet built — also
 detailed in Phase 7.
 
 There is no linter/formatter config (`.editorconfig`) and no CI workflow in this repo currently.

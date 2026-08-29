@@ -212,7 +212,8 @@ Supporting infrastructure:
 
 ## Phase 7 — Integration & Testing
 
-**Status:** Partially complete — fast/unit slice done, integration and component tests deferred
+**Status:** Partially complete — fast/unit slice and bUnit component tests done; integration and
+full-HTTP-pipeline tests deferred
 
 ### What was built
 
@@ -221,13 +222,30 @@ Supporting infrastructure:
 | `PuckDrop.Domain.Tests` | `API/tests/` | 42 | Entity state machines (`GameDayPoll`), boundary conditions, season derivation math |
 | `PuckDrop.Application.Tests` | `API/tests/` | 37 | All 6 services, with the 4 repository interfaces mocked via NSubstitute |
 | `PuckDrop.Api.Tests` | `API/tests/` | 28 | `DomainExceptionFilter`, both IdP claims transformations, `ClaimsPrincipalExtensions`, response mappings |
-| `PuckDrop.Web.Tests` | `UI/tests/` | 13 | `PuckDropApiClient`'s response handling, `PuckDropClaimsPrincipalFactory`'s role normalization |
+| `PuckDrop.Web.Tests` | `UI/tests/` | 25 | `PuckDropApiClient`'s response handling, `PuckDropClaimsPrincipalFactory`'s role normalization, plus bUnit component tests (below) |
 
 xUnit v3 on Microsoft.Testing.Platform (matches `global.json`'s `test.runner` setting — no
 `xunit.runner.visualstudio`/`Microsoft.NET.Test.Sdk` needed), NSubstitute for mocking, no
 FluentAssertions (v8+ requires a paid commercial license outside qualifying non-commercial use;
-xUnit v3's built-in `Assert` covers what's needed). All 120 tests build and pass together as part
+xUnit v3's built-in `Assert` covers what's needed). All 132 tests build and pass together as part
 of `dotnet build`/`dotnet test PuckDrop.slnx`.
+
+**bUnit component tests** (added to `PuckDrop.Web.Tests` rather than a separate project — the UI
+test suite isn't large enough to warrant fragmenting it): `PollTests` (`AllQuestionsAnswered`/
+`IsVotingClosed` gating the submit button, closed-voting badge, and disabled radio inputs),
+`LeaderboardTests` (the current-user row highlight matching the raw `"sub"` claim — a real
+regression fixed earlier in this project's history; deliberately reverted to the wrong
+`ClaimTypes.NameIdentifier` check to confirm the test actually catches it, then restored),
+`Admin/PollsTests` and `Admin/ScorePollTests` (`confirm()` JSInterop gating before Publish/Close/
+Submit Scores actions fire, plus `ScorePoll`'s own answer-completeness gating and post-submit
+navigation to the results page). `PuckDropApiClient` is faked via a new shared
+`TestSupport/RoutingHttpMessageHandler` (routes canned responses by method + path/query, since a
+single component often calls several endpoints in one render — the existing single-fixed-response
+fake in `PuckDropApiClientTests` doesn't need to support that). Ground-truth for bUnit 2.9's API
+(`BunitContext`/`.Render<T>()` replacing the now-obsolete `TestContext`/`.RenderComponent<T>()`,
+`JSInterop.Setup<T>(...)`, `AddAuthorization()`/`.SetClaims(...)`) was confirmed against the
+package's own XML docs rather than assumed, since it had moved since the last time this session
+worked with an older bUnit API shape.
 
 ### Design decisions
 
@@ -250,10 +268,6 @@ of `dotnet build`/`dotnet test PuckDrop.slnx`.
   hand-rolled `ToAttributes`/`MapFromAttributes`, which bypass `DynamoDbMapper`) — but needs
   Docker locally, so it's deliberately out of this round. Table schema to replicate is fully
   known from `Infrastructure/PuckDrop.AppHost/Extensions/DynamoDBExtensions.cs`.
-- **Blazor component tests (bUnit)** — `Leaderboard.razor` (current-user highlight via the raw
-  `"sub"` claim — a real regression fixed earlier in this project's history, high value if
-  picked up), `Poll.razor` (`AllQuestionsAnswered`/`IsVotingClosed` gating), `Admin/Polls.razor`/
-  `Admin/ScorePoll.razor` (`confirm()` JSInterop gating).
 - **API full-HTTP-pipeline tests** (`[Authorize]`/`AdminPolicy` enforcement, routing, through the
   real MVC pipeline) — needs a custom test host since `PuckDrop.Api` has no `Program.cs`
   (`LambdaEntryPoint.Init` is the only wiring point); a `WebApplicationFactory<LambdaEntryPoint>`
