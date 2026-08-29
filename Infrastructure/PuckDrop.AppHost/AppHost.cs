@@ -81,14 +81,12 @@ var apiGateway = builder.AddAWSAPIGatewayEmulator("api-gateway", Aspire.Hosting.
     .WithHttpEndpoint(port: 8080)
     .WithHttpsEndpoint(port: 8081);
 
+// Blazor WASM can't read AppHost-injected env vars at runtime (see Program.cs), so there's no
+// .WithEnvironment(...) here wiring up the "Oidc" OIDC settings - they're baked into
+// UI/src/PuckDrop.Web/wwwroot/appsettings.json at build time instead, which is why Keycloak's
+// port is pinned above rather than dynamically allocated.
 var web = builder.AddBlazorWasmProject<Projects.PuckDrop_Web>("web")
-    .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"))
-    .WithEnvironment(x =>
-    {
-        x.EnvironmentVariables["Keycloak__Authority"] = ReferenceExpression.Create($"{keycloak.GetEndpoint("http")}/realms/PuckDrop");
-        x.EnvironmentVariables["Keycloak__ClientId"] = "";
-        x.EnvironmentVariables["Keycloak__ResponseType"] = "code";
-    });
+    .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"));
 
 builder.AddBlazorGateway("blazor-gateway")
     .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"))

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using PuckDrop.Api.Auth;
@@ -22,6 +23,7 @@ public static class ApiServiceCollectionExtensions
         if (cognitoSettings is not null && !cognitoSettings.UserPoolId.Contains("PLACEHOLDER"))
         {
             services.AddSingleton(cognitoSettings);
+            services.AddTransient<IClaimsTransformation, CognitoClaimsTransformation>();
 
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -36,16 +38,11 @@ public static class ApiServiceCollectionExtensions
                         ValidateLifetime = true
                     };
                 });
-
-            services.AddAuthorizationBuilder()
-                .AddPolicy(AdminPolicy, policy =>
-                    policy.RequireAssertion(context =>
-                        context.User.HasClaim(c =>
-                            c.Type == "cognito:groups" && c.Value == cognitoSettings.AdminGroupName)));
         }
         else if (keycloakSettings is not null && !keycloakSettings.Realm.Contains("PLACEHOLDER"))
         {
             services.AddSingleton(keycloakSettings);
+            services.AddTransient<IClaimsTransformation, KeycloakClaimsTransformation>();
 
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -61,25 +58,26 @@ public static class ApiServiceCollectionExtensions
                         ValidateLifetime = true
                     };
                 });
-
-            services.AddAuthorizationBuilder()
-                .AddPolicy(AdminPolicy, policy =>
-                    policy.RequireAssertion(context =>
-                        context.User.HasClaim(c =>
-                            c.Type == "realm_access" && 
-                            c.Value.Contains(keycloakSettings.AdminRoleName))));
         }
         #if DEBUG
         else
         {
-            // Dev mode: no real auth configured. Allow all requests.
+            // Dev mode: no real auth configured. Allow all requests as an admin dev user
+            // (DevAuthenticationHandler emits the normalized admin role claim directly, since
+            // there's no real provider claim shape to transform here).
             services.AddAuthentication("DevScheme")
                 .AddScheme<DevAuthenticationOptions, DevAuthenticationHandler>("DevScheme", null);
-
-            services.AddAuthorizationBuilder()
-                .AddPolicy(AdminPolicy, policy => policy.RequireAssertion(_ => true));
         }
         #endif
+
+        // One provider-agnostic admin policy. Whichever branch above ran has already normalized
+        // that provider's own admin signal (Cognito's "cognito:groups", Keycloak's
+        // "realm_access.roles", or the dev handler's claim) into a standard ClaimTypes.Role
+        // "admin" claim - via IClaimsTransformation, or directly for the dev handler - so this
+        // policy (and every controller using it) never needs to know which provider is active.
+        // Switching Cognito <-> Keycloak is then purely a config change, not a code change.
+        services.AddAuthorizationBuilder()
+            .AddPolicy(AdminPolicy, policy => policy.RequireRole("admin"));
 
         services.AddCors(options =>
         {

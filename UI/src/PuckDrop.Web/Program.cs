@@ -34,21 +34,21 @@ builder.Services.AddHttpClient<PuckDropApiClient>(client => client.BaseAddress =
     .AddHttpMessageHandler(sp => sp.GetRequiredService<AuthorizationMessageHandler>()
         .ConfigureHandler(authorizedUrls: [apiBaseUrl]));
 
+// Config is deliberately provider-agnostic (standard OIDC authorization-code-flow settings
+// work identically against Cognito or Keycloak's own discovery/token endpoints - there's no
+// per-provider divergence at the protocol level the way there is server-side, see
+// PuckDrop.Api.ApiServiceCollectionExtensions). Switching providers is just pointing
+// wwwroot/appsettings.json's "Oidc" section at a different authority/client ID.
 builder.Services.AddOidcAuthentication(options =>
 {
-    var config = builder.Configuration.GetSection("Keycloak");
+    var config = builder.Configuration.GetSection("Oidc");
     options.ProviderOptions.Authority = config["Authority"];
-        // "https://localhost:8080/realms/myapp";
-
     options.ProviderOptions.ClientId = config["ClientId"];
-        // "blazor-client";
-
     options.ProviderOptions.ResponseType = config["ResponseType"];
-        // "code";
 
     options.ProviderOptions.DefaultScopes.Add("openid");
     options.ProviderOptions.DefaultScopes.Add("profile");
-}).AddAccountClaimsPrincipalFactory<KeycloakAccountClaimsPrincipalFactory>();
+}).AddAccountClaimsPrincipalFactory<PuckDropClaimsPrincipalFactory>();
 
 // Note: unlike ASP.NET Core endpoint routing, Blazor WASM's AuthorizeRouteView does
 // NOT consult AuthorizationOptions.FallbackPolicy - a page with no [Authorize]/[AllowAnonymous]

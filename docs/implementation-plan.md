@@ -156,7 +156,7 @@ Supporting infrastructure:
 |-----------|----------|---------|
 | `CognitoSettings` | `Api/Auth/` | Configuration model (UserPoolId, ClientId, Region, AdminGroupName) |
 | JWT middleware | `ApiServiceCollectionExtensions` | Bearer token validation against Cognito issuer |
-| `AdminOnly` policy | `ApiServiceCollectionExtensions` | Requires `cognito:groups` contains "admin" |
+| `AdminOnly` policy | `ApiServiceCollectionExtensions` | `RequireRole("admin")` — provider-agnostic, see note below |
 | `ClaimsPrincipalExtensions` | `Api/Auth/` | `GetUserId()` and `GetDisplayName()` from JWT claims |
 | `CognitoUserProfileService` | `Api/Auth/` | Implements `IUserProfileService` using HTTP context claims |
 | `[Authorize]` attributes | All controllers | User-level auth on all endpoints |
@@ -169,7 +169,10 @@ Supporting infrastructure:
 - `CognitoUserProfileService` lives in Api layer (depends on `IHttpContextAccessor`)
 - Claims fallback chain: `name` → `cognito:username` → `email` → `sub`
 - `UnauthorizedAccessException` thrown if `sub` claim is missing (shouldn't happen with valid JWT)
-- Admin policy checks `cognito:groups` claim value (Cognito group membership)
+- Admin policy is provider-agnostic: `CognitoClaimsTransformation`/`KeycloakClaimsTransformation`
+  (added later, see CLAUDE.md's Auth section) normalize each provider's own admin signal into a
+  standard `ClaimTypes.Role` "admin" claim, so `AdminOnly` itself never checks a provider-specific
+  claim
 
 ---
 

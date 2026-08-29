@@ -7,7 +7,8 @@ namespace PuckDrop.Api.Auth;
 
 /// <summary>
 /// Development-only authentication handler that auto-authenticates all requests
-/// as a dev user with admin privileges. Only active when Cognito is not configured.
+/// as a dev user with admin privileges. Only active when neither Cognito nor Keycloak is
+/// configured.
 /// </summary>
 public class DevAuthenticationHandler(
     IOptionsMonitor<DevAuthenticationOptions> options,
@@ -21,7 +22,7 @@ public class DevAuthenticationHandler(
             new Claim(ClaimTypes.NameIdentifier, "dev-user"),
             new Claim("sub", "dev-user"),
             new Claim("name", "Dev User"),
-            new Claim("cognito:groups", "admin")
+            new Claim(ClaimTypes.Role, "admin")
         };
 
         var identity = new ClaimsIdentity(claims, Scheme.Name);

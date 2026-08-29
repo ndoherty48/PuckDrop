@@ -58,23 +58,30 @@ keys for leaderboard sort order). Item shape and key layout must stay in sync be
 `DynamoDbKeys.cs`, and `DynamoDb/Items/*Item.cs` — when changing an access pattern, update all
 three plus `DynamoDbMapper.cs`.
 
-### Auth: dual-provider, resolved at startup
+### Auth: dual-provider, resolved at startup, normalized to provider-agnostic claims
 
 `ApiServiceCollectionExtensions.AddApis` picks an auth scheme by inspecting config at startup, in
 this order:
 1. **Cognito** (`Cognito` section) if `CognitoSettings` is bound and `UserPoolId` isn't a
-   placeholder — JWT bearer against the Cognito issuer, admin policy checks the
-   `cognito:groups` claim.
+   placeholder — JWT bearer against the Cognito issuer.
 2. **Keycloak** (`Keycloak` section) if `KeycloakSettings` is bound and `Realm` isn't a
-   placeholder — JWT bearer against the Keycloak realm issuer, admin policy checks the
-   `realm_access` claim.
+   placeholder — JWT bearer against the Keycloak realm issuer.
 3. **`DevAuthenticationHandler`** (DEBUG builds only) if neither is configured — auto-authenticates
    every request as an admin `dev-user`. Never active in Release builds.
 
+Only one of Cognito/Keycloak should be configured at a time — whichever resolves first wins.
+Each provider branch also registers an `IClaimsTransformation`
+(`CognitoClaimsTransformation` / `KeycloakClaimsTransformation`, in `Api/Auth/`) that normalizes
+that provider's own admin signal (Cognito's `cognito:groups` claim, Keycloak's
+`realm_access.roles`) into a standard `ClaimTypes.Role` "admin" claim — `DevAuthenticationHandler`
+emits it directly. There is a single, shared `AdminPolicy` (`policy.RequireRole("admin")`) used by
+every controller, so switching Cognito ↔ Keycloak is purely a config change, never a code change.
+The Blazor UI mirrors this with `PuckDropClaimsPrincipalFactory` (`UI/src/PuckDrop.Web/Auth/`),
+which normalizes the same two claim shapes client-side.
+
 Cognito is the production IdP (provisioned by CDK in `DeploymentStack`); Keycloak is used for
 local dev via Aspire (`AddKeycloak` + realm import from
-`Infrastructure/PuckDrop.AppHost/Keycloak/PuckDrop-realm.json`). Only one of Cognito/Keycloak
-should be configured at a time — whichever resolves first wins.
+`Infrastructure/PuckDrop.AppHost/Keycloak/PuckDrop-realm.json`).
 
 ### Infrastructure orchestration (Aspire) vs. deployment (CDK)
 
@@ -97,7 +104,9 @@ should be configured at a time — whichever resolves first wins.
 Blazor WebAssembly app (`UI/src/PuckDrop.Web`). `PuckDropApiClient` (in `Services/`) is the sole
 HTTP client to the API, pointed at the API Gateway emulator's base URL (resolved from Aspire
 service discovery config, falling back to `ApiClientSettings:BaseUrl`, then a hardcoded local
-default). OIDC auth against Keycloak is configured in `Program.cs`. Pages are split into
+default). Provider-agnostic OIDC auth (config in `wwwroot/appsettings.json`'s `Oidc` section,
+pointed at whichever of Cognito/Keycloak the API is currently using) is wired up in `Program.cs` —
+see "Auth" above. Pages are split into
 top-level (`Home`, `Poll`, `Leaderboard`, `History`, `Results`) and `Pages/Admin/*`
 (`CreatePoll`, `EditPoll`, `Polls`, `ScorePoll`) for the create/score workflow.
 
