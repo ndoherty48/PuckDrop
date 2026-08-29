@@ -15,7 +15,9 @@
   <Folder Name="/UI/src/">
     <Project Path="UI/src/PuckDrop.Web/PuckDrop.Web.csproj" />
   </Folder>
-  <Folder Name="/UI/tests/"></Folder>
+  <Folder Name="/UI/tests/">
+    <Project Path="UI/tests/PuckDrop.Web.Tests/PuckDrop.Web.Tests.csproj" />
+  </Folder>
   <Folder Name="/Infrastructure/">
     <Project Path="Infrastructure/PuckDrop.AppHost/PuckDrop.AppHost.csproj" />
     <Project Path="Infrastructure/PuckDrop.ServiceDefaults/PuckDrop.ServiceDefaults.csproj" />
