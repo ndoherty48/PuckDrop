@@ -1,5 +1,7 @@
 using Aspire.Hosting.AWS.Deployment;
 using Aspire.Hosting.AWS.DynamoDB;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PuckDrop.AppHost.AWS;
 using PuckDrop.AppHost.Extensions;
 #pragma warning disable ASPIREAWSPUBLISHERS001 
@@ -16,6 +18,30 @@ var dynamoDbLocal = builder.AddAWSDynamoDBLocal("dynamodb", new DynamoDBLocalOpt
 {
     SharedDb = true
 });
+
+// AddAWSDynamoDBLocal registers no health check of its own (confirmed by inspecting
+// Aspire.Hosting.AWS.dll directly - it has zero health-check-related members), so without this,
+// create-table's WaitFor(dynamoDbLocal) below only ever waits for the container to reach
+// "Running" - not for its HTTP listener to actually accept connections. DynamoDB Local can
+// report Running slightly before that's true, so create-table would sometimes fire too early and
+// fail ("Connection was closed before we received a valid response"), cascading into "api" never
+// starting. Any completed HTTP response (even the 400 DynamoDB Local returns for an unsigned
+// request) proves the listener is up; only a connection failure means it isn't ready yet.
+const string dynamoDbListeningCheckKey = "dynamodb-local-listening";
+builder.Services.AddHealthChecks().AddAsyncCheck(dynamoDbListeningCheckKey, async cancellationToken =>
+{
+    try
+    {
+        using var client = new HttpClient();
+        using var response = await client.GetAsync(dynamoDbLocal.GetEndpoint("http").Url, cancellationToken);
+        return HealthCheckResult.Healthy();
+    }
+    catch
+    {
+        return HealthCheckResult.Unhealthy();
+    }
+});
+dynamoDbLocal.WithHealthCheck(dynamoDbListeningCheckKey);
 
 var keycloakUsername = builder.AddParameter("keycloak-username", value: "keycloak").ExcludeFromManifest();
 var keycloakPassword = builder.AddParameter("keycloak-password", secret: true, value: new GenerateParameterDefault
@@ -39,7 +65,8 @@ var keycloak = builder
     .WithRealmImport("./Keycloak/PuckDrop-realm.json")
     .ExcludeFromManifest();
 
-// Create the PuckDrop table in DynamoDB Local after it's healthy
+// Create the PuckDrop table in DynamoDB Local once it's actually accepting connections -
+// WaitFor blocks on the health check registered above, not merely "Running".
 var createTable = builder.AddExecutable("create-table", "aws", ".",
         builder.GetDynamoDbResourceParams(dynamoDbLocal.GetEndpoint("http")))
     .WithAWSLocalCredentials()

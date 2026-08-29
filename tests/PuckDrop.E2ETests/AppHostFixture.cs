@@ -38,41 +38,23 @@ public class AppHostFixture : IAsyncLifetime
     private const string HardcodedApiGatewayFallback = "http://api-gateway-puckdrop.dev.localhost:8080";
     private Uri _apiGatewayEndpoint = null!;
 
-    // AppHost.cs's "create-table" executable only WaitFor(dynamoDbLocal)'s Running state, not a
-    // health check - DynamoDB Local's container can report Running slightly before its actual
-    // HTTP listener accepts connections, so create-table sometimes fires too early and fails
-    // ("Connection was closed before we received a valid response"), which cascades into "api"
-    // never starting. This is the same transient race already known from plain `aspire start`
-    // local dev (where a manual restart cycle papers over it) - confirmed here to reproduce
-    // consistently under DistributedApplicationTestingBuilder, which has no interactive retry.
-    // Retrying the whole boot is the pragmatic fix at the test-fixture level, without touching
-    // AppHost.cs's shared local-dev resource wiring.
-    private const int MaxStartAttempts = 3;
-
     public async ValueTask InitializeAsync()
     {
-        for (var attempt = 1; attempt <= MaxStartAttempts; attempt++)
-        {
-            var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.PuckDrop_AppHost>();
-            var app = await appHost.BuildAsync();
+        // create-table used to fire before DynamoDB Local's HTTP listener was actually ready
+        // (AddAWSDynamoDBLocal registered no health check, so its WaitFor only meant "container
+        // process running") - fixed at the source in AppHost.cs by giving the dynamodb resource
+        // a real "is it accepting connections" health check, so no retry loop is needed here.
+        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.PuckDrop_AppHost>();
+        var app = await appHost.BuildAsync();
 
-            try
-            {
-                await app.StartAsync();
+        await app.StartAsync();
 
-                using var cts = new CancellationTokenSource(ResourceWaitTimeout);
-                await app.ResourceNotifications.WaitForResourceHealthyAsync("api", cts.Token);
-                await app.ResourceNotifications.WaitForResourceHealthyAsync("keycloak", cts.Token);
-                await app.ResourceNotifications.WaitForResourceHealthyAsync("blazor-gateway", cts.Token);
+        using var cts = new CancellationTokenSource(ResourceWaitTimeout);
+        await app.ResourceNotifications.WaitForResourceHealthyAsync("api", cts.Token);
+        await app.ResourceNotifications.WaitForResourceHealthyAsync("keycloak", cts.Token);
+        await app.ResourceNotifications.WaitForResourceHealthyAsync("blazor-gateway", cts.Token);
 
-                _app = app;
-                break;
-            }
-            catch when (attempt < MaxStartAttempts)
-            {
-                await app.DisposeAsync();
-            }
-        }
+        _app = app;
 
         var gatewayEndpoint = _app.GetEndpoint("blazor-gateway", "http");
         BlazorBaseUri = new Uri(gatewayEndpoint, "web/");
