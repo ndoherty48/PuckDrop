@@ -63,6 +63,14 @@ var keycloakPassword = builder.AddParameter("keycloak-password", secret: true, v
 var keycloak = builder
     .AddKeycloak("keycloak", port: 8543, adminUsername: keycloakUsername, adminPassword: keycloakPassword)
     .WithRealmImport("./Keycloak/PuckDrop-realm.json")
+    // Keycloak__ServerUrl below ends up as the OIDC Authority served to the browser (via
+    // /auth-config -> AuthDiscoveryOptions), not just consumed server-side by "api" - so
+    // GetEndpoint("http") needs to resolve to a URL the browser can actually reach. Without this,
+    // it resolved to the "internal" plain-localhost form instead, which Keycloak's own hostname
+    // handling would intermittently refuse (net::ERR_CONNECTION_CLOSED - confirmed by
+    // reproducing it directly in a browser). Matches the same call already made on blazorGateway
+    // below for the same reason.
+    .WithExternalHttpEndpoints()
     .ExcludeFromManifest();
 
 // Create the PuckDrop table in DynamoDB Local once it's actually accepting connections -
@@ -75,11 +83,12 @@ var createTable = builder.AddExecutable("create-table", "aws", ".",
 
 var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.Api::PuckDrop.Api.LambdaEntryPoint::FunctionHandlerAsync")
     .WithReference(dynamoDbLocal)
+    .WaitFor(keycloak)
     .WithEnvironment(x =>
     {
         if(x.ExecutionContext.IsRunMode is false)
             return;
-        
+
         x.EnvironmentVariables["Keycloak__ServerUrl"] = keycloak.GetEndpoint("http");
         x.EnvironmentVariables["Keycloak__Realm"] = "PuckDrop";
         x.EnvironmentVariables["Keycloak__ClientId"] = "PuckDrop-API";
@@ -113,7 +122,20 @@ var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.A
 var apiGateway = builder.AddAWSAPIGatewayEmulator("api-gateway", Aspire.Hosting.AWS.Lambda.APIGatewayType.HttpV2)
     .WithReference(api, Aspire.Hosting.AWS.Lambda.Method.Any, "/puckdrop/{proxy+}")
     .WithHttpEndpoint(port: 8080)
-    .WithHttpsEndpoint(port: 8081);
+    .WithHttpsEndpoint(port: 8081)
+    // Same gap as dynamodb above: AddAWSAPIGatewayEmulator registers no health check of its own
+    // (confirmed the same way - zero health-check members anywhere in Aspire.Hosting.AWS.dll), so
+    // this resource can report "Running" before its route table (which depends on the "api"
+    // Lambda function being fully wired as a target) is actually serving requests - callers can
+    // get a spurious 404 in that window. /puckdrop/auth-config is a real, cheap, unauthenticated
+    // route that only returns 200 once API Gateway -> Lambda -> ASP.NET Core routing is genuinely
+    // working end to end, so it doubles as a true readiness probe, not just "is the port open".
+    // Pinned to the "http" endpoint explicitly - left to its default, this picked the "https"
+    // endpoint instead and hung indefinitely completing a TLS handshake against the self-signed
+    // local-dev cert (confirmed live: the health check's own HttpClient never got past
+    // EnsureFullTlsFrameAsync). Plain HTTP has no such problem and is just as valid a readiness
+    // signal for local dev.
+    .WithHttpHealthCheck(path: "/puckdrop/auth-config", endpointName: "http");
 
 // Blazor WASM still can't read AppHost-injected env vars at runtime (see Program.cs), but that
 // no longer matters for OIDC config specifically - the app fetches it at boot from the API's
