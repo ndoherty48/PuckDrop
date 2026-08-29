@@ -16,6 +16,14 @@ public class AppHostFixture : IAsyncLifetime
 {
     private static readonly TimeSpan ResourceWaitTimeout = TimeSpan.FromMinutes(3);
 
+    // Playwright's own defaults (30s navigation, 5s everything else, incl. Assertions.Expect)
+    // assume a normal app under normal load. Here, every page load talks to a real, cold-booting
+    // WASM app behind a real AWS Lambda Service Emulator that processes one invocation at a time
+    // - under this suite's own sequential real traffic that can genuinely take a while longer than
+    // that, not because anything is actually stuck. Set high enough to absorb realistic delay
+    // rather than fail on it; a test that's truly stuck will still fail, just slower.
+    public const float DefaultTimeoutMs = 120_000;
+
     private DistributedApplication _app = null!;
     private IPlaywright _playwright = null!;
     private IBrowser _browser = null!;
@@ -73,6 +81,11 @@ public class AppHostFixture : IAsyncLifetime
 
         _playwright = await Playwright.CreateAsync();
         _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+
+        // Process-wide, not per-context - Assertions.Expect (used by every ToBeVisibleAsync()
+        // call across this suite) has its own separate default timeout, independent of any
+        // IBrowserContext/IPage setting.
+        Assertions.SetDefaultExpectTimeout(DefaultTimeoutMs);
     }
 
     /// <summary>
@@ -88,6 +101,8 @@ public class AppHostFixture : IAsyncLifetime
             // certificate - Chromium blocks navigation to it by default.
             IgnoreHTTPSErrors = true
         });
+        context.SetDefaultTimeout(DefaultTimeoutMs);
+        context.SetDefaultNavigationTimeout(DefaultTimeoutMs);
 
         await context.RouteAsync($"{HardcodedApiGatewayFallback}/**", async route =>
         {
@@ -131,6 +146,45 @@ public class AppHostFixture : IAsyncLifetime
     }
 
     /// <summary>
+    /// Navigates to <paramref name="url"/>, working around one specific known-transient failure
+    /// mode rather than by loosening the production timeout that causes it: Program.cs's OIDC
+    /// bootstrap fetch (<c>GET /auth-config</c>) has a deliberate, documented 10-second timeout,
+    /// so the app doesn't hang on a blank page if the API is genuinely unreachable in production.
+    /// This suite's own concurrent traffic against a Lambda emulator that only processes one
+    /// invocation at a time occasionally makes even a valid response take longer than that,
+    /// which - correctly, from the app's perspective - trips the same fail-fast path and lands on
+    /// its permanent "Couldn't reach the server" error page. Reload and retry a few times rather
+    /// than touch that production behavior for this test-environment-specific slowness.
+    /// </summary>
+    public async Task GotoWithBootstrapRetryAsync(IPage page, string url, int maxAttempts = 4)
+    {
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            await page.GotoAsync(url);
+
+            try
+            {
+                // Give the bootstrap fetch's own 10s timeout room to fail visibly before deciding
+                // whether to retry - if this throws (times out), no failure page ever appeared,
+                // meaning the bootstrap fetch succeeded and normal navigation/assertions can
+                // proceed as usual.
+                await page.WaitForSelectorAsync("text=Couldn't reach the server", new PageWaitForSelectorOptions
+                {
+                    Timeout = 12_000
+                });
+            }
+            catch (TimeoutException)
+            {
+                return;
+            }
+
+            if (attempt == maxAttempts)
+                throw new Exception(
+                    $"App still showing \"Couldn't reach the server\" after {maxAttempts} attempts at {url}.");
+        }
+    }
+
+    /// <summary>
     /// Drives the real Keycloak login UI once for the given user (cached thereafter for this
     /// run) and returns the resulting sessionStorage snapshot, for
     /// <see cref="NewAuthenticatedBrowserContextAsync"/>.
@@ -144,11 +198,8 @@ public class AppHostFixture : IAsyncLifetime
         await using var context = await NewBrowserContextAsync();
         var page = await context.NewPageAsync();
 
-        await page.GotoAsync(BlazorBaseUri.ToString());
-        await page.WaitForURLAsync(url => url.Contains("realms/PuckDrop"), new PageWaitForURLOptions
-        {
-            Timeout = 60_000
-        });
+        await GotoWithBootstrapRetryAsync(page, BlazorBaseUri.ToString());
+        await page.WaitForURLAsync(url => url.Contains("realms/PuckDrop"));
 
         await page.FillAsync("#username", username);
         await page.FillAsync("#password", password);
@@ -157,7 +208,7 @@ public class AppHostFixture : IAsyncLifetime
         // "Logout" only renders in MainLayout's <Authorized> branch - a display-name-agnostic
         // signal that the round trip back from Keycloak completed and the app considers the user
         // authenticated.
-        await page.WaitForSelectorAsync("text=Logout", new PageWaitForSelectorOptions { Timeout = 30_000 });
+        await page.WaitForSelectorAsync("text=Logout");
 
         var sessionStorage = await page.EvaluateAsync<Dictionary<string, string>>("() => ({ ...sessionStorage })");
         _sessionStorageCache[username] = sessionStorage;

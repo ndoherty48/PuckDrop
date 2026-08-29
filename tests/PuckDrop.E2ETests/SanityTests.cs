@@ -21,16 +21,14 @@ public class SanityTests(AppHostFixture fixture)
         page.Console += (_, msg) => consoleMessages.Add($"[{msg.Type}] {msg.Text}");
         page.PageError += (_, error) => consoleMessages.Add($"[pageerror] {error}");
 
-        await page.GotoAsync(fixture.BlazorBaseUri.ToString());
         try
         {
-            // Generous timeout: this is the first-ever load of a freshly-built WASM app in a
-            // cold headless browser profile (download + JIT-warm the whole runtime), not a warm
-            // reload.
-            await page.WaitForURLAsync(url => url.Contains("realms/PuckDrop"), new PageWaitForURLOptions
-            {
-                Timeout = 60_000
-            });
+            await fixture.GotoWithBootstrapRetryAsync(page, fixture.BlazorBaseUri.ToString());
+            // Uses the context's generous default timeout (AppHostFixture.DefaultTimeoutMs) -
+            // this is the first-ever load of a freshly-built WASM app in a cold headless browser
+            // profile (download + JIT-warm the whole runtime), through a Lambda emulator that
+            // processes one invocation at a time, not a warm reload against an idle backend.
+            await page.WaitForURLAsync(url => url.Contains("realms/PuckDrop"));
         }
         catch
         {

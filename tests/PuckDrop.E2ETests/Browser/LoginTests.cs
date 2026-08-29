@@ -19,21 +19,15 @@ public class LoginTests(AppHostFixture fixture)
         await using var context = await fixture.NewBrowserContextAsync();
         var page = await context.NewPageAsync();
 
-        await page.GotoAsync(fixture.BlazorBaseUri.ToString());
-        await page.WaitForURLAsync(url => url.Contains("realms/PuckDrop"), new PageWaitForURLOptions
-        {
-            Timeout = 60_000
-        });
+        await fixture.GotoWithBootstrapRetryAsync(page, fixture.BlazorBaseUri.ToString());
+        await page.WaitForURLAsync(url => url.Contains("realms/PuckDrop"));
         Assert.Equal("Sign in to PuckDrop", await page.TitleAsync());
 
         await page.FillAsync("#username", TestData.AdminUsername);
         await page.FillAsync("#password", TestData.AdminPassword);
         await page.ClickAsync("#kc-login");
 
-        await page.WaitForSelectorAsync($"text=Hello, {TestData.AdminDisplayName}", new PageWaitForSelectorOptions
-        {
-            Timeout = 30_000
-        });
+        await page.WaitForSelectorAsync($"text=Hello, {TestData.AdminDisplayName}");
 
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }))
             .ToBeVisibleAsync();
@@ -45,20 +39,14 @@ public class LoginTests(AppHostFixture fixture)
         await using var context = await fixture.NewBrowserContextAsync();
         var page = await context.NewPageAsync();
 
-        await page.GotoAsync(fixture.BlazorBaseUri.ToString());
-        await page.WaitForURLAsync(url => url.Contains("realms/PuckDrop"), new PageWaitForURLOptions
-        {
-            Timeout = 60_000
-        });
+        await fixture.GotoWithBootstrapRetryAsync(page, fixture.BlazorBaseUri.ToString());
+        await page.WaitForURLAsync(url => url.Contains("realms/PuckDrop"));
 
         await page.FillAsync("#username", TestData.FriendUsername);
         await page.FillAsync("#password", TestData.FriendPassword);
         await page.ClickAsync("#kc-login");
 
-        await page.WaitForSelectorAsync($"text=Hello, {TestData.FriendDisplayName}", new PageWaitForSelectorOptions
-        {
-            Timeout = 30_000
-        });
+        await page.WaitForSelectorAsync($"text=Hello, {TestData.FriendDisplayName}");
 
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }))
             .Not.ToBeVisibleAsync();

@@ -20,7 +20,7 @@ public class RoleGatingTests(AppHostFixture fixture)
         await using var context = await fixture.NewAuthenticatedBrowserContextAsync(session);
         var page = await context.NewPageAsync();
 
-        await page.GotoAsync(new Uri(fixture.BlazorBaseUri, "admin/polls").ToString());
+        await fixture.GotoWithBootstrapRetryAsync(page, new Uri(fixture.BlazorBaseUri, "admin/polls").ToString());
 
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Manage Polls" }))
             .ToBeVisibleAsync();
@@ -33,7 +33,7 @@ public class RoleGatingTests(AppHostFixture fixture)
         await using var context = await fixture.NewAuthenticatedBrowserContextAsync(session);
         var page = await context.NewPageAsync();
 
-        await page.GotoAsync(new Uri(fixture.BlazorBaseUri, "admin/polls").ToString());
+        await fixture.GotoWithBootstrapRetryAsync(page, new Uri(fixture.BlazorBaseUri, "admin/polls").ToString());
 
         await Assertions.Expect(page.GetByText("You don't have permission to view this page."))
             .ToBeVisibleAsync();
@@ -47,12 +47,9 @@ public class RoleGatingTests(AppHostFixture fixture)
         await using var context = await fixture.NewBrowserContextAsync();
         var page = await context.NewPageAsync();
 
-        await page.GotoAsync(new Uri(fixture.BlazorBaseUri, "admin/polls").ToString());
+        await fixture.GotoWithBootstrapRetryAsync(page, new Uri(fixture.BlazorBaseUri, "admin/polls").ToString());
 
-        await page.WaitForURLAsync(url => url.Contains("realms/PuckDrop"), new PageWaitForURLOptions
-        {
-            Timeout = 60_000
-        });
+        await page.WaitForURLAsync(url => url.Contains("realms/PuckDrop"));
         Assert.Equal("Sign in to PuckDrop", await page.TitleAsync());
     }
 }
