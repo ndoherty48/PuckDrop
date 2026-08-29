@@ -53,7 +53,7 @@ public class AnswerServiceTests
         var (service, _, _) = CreateService(pollData: null);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            service.SubmitAnswersAsync("user-1", "Nathan", PollId, [new AnswerSubmission(QuestionId, OptionId)]));
+            service.SubmitAnswersAsync("user-1", "Nathan", PollId, [new AnswerSubmission(QuestionId, OptionId)], TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class AnswerServiceTests
         var (service, _, _) = CreateService(pollData);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.SubmitAnswersAsync("user-1", "Nathan", PollId, [new AnswerSubmission(QuestionId, OptionId)]));
+            service.SubmitAnswersAsync("user-1", "Nathan", PollId, [new AnswerSubmission(QuestionId, OptionId)], TestContext.Current.CancellationToken));
         Assert.Contains("closed", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -85,7 +85,7 @@ public class AnswerServiceTests
         var (service, _, _) = CreateService(pollData);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.SubmitAnswersAsync("user-1", "Nathan", PollId, [new AnswerSubmission(QuestionId, OptionId)]));
+            service.SubmitAnswersAsync("user-1", "Nathan", PollId, [new AnswerSubmission(QuestionId, OptionId)], TestContext.Current.CancellationToken));
         Assert.Contains("not open", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -96,7 +96,7 @@ public class AnswerServiceTests
         var (service, _, _) = CreateService(pollData);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            service.SubmitAnswersAsync("user-1", "Nathan", PollId, [new AnswerSubmission("unknown-question", OptionId)]));
+            service.SubmitAnswersAsync("user-1", "Nathan", PollId, [new AnswerSubmission("unknown-question", OptionId)], TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class AnswerServiceTests
         var (service, _, _) = CreateService(pollData);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            service.SubmitAnswersAsync("user-1", "Nathan", PollId, [new AnswerSubmission(QuestionId, "option-from-a-different-question")]));
+            service.SubmitAnswersAsync("user-1", "Nathan", PollId, [new AnswerSubmission(QuestionId, "option-from-a-different-question")], TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class AnswerServiceTests
         var (service, answerRepository, _) = CreateService(pollData);
 
         var result = await service.SubmitAnswersAsync(
-            "user-1", "Nathan", PollId, [new AnswerSubmission(QuestionId, OptionId)]);
+            "user-1", "Nathan", PollId, [new AnswerSubmission(QuestionId, OptionId)], TestContext.Current.CancellationToken);
 
         Assert.Single(result);
         Assert.Equal("user-1", result[0].UserId);

@@ -17,7 +17,7 @@ public class SeasonServiceTests
             .Returns(existing);
         var service = new SeasonService(repository);
 
-        var result = await service.EnsureSeasonExistsAsync(new DateOnly(2026, 1, 15));
+        var result = await service.EnsureSeasonExistsAsync(new DateOnly(2026, 1, 15), TestContext.Current.CancellationToken);
 
         Assert.Same(existing, result);
         await repository.DidNotReceive().SaveAsync(Arg.Any<Season>(), Arg.Any<CancellationToken>());
@@ -32,7 +32,7 @@ public class SeasonServiceTests
         var service = new SeasonService(repository);
         var gameDate = new DateOnly(2026, 1, 15);
 
-        var result = await service.EnsureSeasonExistsAsync(gameDate);
+        var result = await service.EnsureSeasonExistsAsync(gameDate, TestContext.Current.CancellationToken);
 
         Assert.Equal(Season.DeriveSeasonId(gameDate), result.SeasonId);
         await repository.Received(1).SaveAsync(
@@ -47,7 +47,7 @@ public class SeasonServiceTests
             .Returns((Season?)null);
         var service = new SeasonService(repository);
 
-        var result = await service.GetCurrentSeasonAsync();
+        var result = await service.GetCurrentSeasonAsync(TestContext.Current.CancellationToken);
 
         Assert.Null(result);
     }

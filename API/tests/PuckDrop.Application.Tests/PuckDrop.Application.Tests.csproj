@@ -3,11 +3,6 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
-    <!-- xUnit1051 wants every async call passed TestContext.Current.CancellationToken instead of
-         the default CancellationToken, for responsive mid-test cancellation - valuable for slow
-         or real I/O, but pure noise here since every dependency is an in-memory NSubstitute mock
-         with no actual cancellable work. -->
-    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

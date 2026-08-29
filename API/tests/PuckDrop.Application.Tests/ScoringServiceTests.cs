@@ -93,7 +93,7 @@ public class ScoringServiceTests
         var fixture = CreateFixture(pollData: null);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            fixture.Service.ScorePollAsync(PollId, [new QuestionScore(Question1Id, Q1CorrectOptionId)]));
+            fixture.Service.ScorePollAsync(PollId, [new QuestionScore(Question1Id, Q1CorrectOptionId)], TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class ScoringServiceTests
         var fixture = CreateFixture(new PollWithQuestions(poll, [], []));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            fixture.Service.ScorePollAsync(PollId, []));
+            fixture.Service.ScorePollAsync(PollId, [], TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class ScoringServiceTests
         var fixture = CreateFixture(pollData);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            fixture.Service.ScorePollAsync(PollId, [new QuestionScore("unknown-question", Q1CorrectOptionId)]));
+            fixture.Service.ScorePollAsync(PollId, [new QuestionScore("unknown-question", Q1CorrectOptionId)], TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class ScoringServiceTests
         _ = fixture.AnswerRepository
             .UpdateScoresAsync(Arg.Do<IReadOnlyList<UserAnswer>>(a => scoredAnswers = a), Arg.Any<CancellationToken>());
 
-        await fixture.Service.ScorePollAsync(PollId, [new QuestionScore(Question1Id, Q1CorrectOptionId)]);
+        await fixture.Service.ScorePollAsync(PollId, [new QuestionScore(Question1Id, Q1CorrectOptionId)], TestContext.Current.CancellationToken);
 
         Assert.NotNull(scoredAnswers);
         var question2Answers = scoredAnswers.Where(a => a.QuestionId == Question2Id);
@@ -170,7 +170,7 @@ public class ScoringServiceTests
         await fixture.Service.ScorePollAsync(PollId, [
             new QuestionScore(Question1Id, Q1CorrectOptionId),
             new QuestionScore(Question2Id, Q2OptionAId)
-        ]);
+        ], TestContext.Current.CancellationToken);
 
         // user-1 got Question1 right (Q1CorrectOptionId) and Question2 wrong (picked Q2OptionB,
         // correct is Q2OptionA) -> 1 correct out of 2 answered this poll.
@@ -195,7 +195,7 @@ public class ScoringServiceTests
         await fixture.Service.ScorePollAsync(PollId, [
             new QuestionScore(Question1Id, Q1CorrectOptionId),
             new QuestionScore(Question2Id, Q2OptionAId)
-        ]);
+        ], TestContext.Current.CancellationToken);
 
         await fixture.LeaderboardRepository.Received(1).SaveEntryAsync(
             Arg.Is<LeaderboardEntry>(e => e.UserId == "user-1" && e.TotalPoints == 1 && e.TotalAnswered == 2),
@@ -216,7 +216,7 @@ public class ScoringServiceTests
         await fixture.Service.ScorePollAsync(PollId, [
             new QuestionScore(Question1Id, Q1CorrectOptionId),
             new QuestionScore(Question2Id, Q2OptionAId)
-        ]);
+        ], TestContext.Current.CancellationToken);
 
         await fixture.PollRepository.Received(1).SavePollAsync(
             Arg.Is<GameDayPoll>(p => p.Status == Domain.Enums.PollStatus.Scored), Arg.Any<CancellationToken>());

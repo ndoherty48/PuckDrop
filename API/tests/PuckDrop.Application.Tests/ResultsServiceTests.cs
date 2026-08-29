@@ -50,7 +50,7 @@ public class ResultsServiceTests
         pollRepository.GetWithQuestionsAsync(PollId, Arg.Any<CancellationToken>()).Returns((PollWithQuestions?)null);
         var service = new ResultsService(pollRepository, Substitute.For<IUserAnswerRepository>());
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.GetPollResultsAsync(PollId));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.GetPollResultsAsync(PollId, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class ResultsServiceTests
     {
         var (service, _, _) = CreateService(BuildPoll(scored: false), []);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetPollResultsAsync(PollId));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetPollResultsAsync(PollId, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class ResultsServiceTests
         };
         var (service, _, _) = CreateService(BuildPoll(scored: true), answers);
 
-        var results = await service.GetPollResultsAsync(PollId);
+        var results = await service.GetPollResultsAsync(PollId, TestContext.Current.CancellationToken);
 
         Assert.Equal(2, results.UserResults.Count);
         Assert.Equal("user-2", results.UserResults[0].UserId); // 2 points, ranks above user-1's 1
@@ -88,7 +88,7 @@ public class ResultsServiceTests
         var answers = new List<UserAnswer> { Answer("user-1", "Nathan", "q1", isCorrect: false) };
         var (service, _, _) = CreateService(BuildPoll(scored: true), answers);
 
-        var results = await service.GetPollResultsAsync(PollId);
+        var results = await service.GetPollResultsAsync(PollId, TestContext.Current.CancellationToken);
 
         Assert.Single(results.UserResults);
         Assert.Equal(0, results.UserResults[0].Points);

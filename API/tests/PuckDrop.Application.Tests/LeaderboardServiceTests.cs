@@ -39,7 +39,7 @@ public class LeaderboardServiceTests
         var season = Season.CreateForDate(DateOnly.FromDateTime(DateTime.UtcNow));
         var (service, _) = CreateService(season, [Entry("a", 100), Entry("b", 80), Entry("c", 80), Entry("d", 50)]);
 
-        var result = await service.GetLeaderboardAsync(season.SeasonId);
+        var result = await service.GetLeaderboardAsync(season.SeasonId, TestContext.Current.CancellationToken);
 
         Assert.Equal([1, 2, 2, 4], result.Entries.Select(e => e.Rank));
     }
@@ -50,7 +50,7 @@ public class LeaderboardServiceTests
         var season = Season.CreateForDate(DateOnly.FromDateTime(DateTime.UtcNow));
         var (service, _) = CreateService(season, [Entry("a", 50), Entry("b", 50), Entry("c", 50)]);
 
-        var result = await service.GetLeaderboardAsync(season.SeasonId);
+        var result = await service.GetLeaderboardAsync(season.SeasonId, TestContext.Current.CancellationToken);
 
         Assert.Equal([1, 1, 1], result.Entries.Select(e => e.Rank));
     }
@@ -61,7 +61,7 @@ public class LeaderboardServiceTests
         var season = Season.CreateForDate(DateOnly.FromDateTime(DateTime.UtcNow));
         var (service, _) = CreateService(season, [Entry("a", 30), Entry("b", 20), Entry("c", 10)]);
 
-        var result = await service.GetLeaderboardAsync(season.SeasonId);
+        var result = await service.GetLeaderboardAsync(season.SeasonId, TestContext.Current.CancellationToken);
 
         Assert.Equal([1, 2, 3], result.Entries.Select(e => e.Rank));
     }
@@ -72,7 +72,7 @@ public class LeaderboardServiceTests
         var season = Season.CreateForDate(DateOnly.FromDateTime(DateTime.UtcNow));
         var (service, _) = CreateService(season, []);
 
-        var result = await service.GetLeaderboardAsync(season.SeasonId);
+        var result = await service.GetLeaderboardAsync(season.SeasonId, TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Entries);
     }
@@ -82,7 +82,7 @@ public class LeaderboardServiceTests
     {
         var (service, leaderboardRepository) = CreateService(currentSeason: null, entries: []);
 
-        var result = await service.GetLeaderboardAsync(seasonId: null);
+        var result = await service.GetLeaderboardAsync(null, TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Entries);
         Assert.Equal(Season.DeriveSeasonId(DateOnly.FromDateTime(DateTime.UtcNow)), result.SeasonId);
@@ -97,7 +97,7 @@ public class LeaderboardServiceTests
         var season = Season.CreateForDate(DateOnly.FromDateTime(DateTime.UtcNow));
         var (service, leaderboardRepository) = CreateService(season, [Entry("a", 10)]);
 
-        var result = await service.GetLeaderboardAsync(seasonId: null);
+        var result = await service.GetLeaderboardAsync(null, TestContext.Current.CancellationToken);
 
         Assert.Equal(season.SeasonId, result.SeasonId);
         await leaderboardRepository.Received(1).GetLeaderboardAsync(season.SeasonId, Arg.Any<CancellationToken>());

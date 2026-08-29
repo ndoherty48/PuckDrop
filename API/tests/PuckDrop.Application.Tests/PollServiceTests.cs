@@ -55,7 +55,7 @@ public class PollServiceTests
         var gameDate = new DateOnly(2026, 1, 15);
         seasonRepository.GetByIdAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((Season?)null);
 
-        var poll = await service.CreatePollAsync("Title", gameDate, DateTime.UtcNow.AddDays(1), "admin-user");
+        var poll = await service.CreatePollAsync("Title", gameDate, DateTime.UtcNow.AddDays(1), "admin-user", TestContext.Current.CancellationToken);
 
         Assert.Equal(PollStatus.Draft, poll.Status);
         Assert.Equal(Season.DeriveSeasonId(gameDate), poll.SeasonId);
@@ -71,7 +71,7 @@ public class PollServiceTests
     {
         var (service, _, _) = CreateService(poll: null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.UpdatePollAsync(PollId, "New Title", null));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.UpdatePollAsync(PollId, "New Title", null, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class PollServiceTests
     {
         var (service, _, _) = CreateService(BuildPoll(PollStatus.Closed));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.UpdatePollAsync(PollId, "New Title", null));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.UpdatePollAsync(PollId, "New Title", null, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class PollServiceTests
         var (service, _, _) = CreateService(poll);
         var newDeadline = DateTime.UtcNow.AddDays(2);
 
-        var result = await service.UpdatePollAsync(PollId, title: null, deadline: newDeadline);
+        var result = await service.UpdatePollAsync(PollId, title: null, deadline: newDeadline, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(originalTitle, result.Title);
         Assert.Equal(newDeadline.ToUniversalTime(), result.Deadline);
@@ -103,7 +103,7 @@ public class PollServiceTests
     {
         var (service, _, _) = CreateService(poll: null);
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.PublishPollAsync(PollId));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.PublishPollAsync(PollId, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class PollServiceTests
     {
         var (service, _, _) = CreateService(BuildPoll(PollStatus.Open));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PublishPollAsync(PollId));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PublishPollAsync(PollId, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class PollServiceTests
     {
         var (service, _, _) = CreateService(BuildPoll(PollStatus.Draft));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ClosePollAsync(PollId));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ClosePollAsync(PollId, TestContext.Current.CancellationToken));
     }
 
     // ─── AddQuestionAsync / DeleteQuestionAsync ─────────────────────────────
@@ -130,7 +130,7 @@ public class PollServiceTests
         var (service, _, _) = CreateService(BuildPoll(PollStatus.Scored));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.AddQuestionAsync(PollId, "Who wins?", 0, [new OptionDefinition("Home", 0), new OptionDefinition("Away", 1)]));
+            service.AddQuestionAsync(PollId, "Who wins?", 0, [new OptionDefinition("Home", 0), new OptionDefinition("Away", 1)], TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public class PollServiceTests
         var (service, pollRepository, _) = CreateService(BuildPoll(PollStatus.Open));
 
         var question = await service.AddQuestionAsync(
-            PollId, "Who wins?", 0, [new OptionDefinition("Home", 0), new OptionDefinition("Away", 1)]);
+            PollId, "Who wins?", 0, [new OptionDefinition("Home", 0), new OptionDefinition("Away", 1)], TestContext.Current.CancellationToken);
 
         await pollRepository.Received(1).SaveQuestionAsync(
             Arg.Is<Question>(q => q.QuestionId == question.QuestionId),
@@ -152,7 +152,7 @@ public class PollServiceTests
     {
         var (service, _, _) = CreateService(BuildPoll(PollStatus.Closed));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.DeleteQuestionAsync(PollId, "question-1"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.DeleteQuestionAsync(PollId, "question-1", TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class PollServiceTests
     {
         var (service, pollRepository, _) = CreateService(BuildPoll(PollStatus.Draft));
 
-        await service.DeleteQuestionAsync(PollId, "question-1");
+        await service.DeleteQuestionAsync(PollId, "question-1", TestContext.Current.CancellationToken);
 
         await pollRepository.Received(1).DeleteQuestionAsync(PollId, "question-1", Arg.Any<CancellationToken>());
     }
