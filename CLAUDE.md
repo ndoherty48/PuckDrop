@@ -19,11 +19,16 @@ aspire start                      # Run everything locally: Aspire dashboard, La
                                    # API Gateway emulator, DynamoDB Local, Keycloak, Blazor WASM
 dotnet build                      # Build the whole solution (PuckDrop.slnx)
 dotnet build <path>.csproj        # Build a single project
+dotnet test PuckDrop.slnx         # Run all tests (xUnit v3 on Microsoft.Testing.Platform,
+                                   # per global.json's test runner setting — not VSTest)
 ```
 
-There are no test projects yet — `API/tests/` and `UI/tests/` exist only as empty solution
-folders in `PuckDrop.slnx`. `global.json` pre-configures the test runner as
-`Microsoft.Testing.Platform` for when tests are added (`dotnet test`, not VSTest).
+`API/tests/` and `UI/tests/` hold four xUnit v3 test projects — `PuckDrop.Domain.Tests`,
+`PuckDrop.Application.Tests`, `PuckDrop.Api.Tests` (all pure/fast, no external dependencies), and
+`PuckDrop.Web.Tests` — 120 tests total, covered in `docs/implementation-plan.md`'s Phase 7.
+Infrastructure integration tests (needs DynamoDB Local via Docker), Blazor component tests
+(bUnit), and API full-HTTP-pipeline tests are deliberate follow-ups, not yet built — also
+detailed in Phase 7.
 
 There is no linter/formatter config (`.editorconfig`) and no CI workflow in this repo currently.
 

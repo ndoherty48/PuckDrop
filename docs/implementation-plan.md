@@ -212,15 +212,56 @@ Supporting infrastructure:
 
 ## Phase 7 — Integration & Testing
 
-**Status:** Not started
+**Status:** Partially complete — fast/unit slice done, integration and component tests deferred
 
-### Planned
+### What was built
 
-- Unit tests for domain entities (status transitions, scoring, season derivation)
-- Unit tests for application services (with mocked repositories)
-- Integration tests against DynamoDB Local
-- API endpoint tests via WebApplicationFactory
-- Blazor component tests (bUnit)
+| Project | Location | Tests | Covers |
+|---------|----------|-------|--------|
+| `PuckDrop.Domain.Tests` | `API/tests/` | 42 | Entity state machines (`GameDayPoll`), boundary conditions, season derivation math |
+| `PuckDrop.Application.Tests` | `API/tests/` | 37 | All 6 services, with the 4 repository interfaces mocked via NSubstitute |
+| `PuckDrop.Api.Tests` | `API/tests/` | 28 | `DomainExceptionFilter`, both IdP claims transformations, `ClaimsPrincipalExtensions`, response mappings |
+| `PuckDrop.Web.Tests` | `UI/tests/` | 13 | `PuckDropApiClient`'s response handling, `PuckDropClaimsPrincipalFactory`'s role normalization |
+
+xUnit v3 on Microsoft.Testing.Platform (matches `global.json`'s `test.runner` setting — no
+`xunit.runner.visualstudio`/`Microsoft.NET.Test.Sdk` needed), NSubstitute for mocking, no
+FluentAssertions (v8+ requires a paid commercial license outside qualifying non-commercial use;
+xUnit v3's built-in `Assert` covers what's needed). All 120 tests build and pass together as part
+of `dotnet build`/`dotnet test PuckDrop.slnx`.
+
+### Design decisions
+
+- Domain and Application kept as separate test projects: Domain has zero dependencies (matches
+  the layer's own architecture rule) and stays on the fastest possible feedback loop; only
+  Application needs the NSubstitute dependency.
+- Each phase's suite was checked for being non-vacuous by deliberately breaking one piece of the
+  logic under test, confirming the corresponding test failed, then reverting.
+- `CancellationToken` is threaded through explicitly via `TestContext.Current.CancellationToken`
+  in every async call, rather than suppressing the `xUnit1051` analyzer warning — cheap to do
+  correctly regardless of whether today's mocks happen to use it.
+
+### Deferred (explicit follow-ups, not started)
+
+- **Infrastructure integration tests** (`PuckDrop.Infrastructure.IntegrationTests`) — round-trip
+  tests against a real DynamoDB Local via Testcontainers (not `Aspire.Hosting.Testing`, which
+  would spin up the entire `AppHost.cs` model including CDK/Keycloak/Lambda/API Gateway
+  emulation for what only needs DynamoDB). This is the highest-value remaining gap — it's what
+  would have caught the `DisplayName`-not-persisted bug (see `DynamoDbUserAnswerRepository`'s
+  hand-rolled `ToAttributes`/`MapFromAttributes`, which bypass `DynamoDbMapper`) — but needs
+  Docker locally, so it's deliberately out of this round. Table schema to replicate is fully
+  known from `Infrastructure/PuckDrop.AppHost/Extensions/DynamoDBExtensions.cs`.
+- **Blazor component tests (bUnit)** — `Leaderboard.razor` (current-user highlight via the raw
+  `"sub"` claim — a real regression fixed earlier in this project's history, high value if
+  picked up), `Poll.razor` (`AllQuestionsAnswered`/`IsVotingClosed` gating), `Admin/Polls.razor`/
+  `Admin/ScorePoll.razor` (`confirm()` JSInterop gating).
+- **API full-HTTP-pipeline tests** (`[Authorize]`/`AdminPolicy` enforcement, routing, through the
+  real MVC pipeline) — needs a custom test host since `PuckDrop.Api` has no `Program.cs`
+  (`LambdaEntryPoint.Init` is the only wiring point); a `WebApplicationFactory<LambdaEntryPoint>`
+  subclass overriding `CreateHostBuilder` to replicate `Init`'s calls is the shape to use.
+  Lower marginal value than the above — controllers are 2–6 lines each, already covered
+  indirectly by the Application/Api-layer unit tests.
+- **CI** (`.github/workflows` running `dotnet test`) — explicit separate decision, not yet made;
+  revisit now that a real test suite exists to run.
 
 ---
 
