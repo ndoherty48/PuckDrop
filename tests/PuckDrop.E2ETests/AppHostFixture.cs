@@ -51,7 +51,7 @@ public class AppHostFixture : IAsyncLifetime
     // an authenticated session reuses a cached session instead of repeating the login UI. Tests
     // share this collection fixture and run sequentially within it (default xUnit
     // collection-fixture behavior), so no locking is needed around this cache.
-    private readonly Dictionary<string, IReadOnlyDictionary<string, string>> _sessionStorageCache = new();
+    private readonly Dictionary<string, CapturedSession> _sessionCache = new();
 
     public async ValueTask InitializeAsync()
     {
@@ -91,16 +91,22 @@ public class AppHostFixture : IAsyncLifetime
     /// <summary>
     /// A fresh, isolated browser context (own cookies/storage) per test.
     /// </summary>
-    public async Task<IBrowserContext> NewBrowserContextAsync()
+    public Task<IBrowserContext> NewBrowserContextAsync() => NewBrowserContextAsync(storageState: null);
+
+    private async Task<IBrowserContext> NewBrowserContextAsync(string? storageState)
     {
-        var context = await _browser.NewContextAsync(new BrowserNewContextOptions
+        var options = new BrowserNewContextOptions
         {
             BaseURL = BlazorBaseUri.ToString(),
             // The real OIDC redirect lands on Keycloak's HTTPS endpoint
             // (https://localhost:8543/realms/PuckDrop/...), which uses a self-signed local-dev
             // certificate - Chromium blocks navigation to it by default.
             IgnoreHTTPSErrors = true
-        });
+        };
+        if (storageState is not null)
+            options.StorageState = storageState;
+
+        var context = await _browser.NewContextAsync(options);
         context.SetDefaultTimeout(DefaultTimeoutMs);
         context.SetDefaultNavigationTimeout(DefaultTimeoutMs);
 
@@ -115,25 +121,31 @@ public class AppHostFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Like <see cref="NewBrowserContextAsync"/>, but pre-seeded with a previously captured
+    /// Like <see cref="NewBrowserContextAsync()"/>, but pre-seeded with a previously captured
     /// session (see <see cref="LoginAndCaptureSessionAsync"/>), so navigating straight to any
     /// page in it starts already authenticated - without repeating the login UI.
     /// </summary>
     /// <remarks>
-    /// Blazor's built-in WASM auth service keeps its session entirely in
-    /// <c>sessionStorage</c> (confirmed live: <c>localStorage</c> is empty after a real login) -
-    /// <see cref="IBrowserContext.StorageStateAsync"/>/<see cref="BrowserNewContextOptions.StorageState"/>
-    /// only cover cookies and <c>localStorage</c>, so that mechanism can't carry this app's
-    /// session at all. Instead, seed sessionStorage via a context-level init script, which Playwright
-    /// runs before any page script on every navigation in the context - by the time Blazor's own
-    /// auth check runs on first load, the session is already there.
+    /// Two separate mechanisms, both needed. Blazor's built-in WASM auth service keeps its
+    /// session entirely in <c>sessionStorage</c> (confirmed live: <c>localStorage</c> is empty
+    /// after a real login), which <see cref="IBrowserContext.StorageStateAsync"/>/
+    /// <see cref="BrowserNewContextOptions.StorageState"/> never cover (only cookies and
+    /// localStorage) - seeded here instead via a context-level init script, which Playwright runs
+    /// before any page script on every navigation in the context, so it's already there by the
+    /// time Blazor's own auth check runs on first load. But sessionStorage alone isn't enough
+    /// either: if this suite's own slowness means the access token it holds (5-minute lifespan in
+    /// the imported realm) has expired by the time a test actually uses it, the app correctly
+    /// attempts a silent SSO renewal - which needs Keycloak's own session cookie on its origin to
+    /// succeed, without it the renewal fails and the app falls back to a real interactive login
+    /// page (confirmed live: this is exactly what an intermittent RoleGatingTests failure showed).
+    /// storageState - which does cover cookies - carries that over too, so a stale token can still
+    /// silently renew instead of forcing a real login.
     /// </remarks>
-    public async Task<IBrowserContext> NewAuthenticatedBrowserContextAsync(
-        IReadOnlyDictionary<string, string> sessionStorage)
+    public async Task<IBrowserContext> NewAuthenticatedBrowserContextAsync(CapturedSession session)
     {
-        var context = await NewBrowserContextAsync();
+        var context = await NewBrowserContextAsync(session.StorageState);
 
-        var json = JsonSerializer.Serialize(sessionStorage);
+        var json = JsonSerializer.Serialize(session.SessionStorage);
         await context.AddInitScriptAsync($$"""
             (() => {
                 const data = {{json}};
@@ -186,13 +198,11 @@ public class AppHostFixture : IAsyncLifetime
 
     /// <summary>
     /// Drives the real Keycloak login UI once for the given user (cached thereafter for this
-    /// run) and returns the resulting sessionStorage snapshot, for
-    /// <see cref="NewAuthenticatedBrowserContextAsync"/>.
+    /// run) and returns the resulting session, for <see cref="NewAuthenticatedBrowserContextAsync"/>.
     /// </summary>
-    public async Task<IReadOnlyDictionary<string, string>> LoginAndCaptureSessionAsync(
-        string username, string password)
+    public async Task<CapturedSession> LoginAndCaptureSessionAsync(string username, string password)
     {
-        if (_sessionStorageCache.TryGetValue(username, out var cached))
+        if (_sessionCache.TryGetValue(username, out var cached))
             return cached;
 
         await using var context = await NewBrowserContextAsync();
@@ -211,8 +221,10 @@ public class AppHostFixture : IAsyncLifetime
         await page.WaitForSelectorAsync("text=Logout");
 
         var sessionStorage = await page.EvaluateAsync<Dictionary<string, string>>("() => ({ ...sessionStorage })");
-        _sessionStorageCache[username] = sessionStorage;
-        return sessionStorage;
+        var storageState = await context.StorageStateAsync();
+        var session = new CapturedSession(storageState, sessionStorage);
+        _sessionCache[username] = session;
+        return session;
     }
 
     public async ValueTask DisposeAsync()
@@ -230,3 +242,10 @@ public class E2ETestCollection : ICollectionFixture<AppHostFixture>
 {
     public const string Name = "E2E collection";
 }
+
+/// <summary>
+/// A logged-in browser session captured by <see cref="AppHostFixture.LoginAndCaptureSessionAsync"/>,
+/// for <see cref="AppHostFixture.NewAuthenticatedBrowserContextAsync"/> - see that method's remarks
+/// for why both parts are needed.
+/// </summary>
+public sealed record CapturedSession(string StorageState, IReadOnlyDictionary<string, string> SessionStorage);
