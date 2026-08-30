@@ -304,6 +304,14 @@ Authority fixed to resolve to a URL Keycloak itself would reliably accept
 (`WithExternalHttpEndpoints()`) — all in `Infrastructure/PuckDrop.AppHost/AppHost.cs`; these fix
 the same race for plain local `aspire start` too, not just this suite.
 
+For the flakiness that's left after all of the above, the project carries
+`Microsoft.Testing.Extensions.Retry` (a `PackageReference` self-registers it via an MSBuild hook -
+no code needed) — see `CLAUDE.md` for the exact command. Confirmed for real: a deliberately-broken
+assertion genuinely got retried across a fresh process each time and still correctly failed at the
+end, proving the mechanism itself works; two separate live full runs with it enabled both happened
+to pass outright with no retry triggered, so a transient failure actually being rescued by it
+hasn't been directly observed yet, just the mechanism working correctly in isolation.
+
 ### Not yet done
 
 - **CI** (`.github/workflows` running `dotnet test`) — explicit separate decision, not yet made;

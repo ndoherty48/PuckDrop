@@ -41,9 +41,17 @@ projects above individually — `dotnet test PuckDrop.slnx` runs everything, thi
 so reach for that before a PR or whenever DynamoDB/API-contract/auth/UI logic actually changed, not
 for every edit). One known, accepted source of flakiness: the AWS Lambda Service Emulator processes
 one invocation at a time, so a slow run can occasionally time out a step even with the retry
-helpers this suite already has — no further fix available (checked: no concurrency option on
-`lambda-test-tool` or in `Aspire.Hosting.AWS`) — rerun on failure like any suite touching real
-infra, don't chase it further.
+helpers this suite already has in code — no further fix available (checked: no concurrency option
+on `lambda-test-tool` or in `Aspire.Hosting.AWS`).
+
+Carries `Microsoft.Testing.Extensions.Retry` for exactly that residual flakiness — it reruns a
+failed test in a whole fresh process (a full AppHost reboot for this project, so keep the retry
+count low). Confirmed for real: a deliberately-broken assertion genuinely got retried and still
+correctly failed at the end (proving the mechanism itself works), but two separate live runs with
+it enabled both happened to pass outright with no retry triggered — the flakiness is real but
+infrequent enough that it wasn't caught in the act. Run the suite as:
+`dotnet test tests/PuckDrop.E2ETests/PuckDrop.E2ETests.csproj --retry-failed-tests 1
+--retry-failed-tests-delay 5s`.
 
 There is no linter/formatter config (`.editorconfig`) and no CI workflow in this repo currently.
 
