@@ -26,9 +26,24 @@ dotnet test PuckDrop.slnx         # Run all tests (xUnit v3 on Microsoft.Testing
 `API/tests/` and `UI/tests/` hold four xUnit v3 test projects — `PuckDrop.Domain.Tests`,
 `PuckDrop.Application.Tests`, `PuckDrop.Api.Tests` (all pure/fast, no external dependencies), and
 `PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 139 tests total, covered in
-`docs/implementation-plan.md`'s Phase 7. Infrastructure integration tests (needs DynamoDB Local
-via Docker) and API full-HTTP-pipeline tests are deliberate follow-ups, not yet built — also
-detailed in Phase 7.
+`docs/implementation-plan.md`'s Phase 7.
+
+A fifth project, `tests/PuckDrop.E2ETests/` (repo-root `tests/`, not under `API/`/`UI/` — it's
+genuinely cross-cutting), supersedes what Phase 7 originally deferred (separate infrastructure and
+API-pipeline test layers): it boots the real AppHost via `Aspire.Hosting.Testing` and drives a real
+headless Chromium browser via Playwright against it — real DynamoDB Local, real Keycloak, the real
+Lambda-hosted API, the real Blazor WASM app, nothing mocked. Needs Docker (same as `aspire start`)
+plus a one-time `pwsh tests/PuckDrop.E2ETests/bin/Debug/net10.0/playwright.ps1 install chromium`
+after first build, to fetch Playwright's browser binary. Meaningfully slower than the four fast
+projects above (real container boots, real cold WASM loads, real AWS Lambda Service Emulator round
+trips) — for routine local iteration, run the fast subset (`dotnet test` against each of the four
+projects above individually — `dotnet test PuckDrop.slnx` runs everything, this project included,
+so reach for that before a PR or whenever DynamoDB/API-contract/auth/UI logic actually changed, not
+for every edit). One known, accepted source of flakiness: the AWS Lambda Service Emulator processes
+one invocation at a time, so a slow run can occasionally time out a step even with the retry
+helpers this suite already has — no further fix available (checked: no concurrency option on
+`lambda-test-tool` or in `Aspire.Hosting.AWS`) — rerun on failure like any suite touching real
+infra, don't chase it further.
 
 There is no linter/formatter config (`.editorconfig`) and no CI workflow in this repo currently.
 

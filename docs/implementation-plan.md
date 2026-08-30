@@ -212,8 +212,7 @@ Supporting infrastructure:
 
 ## Phase 7 — Integration & Testing
 
-**Status:** Partially complete — fast/unit slice and bUnit component tests done; integration and
-full-HTTP-pipeline tests deferred
+**Status:** Complete — fast/unit slice, bUnit component tests, and a full E2E suite all done
 
 ### What was built
 
@@ -227,8 +226,10 @@ full-HTTP-pipeline tests deferred
 xUnit v3 on Microsoft.Testing.Platform (matches `global.json`'s `test.runner` setting — no
 `xunit.runner.visualstudio`/`Microsoft.NET.Test.Sdk` needed), NSubstitute for mocking, no
 FluentAssertions (v8+ requires a paid commercial license outside qualifying non-commercial use;
-xUnit v3's built-in `Assert` covers what's needed). All 139 tests build and pass together as part
-of `dotnet build`/`dotnet test PuckDrop.slnx`.
+xUnit v3's built-in `Assert` covers what's needed). All 139 tests build and pass together fast (a
+couple of seconds total) — the separate, much slower `tests/PuckDrop.E2ETests/` project (9 tests)
+is covered on its own below. `dotnet build`/`dotnet test PuckDrop.slnx` covers all five projects
+together; see `CLAUDE.md` for running the fast subset on its own for routine iteration.
 
 **bUnit component tests** (added to `PuckDrop.Web.Tests` rather than a separate project — the UI
 test suite isn't large enough to warrant fragmenting it): `PollTests` (`AllQuestionsAnswered`/
@@ -258,28 +259,57 @@ worked with an older bUnit API shape.
   in every async call, rather than suppressing the `xUnit1051` analyzer warning — cheap to do
   correctly regardless of whether today's mocks happen to use it.
 
-### Deferred (explicit follow-ups, not started)
+### E2E suite (`tests/PuckDrop.E2ETests/`)
 
-- **Infrastructure integration tests** (`PuckDrop.Infrastructure.IntegrationTests`) — round-trip
-  tests against a real DynamoDB Local via Testcontainers (not `Aspire.Hosting.Testing`, which
-  would spin up the entire `AppHost.cs` model including CDK/Keycloak/Lambda/API Gateway
-  emulation for what only needs DynamoDB). This is the highest-value remaining gap — it's what
-  would have caught the `DisplayName`-not-persisted bug (see `DynamoDbUserAnswerRepository`'s
-  hand-rolled `ToAttributes`/`MapFromAttributes`, which bypass `DynamoDbMapper`) — but needs
-  Docker locally, so it's deliberately out of this round. Table schema to replicate is fully
-  known from `Infrastructure/PuckDrop.AppHost/Extensions/DynamoDBExtensions.cs`.
-- **API full-HTTP-pipeline tests** (`[Authorize]`/`AdminPolicy` enforcement, routing, through the
-  real MVC pipeline) — needs a custom test host since `PuckDrop.Api` has no `Program.cs`
-  (`LambdaEntryPoint.Init` is the only wiring point); a `WebApplicationFactory<LambdaEntryPoint>`
-  subclass overriding `CreateHostBuilder` to replicate `Init`'s calls is the shape to use. For
-  real JWTs to test against: use `Aspire.Hosting.Testing` against the real Keycloak AppHost
-  resource and pull tokens from the seeded `admin`/`friend` realm users — `DevAuthenticationHandler`
-  (the DEBUG-only auto-admin-bypass this would previously have leaned on) was removed deliberately,
-  so there's no dev-auth fallback to depend on here. Lower marginal value than the above —
-  controllers are 2–6 lines each, already covered indirectly by the Application/Api-layer unit
-  tests.
+Supersedes the two items this section originally deferred (a separate DynamoDB-only integration
+project via Testcontainers, and a separate API full-HTTP-pipeline project) with one suite that's
+purely browser-driven: `Aspire.Hosting.Testing` boots the real AppHost (real DynamoDB Local, real
+Keycloak, the real Lambda-hosted API, the real Blazor WASM app), and Playwright drives a real
+headless Chromium browser against it for everything, including setup — no mocking anywhere in this
+layer. Rejected the raw-HTTP layer the original sketch of this had: DynamoDB round-trip precision
+(the exact `DisplayName` bug this section used to cite as the motivating gap) is more faithfully
+tested by submitting as a real user and viewing the real name on Results/Leaderboard than by a raw
+JSON assertion — a UUID-instead-of-name is literally what that bug looked like to an actual user.
+
+Repo-root `tests/` (not under `API/`/`UI/`) since the suite is genuinely cross-cutting. Lives in
+its own collection fixture (`AppHostFixture`, built once per run): boots the AppHost, launches one
+shared browser, and gives each test its own isolated `IBrowserContext`. Session reuse
+(`LoginAndCaptureSessionAsync`/`NewAuthenticatedBrowserContextAsync`) avoids repeating the login UI
+for every test that just needs to already be authenticated — carrying both cookies (so a stale
+cached access token can still silently renew via Keycloak's own SSO cookie) and Blazor's
+`sessionStorage`-only auth cache (which Playwright's built-in `StorageState` never covers).
+
+Coverage: real login for both roles with role-gated nav; `AuthorizeRouteView`'s three branches
+(authorized / authenticated-but-not-authorized / anonymous) on a direct admin-only navigation; the
+full poll lifecycle end to end — create with two questions, publish (real JS `confirm()`), a
+second real user votes, close, score with a deliberate correct/incorrect split, real display names
+on Results (not UUIDs), Leaderboard points, then a second poll confirming points accumulate rather
+than reset; the auth-config bootstrap failure mode live in a real browser (not just bUnit's
+in-memory version); and logout, including the real cross-origin round trip to Keycloak's own
+logout endpoint. Deliberately out of scope: the "voting closed" UI state (already covered by
+bUnit's `PollTests` against mocked data) and Cognito (needs real AWS infra, out of reach locally —
+this suite only exercises Keycloak's real flow).
+
+**Known, accepted flakiness**: the AWS Lambda Service Emulator (`lambda-test-tool`, via
+`Aspire.Hosting.AWS`) processes one invocation at a time — real, checked directly (no concurrency
+flag on the CLI, no such setting anywhere in `Aspire.Hosting.AWS.dll`), not a guess. Under this
+suite's own sequential real traffic, a step can occasionally take longer than Program.cs's
+deliberate 10-second OIDC-bootstrap-fetch timeout (a correct production fail-fast, left untouched)
+- `AppHostFixture.GotoWithBootstrapRetryAsync`/`ReloadOnBootstrapFailureAsync` absorb most of this
+by reloading and retrying, but not unconditionally. Three separate AppHost bugs were found and
+fixed along the way (all verified live via `aspire start` and a real browser, not just under the
+test harness) — `dynamodb`/`api-gateway` given real health checks (`AddAWSDynamoDBLocal`/
+`AddAWSAPIGatewayEmulator` register none of their own), and Keycloak's browser-facing OIDC
+Authority fixed to resolve to a URL Keycloak itself would reliably accept
+(`WithExternalHttpEndpoints()`) — all in `Infrastructure/PuckDrop.AppHost/AppHost.cs`; these fix
+the same race for plain local `aspire start` too, not just this suite.
+
+### Not yet done
+
 - **CI** (`.github/workflows` running `dotnet test`) — explicit separate decision, not yet made;
-  revisit now that a real test suite exists to run.
+  revisit now that a real test suite (including this E2E layer) exists to run. Would need to
+  decide how to handle this suite's Docker + Playwright-browser prerequisites and its own
+  flakiness in a CI environment specifically.
 
 ---
 
