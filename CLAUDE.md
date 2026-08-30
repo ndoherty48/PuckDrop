@@ -171,3 +171,5 @@ shared `TargetFramework` (`net10.0`), nullable, and implicit usings for every pr
 - `docs/implementation-plan.md` — build sequencing
 - `docs/multi-tenancy.md` — not planned; design sketch for adding multi-group/league support
   if it's ever needed
+- `docs/load-stress-smoke-testing.md` — planned, not started; load/stress/smoke testing against a
+  real deployed environment (never the local Aspire stack)
