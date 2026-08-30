@@ -173,3 +173,6 @@ shared `TargetFramework` (`net10.0`), nullable, and implicit usings for every pr
   if it's ever needed
 - `docs/load-stress-smoke-testing.md` — planned, not started; load/stress/smoke testing against a
   real deployed environment (never the local Aspire stack)
+- `docs/auth-security-testing.md` — planned, not started; closes a real gap (raw-API authorization
+  enforcement, independent of the UI) rather than being exploratory — runs against the local
+  Aspire stack, unlike the load/stress/smoke doc above
