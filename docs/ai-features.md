@@ -54,12 +54,25 @@ through every question themselves. Pre-filling the admin's scoring choices from 
 feed (still confirmed manually before `Submit Scores`, for the same human-in-the-loop reason as
 #3) would save real time on every single game day, not just occasionally.
 
-**Real, unresolved caveat**: this only works if a clean, structured EIHL results source actually
-exists. EIHL is a fairly small/regional league - this doc doesn't assume good structured data is
-available, only that it's worth checking before committing to the idea. If the only sources are
-news recaps/box scores rather than a queryable feed, this drops from "cut real admin time" to
-"maybe parse a webpage with an LLM," which is a meaningfully bigger and less reliable build than
-#1-#3.
+**Data source confirmed** (previously an open caveat - checked directly rather than assumed):
+official EIHL gamesheets are structured, parseable HTML, e.g.
+`https://eihlhq.co.uk/pdf/print/de-html/{gameId}` - genuinely rich: final score, period-by-period
+breakdown (goals/shots/penalty-minutes/power-play/shorthanded splits), a full goal log (time,
+scorer, both assists, game state), and a full penalty log (time, player, infraction, duration).
+`gameId` is a plain sequential integer across the whole league's fixtures, not opaque or
+per-team-scoped - confirmed by checking adjacent IDs (`4351` = Coventry Blaze vs Cardiff Devils,
+`4352` = Belfast Giants vs Coventry Blaze, `4353` = Glasgow Clan vs Dundee Stars, three different
+fixtures from the same few days), so a whole round of fixtures is realistically enumerable once one
+current `gameId` is known.
+
+**What's still actually unresolved**: how to reliably map "today's specific fixture" to its
+`gameId` without already knowing a nearby one (whether eihlhq.co.uk publishes a separate official
+fixture list/schedule page wasn't checked); how soon after a game ends the gamesheet is actually
+published (not confirmed - matters if scoring is meant to happen same-night); and this is still
+someone else's site with no `robots.txt` found (a 404, not a permissive entry) and unknown Terms of
+Service around automated access - worth an explicit, deliberate check of EIHL's actual ToS/asking
+before building anything that polls this on a schedule, not just building it because the data
+happens to be reachable.
 
 ### 5. Personalized season-long insight blurbs
 
@@ -102,5 +115,7 @@ implicit.
 3. **Draft question suggestions (#3)** - real, independent admin-friction value; doesn't depend on
    #1/#2 at all, so could equally be built first if the social features don't validate.
 4. **Insight blurbs (#5)** - lowest-value, cheapest once the infra exists; fold in whenever.
-5. **Auto-suggested scoring (#4)** - gated on the open data-source question above; investigate
-   that first, separately from actually committing to build it.
+5. **Auto-suggested scoring (#4)** - the data source is confirmed workable now (see above), which
+   was the main open risk; moved up in genuine priority as a result, but still sequenced last here
+   since it's still gated on the two smaller remaining unknowns (fixture-to-`gameId` mapping,
+   publish timing) and the deliberate ToS check, none of which block starting on #1-#3 and #5.
