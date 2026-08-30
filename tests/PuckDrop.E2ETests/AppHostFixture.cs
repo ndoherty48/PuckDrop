@@ -159,20 +159,40 @@ public class AppHostFixture : IAsyncLifetime
 
     /// <summary>
     /// Navigates to <paramref name="url"/>, working around one specific known-transient failure
-    /// mode rather than by loosening the production timeout that causes it: Program.cs's OIDC
-    /// bootstrap fetch (<c>GET /auth-config</c>) has a deliberate, documented 10-second timeout,
-    /// so the app doesn't hang on a blank page if the API is genuinely unreachable in production.
-    /// This suite's own concurrent traffic against a Lambda emulator that only processes one
-    /// invocation at a time occasionally makes even a valid response take longer than that,
-    /// which - correctly, from the app's perspective - trips the same fail-fast path and lands on
-    /// its permanent "Couldn't reach the server" error page. Reload and retry a few times rather
-    /// than touch that production behavior for this test-environment-specific slowness.
+    /// mode - see <see cref="RetryOnBootstrapFailureAsync"/>.
     /// </summary>
-    public async Task GotoWithBootstrapRetryAsync(IPage page, string url, int maxAttempts = 4)
+    public Task GotoWithBootstrapRetryAsync(IPage page, string url, int maxAttempts = 4) =>
+        RetryOnBootstrapFailureAsync(page, () => page.GotoAsync(url), $"at {url}", maxAttempts);
+
+    /// <summary>
+    /// Reloads the current page, working around the same failure mode as
+    /// <see cref="GotoWithBootstrapRetryAsync"/> - for a navigation that isn't a plain
+    /// <c>GotoAsync</c> call, such as the real cross-origin round trip
+    /// NavigationManager.NavigateToLogout makes to Keycloak's own logout endpoint and back
+    /// (confirmed live: that round trip re-runs Program.cs's bootstrap fetch on return, so it can
+    /// hit the same transient failure a fresh page load can). The browser is already on the
+    /// correct post-round-trip URL by the time this is needed, so a plain reload - not repeating
+    /// whatever action got here - is enough.
+    /// </summary>
+    public Task ReloadOnBootstrapFailureAsync(IPage page, int maxAttempts = 4) =>
+        RetryOnBootstrapFailureAsync(page, () => page.ReloadAsync(), $"after reload at {page.Url}", maxAttempts);
+
+    /// <summary>
+    /// Program.cs's OIDC bootstrap fetch (<c>GET /auth-config</c>) has a deliberate, documented
+    /// 10-second timeout, so the app doesn't hang on a blank page if the API is genuinely
+    /// unreachable in production. This suite's own concurrent traffic against a Lambda emulator
+    /// that only processes one invocation at a time occasionally makes even a valid response take
+    /// longer than that, which - correctly, from the app's perspective - trips the same fail-fast
+    /// path and lands on its permanent "Couldn't reach the server" error page. Retry
+    /// <paramref name="attempt"/> a few times rather than touch that production behavior for this
+    /// test-environment-specific slowness.
+    /// </summary>
+    private static async Task RetryOnBootstrapFailureAsync(
+        IPage page, Func<Task> attempt, string attemptDescription, int maxAttempts)
     {
-        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        for (var attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber++)
         {
-            await page.GotoAsync(url);
+            await attempt();
 
             try
             {
@@ -190,9 +210,9 @@ public class AppHostFixture : IAsyncLifetime
                 return;
             }
 
-            if (attempt == maxAttempts)
+            if (attemptNumber == maxAttempts)
                 throw new Exception(
-                    $"App still showing \"Couldn't reach the server\" after {maxAttempts} attempts at {url}.");
+                    $"App still showing \"Couldn't reach the server\" after {maxAttempts} attempts {attemptDescription}.");
         }
     }
 
