@@ -176,3 +176,5 @@ shared `TargetFramework` (`net10.0`), nullable, and implicit usings for every pr
 - `docs/auth-security-testing.md` — planned, not started; closes a real gap (raw-API authorization
   enforcement, independent of the UI) rather than being exploratory — runs against the local
   Aspire stack, unlike the load/stress/smoke doc above
+- `docs/ai-features.md` — future consideration; AI-generated post-poll recaps/season awards and
+  admin-assist features (draft poll questions, auto-suggested scoring), ranked by fit and cost
