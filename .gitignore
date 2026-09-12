@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Aspire CLI-generated scratch output (e.g. `aspire publish`), not part of the app model
+**/.aspire/
+
 # User-specific files
 *.rsuser
 *.suo
