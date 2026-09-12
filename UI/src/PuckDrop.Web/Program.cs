@@ -20,15 +20,24 @@ builder.AddBlazorClientServiceDefaults();
 // The API Gateway emulator uses fixed ports configured in the AppHost. Neither of those two
 // local-dev-only sources can ever resolve for a real deployment - this app is a static bundle
 // served from S3/CloudFront, so it can't read AppHost-injected config or env vars at runtime.
+//
 // builder.HostEnvironment.BaseAddress (Blazor WASM's own origin, always correct regardless of
 // deployment target) is the real fallback for that case: CloudFront's /puckdrop/* behavior
 // (BlazorStaticSitePublishTarget) forwards same-origin calls straight through to the API
-// Gateway, so a relative base URL just works, no CORS, nothing baked in at build time. The
-// hardcoded local-dev literal stays only as a true last resort, for running this project
-// directly outside Aspire - not what a real deployment falls through to.
+// Gateway, so a relative base URL just works, no CORS, nothing baked in at build time. BUT this
+// only holds when the app is served from its own origin's root - locally, blazor-gateway serves
+// it under a resource-name sub-path instead (e.g. "https://localhost:PORT/web/"), and that
+// sub-path is NOT proxied to the API the way CloudFront's real deployment path is. Using
+// BaseAddress there resolved to the gateway's own origin+"/web/", which 404s/falls back to
+// index.html for any API call - not a hardcoded-literal problem, a genuine regression this
+// caused (confirmed via a real E2E run, not assumed) until this path check was added.
+// Root path ("/") means "served from an origin root" (the CloudFront case); anything else means
+// "served under a sub-path by something like blazor-gateway" (the local-dev case), where the
+// hardcoded literal below is the one that's actually correct.
+var baseAddressIsOriginRoot = new Uri(builder.HostEnvironment.BaseAddress).AbsolutePath is "/";
 var apiBaseUrl = builder.Configuration["services:api-gateway:http:0"]
     ?? builder.Configuration["ApiClientSettings:BaseUrl"]
-    ?? builder.HostEnvironment.BaseAddress
+    ?? (baseAddressIsOriginRoot ? builder.HostEnvironment.BaseAddress : null)
     ?? "http://api-gateway-puckdrop.dev.localhost:8080";
 
 Console.WriteLine($"[PuckDrop] API base URL: {apiBaseUrl}");
