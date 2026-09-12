@@ -1,8 +1,10 @@
 using Aspire.Hosting.AWS.Deployment;
+using Aspire.Hosting.AWS.Deployment.CDKPublishTargets;
 using Aspire.Hosting.AWS.DynamoDB;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PuckDrop.AppHost.AWS;
+using PuckDrop.AppHost.AWS.Deployment;
 using PuckDrop.AppHost.Extensions;
 #pragma warning disable ASPIREAWSPUBLISHERS001 
 #pragma warning disable ASPIREBROWSERLOGS001
@@ -37,6 +39,14 @@ var deployedCdk = builder.AddAWSCDKEnvironment(
     "puckdrop-cdk",
     CDKDefaultsProviderFactory.Preview_V1,
     stackFactory: (app, props) => new DeploymentStack(app, "PuckDrop", props));
+
+// Registers our own IAWSPublishTarget the same way every built-in AWS target is registered
+// (Aspire.Hosting.AWS's own AWSCDKEnvironmentExtensions.AddEnvironmentServices does the same
+// AddTransient<IAWSPublishTarget, T>() for LambdaFunctionPublishTarget etc.) - this makes it a
+// real participant in the CDK publish pipeline (CDKPublishingStep resolves every registered
+// target via GetServices<IAWSPublishTarget>()), not a workaround. See
+// AWS/Deployment/BlazorStaticSitePublishTarget.cs.
+builder.Services.AddTransient<IAWSPublishTarget, BlazorStaticSitePublishTarget>();
 
 var dynamoDbLocal = builder.AddAWSDynamoDBLocal("dynamodb", new DynamoDBLocalOptions
 {
@@ -186,7 +196,8 @@ apiGateway.WithHealthCheck(apiGatewayReadyCheckKey);
 // no longer matters for OIDC config specifically - the app fetches it at boot from the API's
 // /auth-config endpoint instead, so there's nothing to wire up here for it.
 var web = builder.AddBlazorWasmProject<Projects.PuckDrop_Web>("web")
-    .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"));
+    .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"))
+    .PublishAsS3WithCloudFront();
 
 var blazorGateway = builder.AddBlazorGateway("blazor-gateway")
     .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"))

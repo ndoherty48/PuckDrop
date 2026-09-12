@@ -2,9 +2,6 @@ using Amazon.CDK;
 using Amazon.CDK.AWS.Apigatewayv2;
 using Amazon.CDK.AWS.Cognito;
 using Amazon.CDK.AWS.DynamoDB;
-using Amazon.CDK.AWS.EC2;
-using Amazon.CDK.AWS.ECS;
-using Aspire.Hosting.AWS.Deployment;
 using Constructs;
 using Attribute = Amazon.CDK.AWS.DynamoDB.Attribute;
 
@@ -12,12 +9,6 @@ namespace PuckDrop.AppHost.AWS;
 
 public class DeploymentStack : Stack
 {
-    [DefaultVpc]
-    public IVpc DefaultVpc { get; private set; } = null!;
-
-    [DefaultECSCluster]
-    public ICluster DefaultECSCluster { get; private set; } = null!;
-
     public Table PuckDropTable { get; private set; } = null!;
     public UserPool UserPool { get; private set; } = null!;
     public UserPoolClient UserPoolClient { get; private set; } = null!;
@@ -26,14 +17,6 @@ public class DeploymentStack : Stack
 
     public DeploymentStack(Construct scope, string id, IStackProps? props = null) : base(scope, id, props)
     {
-        DefaultVpc = Vpc.FromLookup(this, "DefaultVpc", new VpcLookupOptions { IsDefault = true });
-
-        DefaultECSCluster = new Cluster(this, "MyCluster", new ClusterProps
-        {
-            Vpc = DefaultVpc,
-            ClusterName = "my-aspire-cluster"
-        });
-
         CreateDynamoDbTable();
         CreateCognitoResources();
         CreateApiGateway();
