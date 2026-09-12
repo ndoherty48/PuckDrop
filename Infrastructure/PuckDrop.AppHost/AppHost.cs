@@ -192,15 +192,22 @@ builder.Services.AddHealthChecks().AddAsyncCheck(apiGatewayReadyCheckKey, CheckO
 }));
 apiGateway.WithHealthCheck(apiGatewayReadyCheckKey);
 
-// Blazor WASM still can't read AppHost-injected env vars at runtime (see Program.cs), but that
-// no longer matters for OIDC config specifically - the app fetches it at boot from the API's
-// /auth-config endpoint instead, so there's nothing to wire up here for it.
+// OIDC config doesn't need wiring here - the app fetches it at boot from the API's
+// /auth-config endpoint instead (see "Auth" in CLAUDE.md).
+//
+// WithReference(apiGateway.GetEndpoint("http")) is what actually gets api-gateway's endpoint to
+// the browser: Blazor WASM has no runtime process of its own for AppHost-injected values to
+// land in, so WithBlazorClientApp (below) auto-forwards WithReference'd endpoints from this
+// resource to blazor-gateway, which serves them to the browser as services__api-gateway__http__0
+// in its boot-time config JSON - matching Program.cs's first fallback branch. A plain
+// .WithEnvironment(...) call here would NOT do this (confirmed by reading
+// Aspire.Hosting.Blazor's source - it only ever forwards WithReference'd endpoints, never
+// arbitrary WithEnvironment values), which is why one used to sit here uselessly.
 var web = builder.AddBlazorWasmProject<Projects.PuckDrop_Web>("web")
-    .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"))
+    .WithReference(apiGateway.GetEndpoint("http"))
     .PublishAsS3WithCloudFront();
 
 var blazorGateway = builder.AddBlazorGateway("blazor-gateway")
-    .WithEnvironment("ApiClientSettings__BaseUrl", apiGateway.GetEndpoint("http"))
     .WithExternalHttpEndpoints();
 
 // Both .WithOtlpExporter and .WithBrowserLogs (dashboard dev-tooling: tracks a browser tab and
