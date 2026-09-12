@@ -30,6 +30,14 @@ public class DeploymentStack : Stack
             TableName = "PuckDrop",
             BillingMode = BillingMode.PAY_PER_REQUEST,
             RemovalPolicy = RemovalPolicy.RETAIN,
+            // RETAIN above protects the table from being deleted along with the stack, but does
+            // nothing against a bad admin action or app bug corrupting/wiping real data (e.g. a
+            // season's UserAnswer items). PITR is cheap at this table's size and gives a 35-day
+            // restore-to-any-point safety net for exactly that case.
+            PointInTimeRecoverySpecification = new PointInTimeRecoverySpecification
+            {
+                PointInTimeRecoveryEnabled = true
+            },
             PartitionKey = new Attribute { Name = "PK", Type = AttributeType.STRING },
             SortKey = new Attribute { Name = "SK", Type = AttributeType.STRING }
         });
@@ -66,11 +74,21 @@ public class DeploymentStack : Stack
             {
                 MinLength = 8,
                 RequireUppercase = false,
-                RequireDigits = false,
+                RequireDigits = true,
                 RequireSymbols = false
             },
             AccountRecovery = AccountRecovery.EMAIL_ONLY,
-            RemovalPolicy = RemovalPolicy.RETAIN
+            RemovalPolicy = RemovalPolicy.RETAIN,
+            // Optional, not required - a friend-group app shouldn't force every user through
+            // MFA, but the "admin" group can score polls, which the whole season leaderboard's
+            // integrity rests on, so admins need the option. TOTP only (no SMS - avoids per-use
+            // SMS cost for a feature most users won't turn on).
+            Mfa = Mfa.OPTIONAL,
+            MfaSecondFactor = new MfaSecondFactor
+            {
+                Otp = true,
+                Sms = false
+            }
         });
 
         UserPoolClient = UserPool.AddClient("PuckDropWebClient", new UserPoolClientOptions
@@ -94,9 +112,13 @@ public class DeploymentStack : Stack
             Description = "Administrators who can create/score polls"
         });
 
+        // Cognito hosted-domain prefixes are unique across every AWS account in the partition,
+        // not just this one - a bare "puckdrop" risks colliding with someone else's pool and
+        // failing at deploy time with no way to know in advance. Suffixing with the account ID
+        // makes it unique to this deployment instead.
         UserPool.AddDomain("PuckDropDomain", new UserPoolDomainOptions
         {
-            CognitoDomain = new CognitoDomainOptions { DomainPrefix = "puckdrop" }
+            CognitoDomain = new CognitoDomainOptions { DomainPrefix = $"puckdrop-{Account}" }
         });
     }
 
