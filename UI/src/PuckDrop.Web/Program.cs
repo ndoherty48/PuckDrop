@@ -17,9 +17,18 @@ builder.Configuration.AddEnvironmentVariables();
 builder.AddBlazorClientServiceDefaults();
 
 // Register PuckDropApiClient with API Gateway base URL.
-// The API Gateway emulator uses fixed ports configured in the AppHost.
+// The API Gateway emulator uses fixed ports configured in the AppHost. Neither of those two
+// local-dev-only sources can ever resolve for a real deployment - this app is a static bundle
+// served from S3/CloudFront, so it can't read AppHost-injected config or env vars at runtime.
+// builder.HostEnvironment.BaseAddress (Blazor WASM's own origin, always correct regardless of
+// deployment target) is the real fallback for that case: CloudFront's /puckdrop/* behavior
+// (BlazorStaticSitePublishTarget) forwards same-origin calls straight through to the API
+// Gateway, so a relative base URL just works, no CORS, nothing baked in at build time. The
+// hardcoded local-dev literal stays only as a true last resort, for running this project
+// directly outside Aspire - not what a real deployment falls through to.
 var apiBaseUrl = builder.Configuration["services:api-gateway:http:0"]
     ?? builder.Configuration["ApiClientSettings:BaseUrl"]
+    ?? builder.HostEnvironment.BaseAddress
     ?? "http://api-gateway-puckdrop.dev.localhost:8080";
 
 Console.WriteLine($"[PuckDrop] API base URL: {apiBaseUrl}");

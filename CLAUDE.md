@@ -134,10 +134,27 @@ local dev via Aspire (`AddKeycloak` + realm import from
   the AWS CDK environment used for real deployment.
 - **`Infrastructure/PuckDrop.AppHost/AWS/DeploymentStack.cs`** is the CDK stack used when
   publishing: creates the DynamoDB table + GSIs, the Cognito user pool/client/admin group, and an
-  HTTP API Gateway with a JWT authorizer wired to the Lambda. The `ConstructFunctionCallback` in
+  HTTP API Gateway with a JWT authorizer wired to the Lambda. No VPC/ECS cluster — nothing in the
+  stack needs one (confirmed: DynamoDB, Cognito, and API Gateway are all public managed APIs; the
+  Lambda's `Vpc` property is nullable/opt-in and never set). The `ConstructFunctionCallback` in
   `AppHost.cs` (`PublishAsLambdaFunction`) is where CDK-provisioned values (user pool ID, table
   grants, API Gateway route) get pushed into the Lambda's environment/permissions at publish time
   — this is the seam between the two systems.
+- **`Infrastructure/PuckDrop.AppHost/AWS/Deployment/`** publishes the Blazor WASM UI (`web` in
+  `AppHost.cs`) as an S3 bucket fronted by CloudFront — `BlazorStaticSitePublishTarget`, a real
+  `IAWSPublishTarget` registered via `builder.Services.AddTransient<IAWSPublishTarget,
+  BlazorStaticSitePublishTarget>()` in `AppHost.cs` (the same DI mechanism every built-in AWS
+  target uses — a genuine, consumer-usable extensibility point in `Aspire.Hosting.AWS`, not a
+  workaround), invoked via `.PublishAsS3WithCloudFront()` on `web`. Runs `dotnet publish -c
+  Release` on the Blazor project, builds the bucket/OAC/distribution/SPA-fallback/deployment CDK
+  constructs, bakes in a `/puckdrop/*` CloudFront behavior routing to the real API Gateway (read
+  directly off `DeploymentStack.HttpApi`, since that API Gateway isn't wrapped by any Aspire
+  resource), and fixes up the Cognito `UserPoolClient`'s OAuth callback/logout URLs — created
+  with a `localhost` placeholder in `DeploymentStack` before the CloudFront domain exists — via
+  the CDK "escape hatch" (`Node.DefaultChild` cast to `CfnUserPoolClient`, whose properties are
+  `CallbackUrLs`/`LogoutUrLs` — note the unusual JSII-codegen casing) once the distribution is
+  built. Modeled closely on AWS's own unreleased `S3StaticWebsitePublishTarget` for JS apps
+  (aws/integrations-on-dotnet-aspire-for-aws#203) for easy swap-out if that ships.
 - `PuckDrop.ServiceDefaults` / `PuckDrop.ClientServiceDefaults` hold shared OpenTelemetry/service
   discovery wiring for the server and Blazor WASM client respectively, added via
   `AddLambdaServiceDefaults()` / `AddBlazorClientServiceDefaults()`.
@@ -146,8 +163,10 @@ local dev via Aspire (`AddKeycloak` + realm import from
 
 Blazor WebAssembly app (`UI/src/PuckDrop.Web`). `PuckDropApiClient` (in `Services/`) is the sole
 HTTP client to the API, pointed at the API Gateway emulator's base URL (resolved from Aspire
-service discovery config, falling back to `ApiClientSettings:BaseUrl`, then a hardcoded local
-default). Provider-agnostic OIDC auth is wired up in `Program.cs`, which fetches its config from
+service discovery config, falling back to `ApiClientSettings:BaseUrl`, then
+`HostEnvironment.BaseAddress` — same-origin, which is what makes the CloudFront `/puckdrop/*`
+behavior above work for a real deployment — then a hardcoded local-dev default as a true last
+resort). Provider-agnostic OIDC auth is wired up in `Program.cs`, which fetches its config from
 the API's `GET /auth-config` at boot rather than a static file — see "Auth" above. If that fetch
 fails, `Program.cs` registers an `AuthConfigLoadResult` that `App.razor` checks before rendering
 its normal `<Router>`/`<CascadingAuthenticationState>` tree, showing a clear error instead of a
