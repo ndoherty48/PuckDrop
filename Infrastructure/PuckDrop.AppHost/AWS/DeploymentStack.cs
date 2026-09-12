@@ -94,7 +94,9 @@ public class DeploymentStack : Stack
         UserPoolClient = UserPool.AddClient("PuckDropWebClient", new UserPoolClientOptions
         {
             UserPoolClientName = "PuckDrop-Web",
-            AuthFlows = new AuthFlow { UserSrp = true },
+            // No direct AuthFlows (USER_SRP_AUTH etc.) - the Blazor client only ever uses the
+            // OAuth Authorization Code flow via Cognito's Hosted UI (see AuthDiscoveryOptions'
+            // hardcoded ResponseType="code"), never Cognito's InitiateAuth API directly.
             OAuth = new OAuthSettings
             {
                 Flows = new OAuthFlows { AuthorizationCodeGrant = true },
