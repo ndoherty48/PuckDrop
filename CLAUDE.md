@@ -178,3 +178,5 @@ shared `TargetFramework` (`net10.0`), nullable, and implicit usings for every pr
   Aspire stack, unlike the load/stress/smoke doc above
 - `docs/ai-features.md` — future consideration; AI-generated post-poll recaps/season awards and
   admin-assist features (draft poll questions, auto-suggested scoring), ranked by fit and cost
+- `docs/eihl-gamesheet-schema.md` — reference for `ai-features.md`'s auto-suggested-scoring idea;
+  field-level schema of the official EIHL gamesheet data source, verified against the live site

@@ -63,7 +63,10 @@ scorer, both assists, game state), and a full penalty log (time, player, infract
 per-team-scoped - confirmed by checking adjacent IDs (`4351` = Coventry Blaze vs Cardiff Devils,
 `4352` = Belfast Giants vs Coventry Blaze, `4353` = Glasgow Clan vs Dundee Stars, three different
 fixtures from the same few days), so a whole round of fixtures is realistically enumerable once one
-current `gameId` is known.
+current `gameId` is known. Full field-level schema (exact table structure, column meanings, a
+worked real example) is in
+[docs/eihl-gamesheet-schema.md](eihl-gamesheet-schema.md) - kept separate from this doc since it's
+implementation-level reference, not a product decision.
 
 **What's still actually unresolved**: how to reliably map "today's specific fixture" to its
 `gameId` without already knowing a nearby one (whether eihlhq.co.uk publishes a separate official
