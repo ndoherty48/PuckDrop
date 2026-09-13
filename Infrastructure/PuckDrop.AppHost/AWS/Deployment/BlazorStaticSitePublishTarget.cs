@@ -151,6 +151,18 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
             DestinationBucket = bucket,
             Distribution = distribution,
             DistributionPaths = ["/*"],
+            // CDK's default (128 MB) starves the sync Lambda's CPU/network for a Blazor WASM
+            // app's asset count (_framework/ alone commonly runs into the hundreds of files once
+            // .br/.gz variants are counted) - confirmed directly from a real deploy's Lambda
+            // logs, not just inferred: "Duration: 900000.00 ms ... Memory Size: 128 MB Max
+            // Memory Used: 126 MB Status: timeout" - it ran flat out for its full 900s (15 min)
+            // hard limit, pinned at 98% of its memory ceiling, with throughput visibly degrading
+            // near the end (400 KiB/s -> 152 KiB/s) as memory pressure built up, and still had
+            // ~192 of ~252+ files left when AWS killed it. CloudFormation's custom-resource
+            // Provider framework then retries the whole thing from scratch. More memory gives
+            // this Lambda proportionally more CPU/network, which should let a single invocation
+            // actually finish instead of repeatedly timing out.
+            MemoryLimit = 1024,
         };
         config.PropsBucketDeploymentCallback?.Invoke(context, deploymentProps);
         _ = new BucketDeployment(stack, $"Project-{resource.Name}-Deployment", deploymentProps);
