@@ -121,6 +121,25 @@ public class DeploymentStack : Stack
         UserPool.AddDomain("PuckDropDomain", new UserPoolDomainOptions
         {
             CognitoDomain = new CognitoDomainOptions { DomainPrefix = $"puckdrop-{Account}" }
+            // ManagedLoginVersion left at its default (NEWER_MANAGED_LOGIN) - see the
+            // CfnManagedLoginBranding below for why that needs its own resource.
+        });
+
+        // An app client created via CloudFormation/the SDK (as this one is) gets no managed-login
+        // branding style at all - AWS's own docs confirm managed login "isn't available for an
+        // app client created with an AWS SDK until you create one with a
+        // CreateManagedLoginBranding request" - and without one, the hosted login page shows
+        // "Login pages unavailable. Please contact an administrator." (confirmed live, via a real
+        // deployed distribution). UseCognitoProvidedValues = true satisfies that requirement with
+        // Cognito's own default look - no custom logo/colors needed for this app today, but
+        // Managed Login (vs. the older Classic Hosted UI) leaves room to add real branding, or
+        // pick up features like passkey sign-in, later without changing the domain's branding
+        // version again.
+        _ = new CfnManagedLoginBranding(this, "PuckDropManagedLoginBranding", new CfnManagedLoginBrandingProps
+        {
+            UserPoolId = UserPool.UserPoolId,
+            ClientId = UserPoolClient.UserPoolClientId,
+            UseCognitoProvidedValues = true
         });
     }
 
