@@ -1,7 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
 
   <PropertyGroup>
-    <StaticWebAssetBasePath>web</StaticWebAssetBasePath>
+    <!-- Conditional (not a plain assignment) so BlazorStaticSitePublishTarget's S3/CloudFront
+         publish step can opt out via -p:PublishForRootStaticWebAssets=true - that build has no
+         blazor-gateway sub-path convention to match (the site is served from its own CloudFront
+         origin root). A Condition on StaticWebAssetBasePath itself being empty can't
+         distinguish "never set" from "deliberately overridden to empty" (both look identical
+         at evaluation time - confirmed directly: passing -p:StaticWebAssetBasePath= alone did
+         NOT stop this project from re-assigning "web"), hence the separate boolean flag. -->
+    <StaticWebAssetBasePath Condition="'$(PublishForRootStaticWebAssets)' != 'true'">web</StaticWebAssetBasePath>
     <!-- Enable WebAssembly diagnostics for OpenTelemetry tracing -->
     <MetricsSupport>true</MetricsSupport>
     <EventSourceSupport>true</EventSourceSupport>
