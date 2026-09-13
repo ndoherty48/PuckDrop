@@ -2,6 +2,7 @@
 #pragma warning disable ASPIREBLAZOR001
 
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Amazon.CDK;
 using Amazon.CDK.AWS.CloudFront;
 using Amazon.CDK.AWS.CloudFront.Origins;
@@ -96,6 +97,8 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
             throw new InvalidOperationException(
                 $"Published output for '{resource.Name}' was not found at '{buildOutputPath}'. " +
                 $"'dotnet publish' may have failed, or produced a different layout than expected.");
+
+        FixIndexHtmlBaseHref(buildOutputPath);
 
         var context = CreatePublishTargetContext(environment);
         var stack = context.GetDeploymentStack<DeploymentStack>();
@@ -269,6 +272,32 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
     }
 
     /// <summary>
+    /// PuckDrop.Web.csproj's checked-in wwwroot/index.html hardcodes &lt;base href="/web/" /&gt;
+    /// (matching its local-dev StaticWebAssetBasePath, for blazor-gateway) - that's a plain,
+    /// static HTML file, entirely independent of the -p:PublishForRootStaticWebAssets=true flag
+    /// passed above, which only affects the physical directory layout, not this tag's content
+    /// (confirmed directly: overriding StaticWebAssetBasePath alone left it unchanged). The
+    /// deployed site is served from its own CloudFront origin root with no sub-path convention
+    /// to match, so rewrite it here, post-publish, rather than touch the shared source file that
+    /// local dev still needs at "/web/". The pre-compressed index.html.br/.gz siblings dotnet
+    /// publish also produces are left as-is deliberately - nothing in this target's CloudFront
+    /// config serves them (no CloudFront Function/Lambda@Edge rewrite maps a request to its
+    /// compressed sibling by suffix), so their now-stale base href is inert, never actually
+    /// requested.
+    /// </summary>
+    private static void FixIndexHtmlBaseHref(string buildOutputPath)
+    {
+        var indexHtmlPath = Path.Combine(buildOutputPath, "index.html");
+        if (!File.Exists(indexHtmlPath))
+            return;
+
+        var html = File.ReadAllText(indexHtmlPath);
+        var fixedHtml = Regex.Replace(html, """<base\s+href="[^"]*"\s*/?>""", """<base href="/" />""");
+        if (fixedHtml != html)
+            File.WriteAllText(indexHtmlPath, fixedHtml);
+    }
+
+    /// <summary>
     /// Runs `dotnet publish -c Release` on the Blazor project - the equivalent of PR #203's
     /// `IStaticSiteBuilder`/`DefaultStaticSiteBuilder` running `npm run build`, for the same
     /// reason: don't assume implicit build ordering already produced the optimized output,
@@ -280,7 +309,13 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
             "Publishing Blazor WASM project '{ResourceName}' via 'dotnet publish -c Release' in '{ProjectDirectory}'",
             resourceName, projectDirectory);
 
-        var startInfo = new ProcessStartInfo("dotnet", "publish -c Release")
+        // -p:PublishForRootStaticWebAssets=true opts PuckDrop.Web.csproj's StaticWebAssetBasePath
+        // out of its local-dev "web" value (matching the blazor-gateway resource name) - this
+        // deployment is served from its own CloudFront origin root, with no gateway sub-path
+        // convention to match. A plain assignment in the csproj would otherwise silently win over
+        // any command-line override regardless of value - confirmed directly, which is why that
+        // property carries its own Condition rather than defaulting unconditionally.
+        var startInfo = new ProcessStartInfo("dotnet", "publish -c Release -p:PublishForRootStaticWebAssets=true")
         {
             WorkingDirectory = projectDirectory,
             RedirectStandardOutput = true,

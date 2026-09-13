@@ -203,19 +203,26 @@ apiGateway.WithHealthCheck(apiGatewayReadyCheckKey);
 // .WithEnvironment(...) call here would NOT do this (confirmed by reading
 // Aspire.Hosting.Blazor's source - it only ever forwards WithReference'd endpoints, never
 // arbitrary WithEnvironment values), which is why one used to sit here uselessly.
-// PuckDrop.Web.csproj sets <StaticWebAssetBasePath>web</StaticWebAssetBasePath> (to match this
-// resource's name, for local dev under blazor-gateway) - which means `dotnet publish` itself
-// always nests the real site under wwwroot/web/ (index.html, _framework/, etc.), never directly
-// under wwwroot/. BlazorStaticSitePublishTarget's default OutputPath ("wwwroot") doesn't know
-// about that extra segment, so without this override the S3 bucket ends up with a single "web/"
-// folder at its root and nothing else - breaking DefaultRootObject and the SPA error-response
-// fallback, both of which expect index.html at the bucket root. Confirmed via a real deploy:
-// the uploaded bucket had exactly this "web/"-only structure. Point OutputPath at the actual
-// nested folder so the bucket root gets the real site contents instead.
+// PuckDrop.Web.csproj sets <StaticWebAssetBasePath>web</StaticWebAssetBasePath> for local dev
+// under blazor-gateway (to match this resource's name) - which normally also nests `dotnet
+// publish`'s real output under wwwroot/web/ and bakes <base href="/web/"> into index.html
+// itself. Neither is wanted for this S3/CloudFront deployment, which serves from its own
+// origin root with no gateway sub-path convention to match - BlazorStaticSitePublishTarget
+// handles both directly (an MSBuild property override for the directory layout, a post-publish
+// rewrite for the hardcoded base href - see its own comments), so no config override is needed
+// here; the default OutputPath ("wwwroot") is correct once those two fixes are in place.
+//
+// (Two earlier, incomplete attempts lived in this comment's history: first moving OutputPath to
+// wwwroot/web fixed the root request but broke every other asset, since index.html's hardcoded
+// <base href="/web/"> then pointed at paths that no longer existed at that prefix ("Unexpected
+// token '<'" - confirmed live). Pointing CloudFront's DefaultRootObject/error pages at
+// web/index.html instead fixed that, but broke Program.cs's origin-root fallback logic, since
+// HostEnvironment.BaseAddress reflects <base href> and so was "/web/" in production too, making
+// it indistinguishable from local dev. Fixing the actual root cause - the build output and its
+// base href - avoids needing either workaround.)
 var web = builder.AddBlazorWasmProject<Projects.PuckDrop_Web>("web")
     .WithReference(apiGateway.GetEndpoint("http"))
-    .PublishAsS3WithCloudFront(config =>
-        config.OutputPath = Path.Combine("bin", "Release", "net10.0", "publish", "wwwroot", "web"));
+    .PublishAsS3WithCloudFront();
 
 var blazorGateway = builder.AddBlazorGateway("blazor-gateway")
     .WithExternalHttpEndpoints();
