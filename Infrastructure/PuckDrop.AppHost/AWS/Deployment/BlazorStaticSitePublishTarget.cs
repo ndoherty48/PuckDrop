@@ -123,6 +123,14 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
             DefaultBehavior = new BehaviorOptions
             {
                 Origin = S3BucketOrigin.WithOriginAccessControl(bucket),
+                FunctionAssociations =
+                [
+                    new FunctionAssociation
+                    {
+                        EventType = FunctionEventType.VIEWER_REQUEST,
+                        Function = CreateSpaFallbackFunction(stack, resource.Name),
+                    },
+                ],
             },
             AdditionalBehaviors = new Dictionary<string, IBehaviorOptions>
             {
@@ -253,16 +261,9 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
 
     private static void ApplyDistributionDefaults(DistributionProps props)
     {
+        // A harmless default for the bare-root case; the real SPA-fallback logic lives in the
+        // CloudFront Function below, not here - see its own comment for why.
         props.DefaultRootObject ??= "index.html";
-
-        props.ErrorResponses ??= new[] { 403, 404 }
-            .Select(status => (IErrorResponse)new ErrorResponse
-            {
-                HttpStatus = status,
-                ResponseHttpStatus = 200,
-                ResponsePagePath = "/index.html",
-            })
-            .ToArray();
 
         if (props.DefaultBehavior is BehaviorOptions behavior)
         {
@@ -270,6 +271,39 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
             behavior.CachePolicy ??= CachePolicy.CACHING_OPTIMIZED;
         }
     }
+
+    /// <summary>
+    /// SPA fallback (serve index.html for any client-side route, so the Blazor router - not
+    /// S3/CloudFront - decides what to render) deliberately implemented as a viewer-request
+    /// CloudFront Function on the default behavior only, NOT as the distribution's
+    /// CustomErrorResponses (403/404 -&gt; 200 index.html). CustomErrorResponses is a
+    /// distribution-WIDE setting in CloudFront - it isn't scoped per-behavior - so it was also
+    /// silently rewriting genuine 403/404 responses from the API behavior (e.g. a real
+    /// [Authorize(Policy = "AdminPolicy")] 403) into a fake 200 response with index.html's HTML
+    /// body. The Blazor client's JSON deserialization then choked on that HTML ("Unexpected
+    /// token '<'" / ExpectedStartOfValueNotFound - confirmed live, via a real deployed
+    /// distribution). A CloudFront Function attached to just the default behavior only ever
+    /// touches requests actually routed to S3, leaving the API behavior's real status codes and
+    /// bodies untouched.
+    /// </summary>
+    private static IFunction CreateSpaFallbackFunction(DeploymentStack stack, string resourceName) =>
+        new Amazon.CDK.AWS.CloudFront.Function(stack, $"Project-{resourceName}-SpaFallback", new FunctionProps
+        {
+            Runtime = FunctionRuntime.JS_2_0,
+            Code = FunctionCode.FromInline(
+                """
+                function handler(event) {
+                    var request = event.request;
+                    // Any URI without a "." is treated as a client-side route (Blazor's own
+                    // router decides what to render) rather than a real static file - every
+                    // actual asset this app serves (js/css/wasm/png/etc.) has an extension.
+                    if (!request.uri.includes('.')) {
+                        request.uri = '/index.html';
+                    }
+                    return request;
+                }
+                """),
+        });
 
     /// <summary>
     /// PuckDrop.Web.csproj's checked-in wwwroot/index.html hardcodes &lt;base href="/web/" /&gt;

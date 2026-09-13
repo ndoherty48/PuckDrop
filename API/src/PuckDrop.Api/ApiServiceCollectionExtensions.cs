@@ -36,9 +36,28 @@ public static class ApiServiceCollectionExtensions
                     {
                         ValidateIssuer = true,
                         ValidIssuer = cognitoSettings.Authority,
-                        ValidateAudience = true,
-                        ValidAudience = cognitoSettings.ClientId,
+                        // Cognito access tokens carry no "aud" claim at all unless you configure
+                        // a resource server (confirmed against AWS's own docs) - this app doesn't,
+                        // so ValidateAudience=true/ValidAudience here would reject every single
+                        // token, valid or not (confirmed live: an admin-group user's requests came
+                        // back 403, even though API Gateway's own JWT authorizer - which already
+                        // has documented Cognito-aware "check client_id when aud is absent"
+                        // fallback logic - had accepted the exact same token). The client
+                        // identity check happens below instead, against "client_id" - the claim
+                        // Cognito does emit, matching how API Gateway's authorizer itself
+                        // validates the client for this same token.
+                        ValidateAudience = false,
                         ValidateLifetime = true
+                    };
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnTokenValidated = context =>
+                        {
+                            if (context.Principal?.FindFirst("client_id")?.Value != cognitoSettings.ClientId)
+                                context.Fail("Token was not issued for this app client.");
+
+                            return Task.CompletedTask;
+                        }
                     };
                 });
         }
