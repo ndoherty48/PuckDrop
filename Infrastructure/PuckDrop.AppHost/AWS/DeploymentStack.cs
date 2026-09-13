@@ -213,9 +213,16 @@ public class DeploymentStack : Stack
         _ = new CfnOutput(this, "UserPoolId", new CfnOutputProps { Value = UserPool.UserPoolId });
         _ = new CfnOutput(this, "UserPoolClientId", new CfnOutputProps { Value = UserPoolClient.UserPoolClientId });
         _ = new CfnOutput(this, "DynamoDbTableName", new CfnOutputProps { Value = PuckDropTable.TableName });
+        // Plain string interpolation, not Fn.Sub - CDK's own token-resolution machinery already
+        // encodes HttpApi.Ref correctly here (same proven pattern as JwtAuthorizer's Issuer
+        // above and BlazorStaticSitePublishTarget's CloudFront origin). Wrapping it in Fn.Sub's
+        // own "${...}" template syntax on top of that double-encodes the token into nested
+        // "${${...}}" braces, which is what a real `aspire deploy` attempt actually hit:
+        // "One or more Fn::Sub intrinsic functions don't specify expected arguments" - confirmed
+        // via CloudFormation's own template validation warning naming this exact output.
         _ = new CfnOutput(this, "ApiGatewayUrl", new CfnOutputProps
         {
-            Value = Fn.Sub($"https://${{{HttpApi.Ref}}}.execute-api.{Region}.amazonaws.com")
+            Value = $"https://{HttpApi.Ref}.execute-api.{Region}.amazonaws.com"
         });
     }
 }

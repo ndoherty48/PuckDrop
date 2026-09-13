@@ -9,6 +9,9 @@
 # Aspire CLI-generated scratch output (e.g. `aspire publish`), not part of the app model
 **/.aspire/
 
+# CDK synthesis output (e.g. `aspire publish`/`aspire deploy`), regenerated on every synth
+**/cdk.out/
+
 # User-specific files
 *.rsuser
 *.suo

@@ -221,9 +221,37 @@ var hasDashboard = !string.IsNullOrEmpty(builder.Configuration["ASPIRE_DASHBOARD
 if (hasDashboard)
     blazorGateway.WithOtlpExporter(OtlpProtocol.HttpProtobuf);
 
+// WithBlazorClientApp must run unconditionally, even in publish mode where blazor-gateway itself
+// serves no purpose (production hosting is S3+CloudFront via BlazorStaticSitePublishTarget
+// above) - it's what sets web.Resource.Parent (BlazorWasmAppResource implements
+// IResourceWithParent). Skipping this call in publish mode - the first fix attempted here -
+// left Parent null and crashed `aspire publish`'s process-parameters step with a
+// NullReferenceException: Aspire's own dependency-walking code (ResourceExtensions.
+// CollectAnnotationDependencies) dereferences IResourceWithParent.Parent unconditionally,
+// assuming it's never null once a resource implements that interface - confirmed via a real
+// `aspire deploy` attempt after making that (wrong) fix.
 blazorGateway.WithBlazorClientApp(web);
 
 if (hasDashboard)
     blazorGateway.WithBrowserLogs();
+
+// What genuinely IS safe (and worth) skipping is the actual container BUILD work for
+// blazor-gateway and the "webpublish" companion resource WithBlazorClientApp auto-creates for
+// the wasm app - neither is needed for this app's S3-based production hosting, and the
+// companion's auto-generated Dockerfile is broken for this repo's layout regardless (confirmed
+// via a real `aspire deploy` attempt: MSB1009 "Project file does not exist", a relative-path
+// mismatch inside the generated container build). ExcludeFromManifest is enough for that -
+// unlike WithBlazorClientApp above, the container-build pipeline steps
+// (ContainerResourceBuilderExtensions.EnsureBuildAndPushPipelineAnnotations) check
+// IsExcludedFromPublish() lazily, when the pipeline is actually built, so excluding here (after
+// WithBlazorClientApp already created the companion resource) still works.
+if (builder.ExecutionContext.IsPublishMode)
+{
+    blazorGateway.ExcludeFromManifest();
+
+    var webPublishCompanionName = $"{web.Resource.Name}publish";
+    if (builder.Resources.FirstOrDefault(r => r.Name == webPublishCompanionName) is { } webPublishCompanion)
+        builder.CreateResourceBuilder(webPublishCompanion).ExcludeFromManifest();
+}
 
 builder.Build().Run();
