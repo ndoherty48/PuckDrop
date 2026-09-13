@@ -203,9 +203,19 @@ apiGateway.WithHealthCheck(apiGatewayReadyCheckKey);
 // .WithEnvironment(...) call here would NOT do this (confirmed by reading
 // Aspire.Hosting.Blazor's source - it only ever forwards WithReference'd endpoints, never
 // arbitrary WithEnvironment values), which is why one used to sit here uselessly.
+// PuckDrop.Web.csproj sets <StaticWebAssetBasePath>web</StaticWebAssetBasePath> (to match this
+// resource's name, for local dev under blazor-gateway) - which means `dotnet publish` itself
+// always nests the real site under wwwroot/web/ (index.html, _framework/, etc.), never directly
+// under wwwroot/. BlazorStaticSitePublishTarget's default OutputPath ("wwwroot") doesn't know
+// about that extra segment, so without this override the S3 bucket ends up with a single "web/"
+// folder at its root and nothing else - breaking DefaultRootObject and the SPA error-response
+// fallback, both of which expect index.html at the bucket root. Confirmed via a real deploy:
+// the uploaded bucket had exactly this "web/"-only structure. Point OutputPath at the actual
+// nested folder so the bucket root gets the real site contents instead.
 var web = builder.AddBlazorWasmProject<Projects.PuckDrop_Web>("web")
     .WithReference(apiGateway.GetEndpoint("http"))
-    .PublishAsS3WithCloudFront();
+    .PublishAsS3WithCloudFront(config =>
+        config.OutputPath = Path.Combine("bin", "Release", "net10.0", "publish", "wwwroot", "web"));
 
 var blazorGateway = builder.AddBlazorGateway("blazor-gateway")
     .WithExternalHttpEndpoints();
