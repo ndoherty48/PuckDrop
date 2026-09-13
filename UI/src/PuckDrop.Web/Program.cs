@@ -89,8 +89,11 @@ if (authConfig is not null)
         options.ProviderOptions.ClientId = authConfig.ClientId;
         options.ProviderOptions.ResponseType = authConfig.ResponseType;
 
-        options.ProviderOptions.DefaultScopes.Add("openid");
-        options.ProviderOptions.DefaultScopes.Add("profile");
+        // RemoteAuthenticationOptions<OidcProviderOptions>.DefaultScopes already comes
+        // pre-populated with ["openid", "profile"] out of the box (confirmed directly) - adding
+        // them again here duplicated the scope parameter in the real authorize request
+        // ("openid profile openid profile"), which Cognito rejected outright with 400 Bad
+        // Request (confirmed live, via a real deployed distribution).
     }).AddAccountClaimsPrincipalFactory<PuckDropClaimsPrincipalFactory>();
 }
 // If the fetch failed, OIDC services are deliberately left unregistered - App.razor checks
