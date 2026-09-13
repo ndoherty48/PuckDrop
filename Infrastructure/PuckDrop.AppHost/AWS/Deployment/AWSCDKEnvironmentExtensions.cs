@@ -30,6 +30,19 @@ public static class AWSCDKEnvironmentExtensions
         configure?.Invoke(annotation.Config);
 
         builder.WithAnnotation(annotation);
+
+        // AddBlazorWasmProject calls ExcludeFromManifest() on itself internally (Aspire.Hosting.
+        // Blazor's own default expectation is that a Blazor WASM app publishes via its gateway's
+        // container-companion mechanism, not a generic AWS publish target) - and
+        // CDKPublishingStep.ProcessResources skips any resource where IsExcludedFromPublish() is
+        // true, before it ever looks at annotations like the one just added above. Confirmed via
+        // a real `aspire deploy` attempt: no S3 bucket/CloudFront distribution were created, and
+        // the deploy log never mentioned "web" or BlazorStaticSitePublishTarget at all.
+        // WithManifestPublishingCallback replaces the ExcludeFromManifest sentinel with a fresh
+        // (non-Ignore) annotation, which un-excludes it - the callback itself is a no-op since
+        // the CDK publish path doesn't read the JSON manifest.
+        builder.WithManifestPublishingCallback(_ => { });
+
         return builder;
     }
 }
