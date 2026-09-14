@@ -1,0 +1,70 @@
+.polls-eyebrow {
+    margin: 0;
+}
+
+.polls-message {
+    margin-bottom: 1.25rem;
+}
+
+.polls-empty {
+    margin: 0;
+    padding: 1.25rem 1.75rem;
+}
+
+.polls-date-col {
+    width: 12rem;
+}
+
+.polls-status-col {
+    width: 9rem;
+}
+
+.polls-actions-col {
+    width: 19rem;
+}
+
+.polls-actions {
+    gap: 0.5rem;
+}
+
+/* ─── Phones: cards instead of the table ────────────────────────────── */
+.polls-cards {
+    display: none;
+}
+
+@media (max-width: 767.98px) {
+    .polls-empty {
+        padding: 1rem 1.25rem;
+    }
+
+    .polls-table-card {
+        display: none;
+    }
+
+    .polls-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .polls-card {
+        padding: 1.125rem 1.25rem 1.25rem;
+    }
+
+    .polls-card-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+    }
+
+    .polls-card-date {
+        margin: 0;
+        font-size: 0.9375rem;
+    }
+
+    .polls-card-title {
+        margin: 0.25rem 0 0.875rem;
+        font-size: 1.1875rem;
+    }
+}
