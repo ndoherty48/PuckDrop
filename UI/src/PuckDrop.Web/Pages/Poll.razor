@@ -3,97 +3,190 @@
 
 @inject PuckDropApiClient Api
 
-<div class="container-fluid">
-    @if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="alert alert-danger" role="alert">
-            @errorMessage
-        </div>
-    }
-    else if (poll is null)
-    {
-        <p>Loading poll...</p>
-    }
-    else
-    {
-        <div class="d-flex align-items-center mb-3">
-            <h2 class="mb-0">@poll.Title</h2>
+@if (loadError is not null)
+{
+    <a class="pd-back-link" href=""><Icon Name="left" />Back to Home</a>
+    <h1 class="pd-page-title poll-error-title">Poll not available</h1>
+    <div class="pd-alert pd-alert-danger" role="alert">
+        <Icon Name="alert" />
+        <p>@loadError</p>
+    </div>
+}
+else if (poll is null)
+{
+    <p class="pd-muted" role="status">Loading poll…</p>
+}
+else
+{
+    <div class="poll-head">
+        <a class="pd-back-link" href=""><Icon Name="left" />Back to Home</a>
+        <p class="pd-eyebrow poll-eyebrow">Game day poll · @poll.GameDate.ToString("ddd d MMM yyyy")</p>
+        <h1 class="pd-page-title">@poll.Title</h1>
+        <div class="pd-meta-row">
             @if (IsVotingClosed)
             {
-                <span class="badge bg-secondary ms-3">Voting closed</span>
+                <span class="pd-badge pd-badge-closed"><Icon Name="lock" Size="16" />Voting closed</span>
+                <span class="pd-meta pd-strong"><Icon Name="clock" />Picks closed @poll.Deadline.ToString("ddd d MMM, HH:mm")</span>
+            }
+            else
+            {
+                <span class="pd-badge pd-badge-open"><Icon Name="dot" Size="16" />Open</span>
+                <span class="pd-meta pd-strong"><Icon Name="clock" />Picks close @poll.Deadline.ToString("ddd d MMM, HH:mm")</span>
+                <span class="pd-muted">@DisplayText.TimeUntilDeadline(poll.Deadline, DateTime.UtcNow) · you can change picks until then</span>
+            }
+        </div>
+    </div>
+
+    <div class="pd-with-aside">
+        <div class="poll-questions">
+            @foreach (var (question, index) in questions.Select((q, i) => (q, i)))
+            {
+                var answered = selectedOptions.ContainsKey(question.QuestionId);
+                var flagged = showMissing && !answered;
+
+                <section class="pd-card pd-q" id="q-@question.QuestionId" tabindex="-1"
+                         @ref="questionSections[question.QuestionId]">
+                    <fieldset>
+                        <legend class="poll-legend">
+                            <span>
+                                <span class="pd-q-num">Question @(index + 1) of @questions.Count</span>
+                                <span class="pd-q-text">@question.Text</span>
+                            </span>
+                            @if (flagged)
+                            {
+                                <span class="pd-badge pd-badge-error"><Icon Name="alert" Size="16" />Pick an answer</span>
+                            }
+                            else if (!answered && !IsVotingClosed)
+                            {
+                                <span class="pd-badge pd-badge-pending"><Icon Name="alert" Size="16" />Not picked</span>
+                            }
+                        </legend>
+
+                        <div class="pd-options">
+                            @foreach (var option in question.Options.OrderBy(o => o.SortOrder))
+                            {
+                                var isSelected = selectedOptions.TryGetValue(question.QuestionId, out var selected) && selected == option.OptionId;
+
+                                @* The label wraps the radio, so the whole tile is the hit target and names the input *@
+                                <label class="pd-opt">
+                                    <input type="radio"
+                                           name="@question.QuestionId"
+                                           value="@option.OptionId"
+                                           checked="@isSelected"
+                                           disabled="@IsVotingClosed"
+                                           @onchange="() => SelectOption(question.QuestionId, option.OptionId)" />
+                                    <span>@option.Text</span>
+                                    <span class="pd-opt-tag"><Icon Name="check" Size="18" />Your pick</span>
+                                </label>
+                            }
+                        </div>
+                    </fieldset>
+                </section>
             }
         </div>
 
-        <p class="text-muted">Deadline: @poll.Deadline</p>
+        @* Desktop: a sticky sidebar. Below 768px, Poll.razor.css turns it into a bar pinned above the tab bar. *@
+        <aside class="pd-card pd-aside-sticky poll-summary @(IsVotingClosed ? "is-closed" : null)" aria-labelledby="poll-summary-title">
+            <h2 id="poll-summary-title" class="pd-h2 poll-summary-title">Your picks</h2>
+            <p class="pd-strong pd-tnum poll-count">@selectedOptions.Count of @questions.Count answered</p>
+            <progress class="pd-progress poll-progress" max="@questions.Count" value="@selectedOptions.Count" aria-hidden="true"></progress>
 
-        @if (successMessage is not null)
-        {
-            <div class="alert alert-success" role="alert">
-                @successMessage
+            <ol class="pd-list-reset poll-summary-list">
+                @foreach (var (question, index) in questions.Select((q, i) => (q, i)))
+                {
+                    <li>
+                        <span class="pd-muted">@(index + 1). @question.Text</span>
+                        @if (selectedOptions.TryGetValue(question.QuestionId, out var optionId))
+                        {
+                            <span class="pd-strong">@OptionText(question, optionId)</span>
+                        }
+                        else
+                        {
+                            <span class="pd-strong poll-not-picked">Not picked</span>
+                        }
+                    </li>
+                }
+            </ol>
+
+            @* Always rendered, so screen readers announce the confirmation when it appears *@
+            <div role="status">
+                @if (successMessage is not null)
+                {
+                    <div class="pd-alert pd-alert-success poll-message">
+                        <Icon Name="check" />
+                        <p>@successMessage</p>
+                    </div>
+                }
             </div>
-        }
 
-        @foreach (var question in poll.Questions)
-        {
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">@question.Text</h5>
-
-                    @foreach (var option in question.Options.OrderBy(o => o.SortOrder))
-                    {
-                        var inputId = $"{question.QuestionId}_{option.OptionId}";
-                        var isSelected = selectedOptions.TryGetValue(question.QuestionId, out var sel) && sel == option.OptionId;
-
-                        <div class="form-check">
-                            <input class="form-check-input"
-                                   type="radio"
-                                   name="@question.QuestionId"
-                                   id="@inputId"
-                                   value="@option.OptionId"
-                                   checked="@isSelected"
-                                   disabled="@IsVotingClosed"
-                                   @onchange="() => SelectOption(question.QuestionId, option.OptionId)" />
-                            <label class="form-check-label" for="@inputId">
-                                @option.Text
-                            </label>
-                        </div>
-                    }
-                </div>
-            </div>
-        }
-
-        @if (!IsVotingClosed)
-        {
-            <button class="btn btn-primary" @onclick="SubmitPicks" disabled="@(isSubmitting || !AllQuestionsAnswered)">
-                @(isSubmitting ? "Submitting..." : "Submit Picks")
-            </button>
-
-            @if (!AllQuestionsAnswered)
+            @if (MissingAnswersMessage is { } missing)
             {
-                <p class="text-muted mt-2">
-                    Please pick an answer for all @poll.Questions.Count questions
-                    (@selectedOptions.Count of @poll.Questions.Count selected).
-                </p>
+                <div class="pd-alert pd-alert-danger poll-message poll-missing" role="alert">
+                    <Icon Name="alert" />
+                    <p>@missing</p>
+                </div>
             }
-        }
-    }
-</div>
+
+            @if (submitError is not null)
+            {
+                <div class="pd-alert pd-alert-danger poll-message" role="alert">
+                    <Icon Name="alert" />
+                    <p>@submitError</p>
+                </div>
+            }
+
+            @if (IsVotingClosed)
+            {
+                <p class="pd-hint poll-summary-hint">Voting has closed. Your picks are shown as you left them.</p>
+            }
+            else
+            {
+                <button class="pd-btn pd-btn-primary pd-btn-lg pd-btn-block" type="button"
+                        @onclick="SubmitPicksAsync" disabled="@isSubmitting">
+                    @(isSubmitting ? "Submitting…" : "Submit picks")
+                </button>
+                <p class="pd-hint poll-summary-hint">You can change your picks until @poll.Deadline.ToString("ddd d MMM, HH:mm").</p>
+            }
+        </aside>
+    </div>
+}
 
 @code {
     [Parameter]
     public string PollId { get; set; } = default!;
 
     private PollDetailModel? poll;
-    private Dictionary<string, string> selectedOptions = new();
-    private string? errorMessage;
+    private List<QuestionModel> questions = [];
+    private readonly Dictionary<string, string> selectedOptions = new();
+    private readonly Dictionary<string, ElementReference> questionSections = new();
+    private string? loadError;
+    private string? submitError;
     private string? successMessage;
+    private bool showMissing;
     private bool isSubmitting;
 
     private bool IsVotingClosed =>
         poll is not null && poll.Deadline < DateTime.UtcNow;
 
-    private bool AllQuestionsAnswered =>
-        poll is not null && selectedOptions.Count == poll.Questions.Count;
+    private List<QuestionModel> UnansweredQuestions =>
+        questions.Where(q => !selectedOptions.ContainsKey(q.QuestionId)).ToList();
+
+    private string? MissingAnswersMessage
+    {
+        get
+        {
+            if (!showMissing)
+                return null;
+
+            var numbers = UnansweredQuestions.Select(q => questions.IndexOf(q) + 1).ToList();
+            return numbers.Count switch
+            {
+                0 => null,
+                1 => $"Pick an answer for question {numbers[0]} before submitting.",
+                _ => $"Pick an answer for questions {string.Join(", ", numbers[..^1])} and {numbers[^1]} before submitting."
+            };
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -103,9 +196,11 @@
 
             if (poll is null)
             {
-                errorMessage = "Poll not found.";
+                loadError = "Poll not found.";
                 return;
             }
+
+            questions = poll.Questions.OrderBy(q => q.SortOrder).ToList();
 
             // Pre-populate from existing answers
             var existingAnswers = await Api.GetAnswersAsync(PollId);
@@ -119,7 +214,7 @@
         }
         catch (Exception)
         {
-            errorMessage = "Unable to load poll. Please try again later.";
+            loadError = "Unable to load poll. Please try again later.";
         }
     }
 
@@ -129,13 +224,25 @@
         successMessage = null;
     }
 
-    private async Task SubmitPicks()
+    private async Task SubmitPicksAsync()
     {
-        if (isSubmitting || !AllQuestionsAnswered) return;
+        if (isSubmitting) return;
 
-        isSubmitting = true;
         successMessage = null;
-        errorMessage = null;
+        submitError = null;
+
+        // Submit stays enabled rather than silently disabled: a missed question is flagged and
+        // focused instead, so keyboard and screen reader users are told what's left.
+        var unanswered = UnansweredQuestions;
+        if (unanswered.Count > 0)
+        {
+            showMissing = true;
+            await questionSections[unanswered[0].QuestionId].FocusAsync();
+            return;
+        }
+
+        showMissing = false;
+        isSubmitting = true;
 
         try
         {
@@ -148,11 +255,14 @@
         }
         catch (Exception)
         {
-            errorMessage = "Failed to submit picks. Please try again.";
+            submitError = "Failed to submit picks. Please try again.";
         }
         finally
         {
             isSubmitting = false;
         }
     }
+
+    private static string OptionText(QuestionModel question, string optionId) =>
+        question.Options.FirstOrDefault(o => o.OptionId == optionId)?.Text ?? "—";
 }

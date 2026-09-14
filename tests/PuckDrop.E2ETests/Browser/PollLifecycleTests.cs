@@ -75,7 +75,7 @@ public class PollLifecycleTests(AppHostFixture fixture)
 
         await friend.GetByLabel("Yes").CheckAsync();
         await friend.GetByLabel("Over").CheckAsync();
-        await friend.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Submit Picks" }).ClickAsync();
+        await friend.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Submit picks" }).ClickAsync();
         await Assertions.Expect(friend.GetByText("Your picks have been submitted!")).ToBeVisibleAsync();
 
         // ── Admin: close, score (one right, one wrong for the friend) ──────────────────────
@@ -126,7 +126,7 @@ public class PollLifecycleTests(AppHostFixture fixture)
             .ToBeVisibleAsync();
         await friend.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Make your picks" }).ClickAsync();
         await friend.GetByLabel("Yes").CheckAsync();
-        await friend.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Submit Picks" }).ClickAsync();
+        await friend.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Submit picks" }).ClickAsync();
         await Assertions.Expect(friend.GetByText("Your picks have been submitted!")).ToBeVisibleAsync();
 
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();

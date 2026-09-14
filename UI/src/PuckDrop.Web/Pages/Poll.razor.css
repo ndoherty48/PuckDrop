@@ -1,0 +1,133 @@
+.poll-head {
+    margin-bottom: 2rem;
+}
+
+.poll-eyebrow {
+    margin: 0;
+}
+
+.poll-error-title {
+    margin-bottom: 1.25rem;
+}
+
+.poll-questions {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+}
+
+.poll-legend {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.125rem;
+}
+
+/* ─── Summary ───────────────────────────────────────────────────────── */
+.poll-summary {
+    padding: 1.75rem;
+}
+
+.poll-summary-title {
+    font-size: 1.625rem;
+}
+
+.poll-count {
+    margin: 0.875rem 0 0.5rem;
+}
+
+.poll-summary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 1.25rem 0 1.5rem;
+}
+
+.poll-summary-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.poll-summary-list li > :last-child {
+    text-align: right;
+}
+
+.poll-not-picked {
+    color: var(--pd-amber);
+}
+
+.poll-message {
+    margin-bottom: 1rem;
+}
+
+.poll-summary-hint {
+    margin-top: 0.75rem;
+}
+
+/* Phones: the summary becomes a bar pinned above the tab bar - count, messages, Submit */
+@media (max-width: 767.98px) {
+    .poll-head {
+        margin-bottom: 1.5rem;
+    }
+
+    .poll-questions {
+        gap: 1rem;
+    }
+
+    .poll-summary {
+        position: sticky;
+        bottom: var(--pd-tabbar-h);
+        z-index: 999;
+        display: flex;
+        flex-direction: column;
+        gap: 0.625rem;
+        margin: 0 -1rem -2.5rem;
+        padding: 0.75rem 1rem 0.875rem;
+        border: 0;
+        border-top: 1px solid var(--pd-line-strong);
+        border-radius: 0;
+    }
+
+    .poll-summary-title,
+    .poll-progress,
+    .poll-summary-list,
+    .poll-summary-hint {
+        display: none;
+    }
+
+    .poll-count,
+    .poll-message {
+        margin: 0;
+    }
+
+    /* Keep the pinned bar short: the flagged question's badge and the focus move already show
+       what's missing, so the message stays for screen readers only (it's still role="alert") */
+    .poll-missing {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    /* Nothing to submit once voting closes, so don't pin it */
+    .poll-summary.is-closed {
+        position: static;
+        margin: 0;
+        padding: 1.25rem;
+        border: 1px solid var(--pd-line);
+        border-radius: var(--pd-radius-lg);
+    }
+
+    .poll-summary.is-closed .poll-summary-hint {
+        display: block;
+        margin: 0;
+    }
+}
