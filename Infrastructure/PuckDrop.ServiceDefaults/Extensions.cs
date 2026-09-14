@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -19,7 +20,7 @@ public static class Extensions
     private const string HealthEndpointPath = "/health";
     private const string AlivenessEndpointPath = "/alive";
 
-    public static IServiceCollection AddLambdaServiceDefaults(this IServiceCollection services)
+    public static IServiceCollection AddLambdaServiceDefaults(this IServiceCollection services, IConfiguration configuration)
     {
         services
             .AddDefaultHealthChecks()
@@ -35,7 +36,7 @@ public static class Extensions
         
         services.AddLogging(logging => logging.ConfigureOpenTelemetryLogs());
 
-        services.AddOpenTelemetry()
+        var openTelemetry = services.AddOpenTelemetry()
             .WithTracing(tracing => tracing
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
@@ -43,8 +44,17 @@ public static class Extensions
                 .AddAWSLambdaConfigurations())
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation())
-            .UseOtlpExporter();
+                .AddHttpClientInstrumentation());
+
+        // Only export when a collector is actually configured - same rule as
+        // AddOpenTelemetryExporters below. Aspire sets OTEL_EXPORTER_OTLP_ENDPOINT for the local
+        // Lambda (the dashboard), but not for the deployed one. Exporting unconditionally there
+        // made every invocation stall: AWSLambdaWrapper.TraceAsync force-flushes traces before
+        // returning each response, and with Aspire's OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY=in_memory
+        // each flush to the absent localhost:4317 collector retried for 1-10s (confirmed with a
+        // standalone repro on the same package versions, matching a real deployment's HAR).
+        if (!string.IsNullOrWhiteSpace(configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+            openTelemetry.UseOtlpExporter();
 
         return services;
     }
