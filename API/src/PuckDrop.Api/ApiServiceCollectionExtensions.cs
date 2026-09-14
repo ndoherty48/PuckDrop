@@ -114,7 +114,7 @@ public static class ApiServiceCollectionExtensions
             });
         });
 
-        services.AddLambdaServiceDefaults();
+        services.AddLambdaServiceDefaults(configuration);
         return services;
     }
 
