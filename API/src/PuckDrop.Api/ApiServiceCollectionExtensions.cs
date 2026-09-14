@@ -115,6 +115,12 @@ public static class ApiServiceCollectionExtensions
             });
         });
 
+        // Display-name resolution for answer submissions - see UserProfileService for why Cognito
+        // users need a userInfo lookup.
+        services.AddHttpContextAccessor();
+        services.AddHttpClient();
+        services.AddScoped<PuckDrop.Application.Services.Abstractions.IUserProfileService, UserProfileService>();
+
         services.AddLambdaServiceDefaults(configuration);
         return services;
     }

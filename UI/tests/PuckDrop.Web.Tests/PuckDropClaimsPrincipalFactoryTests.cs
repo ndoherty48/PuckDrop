@@ -104,4 +104,50 @@ public class PuckDropClaimsPrincipalFactoryTests
 
         Assert.False(user.IsInRole("admin"));
     }
+
+    // ─── Display name fallback ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task CreateUserAsync_NameClaimPresent_UsesName()
+    {
+        var account = EmptyAccount();
+        account.AdditionalProperties["name"] = ParseJson("\"Nathan Doherty\"");
+        account.AdditionalProperties["preferred_username"] = ParseJson("\"nathan\"");
+
+        var user = await Factory.CreateUserAsync(account, new RemoteAuthenticationUserOptions());
+
+        Assert.Equal("Nathan Doherty", user.Identity?.Name);
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_OnlyPreferredUsername_FallsBackToIt()
+    {
+        // Cognito users often have no "name" attribute, but the pool requires preferred_username.
+        var account = AccountWith("preferred_username", ParseJson("\"nathan\""));
+
+        var user = await Factory.CreateUserAsync(account, new RemoteAuthenticationUserOptions());
+
+        Assert.Equal("nathan", user.Identity?.Name);
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_OnlyEmail_FallsBackToEmail()
+    {
+        var account = AccountWith("email", ParseJson("\"nathan@example.com\""));
+
+        var user = await Factory.CreateUserAsync(account, new RemoteAuthenticationUserOptions());
+
+        Assert.Equal("nathan@example.com", user.Identity?.Name);
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_PreferredUsernameAsDuplicatedArray_UsesFirstValue()
+    {
+        // Same ID-token/userinfo merge concern as the role claims above.
+        var account = AccountWith("preferred_username", ParseJson("""["nathan","nathan"]"""));
+
+        var user = await Factory.CreateUserAsync(account, new RemoteAuthenticationUserOptions());
+
+        Assert.Equal("nathan", user.Identity?.Name);
+    }
 }
