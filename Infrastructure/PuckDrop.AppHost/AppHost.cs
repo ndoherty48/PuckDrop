@@ -234,7 +234,23 @@ apiGateway.WithHealthCheck(apiGatewayReadyCheckKey);
 // base href - avoids needing either workaround.)
 var web = builder.AddBlazorWasmProject<Projects.PuckDrop_Web>("web")
     .WithReference(apiGateway.GetEndpoint("http"))
-    .PublishAsS3WithCloudFront();
+    .PublishAsS3WithCloudFront(config =>
+    {
+        // Europe-only access: CloudFront answers 403 to viewers geolocated (by IP) outside this
+        // allowlist - EU27, EEA (IS, LI, NO), UK, Switzerland, the Crown Dependencies and
+        // Gibraltar. Applies to every behavior on the distribution, including /puckdrop/* API
+        // calls. It doesn't cover the API Gateway's own execute-api URL or Cognito's hosted login
+        // domain, which aren't served through CloudFront.
+        config.PropsDistributionCallback = (_, props) =>
+        {
+            props.GeoRestriction = Amazon.CDK.AWS.CloudFront.GeoRestriction.Allowlist(
+                "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE",
+                "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+                "IS", "LI", "NO",
+                "GB", "CH",
+                "JE", "GG", "IM", "GI");
+        };
+    });
 
 var blazorGateway = builder.AddBlazorGateway("blazor-gateway")
     .WithExternalHttpEndpoints();
