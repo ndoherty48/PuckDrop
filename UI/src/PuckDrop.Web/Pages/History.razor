@@ -2,46 +2,79 @@
 @attribute [Authorize]
 @inject PuckDropApiClient Api
 
-<h2>Poll History</h2>
+<div class="pd-page-head">
+    <div>
+        @if (_seasonName is not null)
+        {
+            <p class="pd-eyebrow history-eyebrow">@_seasonName</p>
+        }
+        <h1 class="pd-page-title">Poll history</h1>
+    </div>
+</div>
 
 @if (_loading)
 {
-    <p><em>Loading history...</em></p>
+    <p class="pd-muted" role="status">Loading history…</p>
 }
 else if (_error is not null)
 {
-    <div class="alert alert-danger">@_error</div>
+    <div class="pd-alert pd-alert-danger" role="alert">
+        <Icon Name="alert" />
+        <p>@_error</p>
+    </div>
 }
 else if (_polls is not null)
 {
     @if (!_polls.Any())
     {
-        <p>No past polls found.</p>
+        <p class="pd-card pd-muted history-empty">No past polls found.</p>
     }
     else
     {
-        <div class="list-group">
-            @foreach (var poll in _polls)
-            {
-                <div class="list-group-item">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="mb-1">@poll.Title</h5>
-                            <small class="text-muted">@poll.GameDate</small>
+        <section class="pd-card history-card" aria-label="Past game days">
+            <ol class="pd-list-reset">
+                @foreach (var poll in _polls)
+                {
+                    <li class="history-row">
+                        <div class="history-date" aria-hidden="true">
+                            <span class="pd-display history-day">@poll.GameDate.Day</span>
+                            <span class="pd-eyebrow history-month">@poll.GameDate.ToString("MMM")</span>
                         </div>
-                        <div class="d-flex align-items-center gap-2">
-                            <span class="badge @GetStatusBadgeClass(poll.Status)">@poll.Status</span>
+
+                        <div class="history-main">
+                            <h2 class="pd-h3 history-title">@poll.Title</h2>
+                            <p class="pd-muted history-when">@poll.GameDate.ToString("ddd d MMM yyyy")</p>
+                        </div>
+
+                        <div class="history-status">
                             @if (poll.Status == "Scored")
                             {
-                                <a href="results/@poll.PollId" class="btn btn-sm btn-outline-primary">
-                                    View Results
-                                </a>
+                                <span class="pd-badge pd-badge-scored"><Icon Name="check" Size="16" />Scored</span>
+                            }
+                            else
+                            {
+                                <span class="pd-badge pd-badge-closed"><Icon Name="lock" Size="16" />Closed</span>
                             }
                         </div>
-                    </div>
-                </div>
-            }
-        </div>
+
+                        <div class="history-action">
+                            @if (poll.Status == "Scored")
+                            {
+                                @* Hidden text keeps each "View results" link distinct out of context *@
+                                <a href="results/@poll.PollId" class="pd-btn pd-btn-secondary pd-btn-sm">
+                                    View results<span class="pd-sr-only"> for @poll.Title</span>
+                                    <Icon Name="right" Size="18" />
+                                </a>
+                            }
+                            else
+                            {
+                                <span class="pd-muted history-pending">Results after scoring</span>
+                            }
+                        </div>
+                    </li>
+                }
+            </ol>
+        </section>
     }
 }
 
@@ -49,6 +82,7 @@ else if (_polls is not null)
     private List<PollModel>? _polls;
     private bool _loading = true;
     private string? _error;
+    private string? _seasonName;
 
     protected override async Task OnInitializedAsync()
     {
@@ -60,6 +94,8 @@ else if (_polls is not null)
                 _error = "No current season found.";
                 return;
             }
+
+            _seasonName = season.Name;
 
             var allPolls = await Api.GetPollsAsync(season.SeasonId);
             _polls = allPolls?
@@ -76,11 +112,4 @@ else if (_polls is not null)
             _loading = false;
         }
     }
-
-    private static string GetStatusBadgeClass(string status) => status switch
-    {
-        "Scored" => "bg-success",
-        "Closed" => "bg-secondary",
-        _ => "bg-info"
-    };
 }
