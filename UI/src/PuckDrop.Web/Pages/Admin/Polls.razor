@@ -3,71 +3,99 @@
 @inject PuckDropApiClient Api
 @inject IJSRuntime JS
 
-<h2 class="mb-4">Manage Polls</h2>
+<div class="pd-page-head">
+    <div>
+        @if (_seasonName is not null)
+        {
+            <p class="pd-eyebrow polls-eyebrow">Admin · @_seasonName</p>
+        }
+        <h1 class="pd-page-title">Manage polls</h1>
+    </div>
+    <a href="admin/polls/create" class="pd-btn pd-btn-primary"><Icon Name="plus" />Create poll</a>
+</div>
 
-<div class="mb-3">
-    <a href="admin/polls/create" class="btn btn-primary">Create Poll</a>
+@* Always rendered, so screen readers announce a publish/close confirmation when it appears *@
+<div role="status">
+    @if (_statusMessage is not null)
+    {
+        <div class="pd-alert pd-alert-success polls-message">
+            <Icon Name="check" />
+            <p>@_statusMessage</p>
+        </div>
+    }
 </div>
 
 @if (_error is not null)
 {
-    <div class="alert alert-danger">@_error</div>
+    <div class="pd-alert pd-alert-danger polls-message" role="alert">
+        <Icon Name="alert" />
+        <p>@_error</p>
+    </div>
 }
-else if (_loading)
+
+@if (_polls is null)
 {
-    <p>Loading polls...</p>
+    @if (_loading)
+    {
+        <p class="pd-muted" role="status">Loading polls…</p>
+    }
 }
-else if (_polls is null || _polls.Count == 0)
+else if (_polls.Count == 0)
 {
-    <p class="text-muted">No polls found for the current season.</p>
+    <p class="pd-card pd-muted polls-empty">No polls found for the current season.</p>
 }
 else
 {
-    <table class="table table-striped table-hover">
-        <thead>
-            <tr>
-                <th>Game Date</th>
-                <th>Title</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var poll in _polls)
-            {
-                <tr>
-                    <td>@poll.GameDate</td>
-                    <td>@poll.Title</td>
-                    <td><span class="badge bg-@GetStatusColor(poll.Status)">@poll.Status</span></td>
-                    <td>
-                        @if (poll.Status is "Draft" or "Open")
-                        {
-                            <a href="admin/polls/@poll.PollId/edit" class="btn btn-sm btn-outline-secondary me-1">Edit</a>
-                        }
-                        @if (poll.Status == "Draft")
-                        {
-                            <button class="btn btn-sm btn-success me-1" disabled="@_actionInProgress" @onclick="() => PublishAsync(poll.PollId)">Publish</button>
-                        }
-                        @if (poll.Status == "Open")
-                        {
-                            <button class="btn btn-sm btn-warning me-1" disabled="@_actionInProgress" @onclick="() => CloseAsync(poll.PollId)">Close</button>
-                        }
-                        @if (poll.Status == "Closed")
-                        {
-                            <a href="admin/polls/@poll.PollId/score" class="btn btn-sm btn-info">Score</a>
-                        }
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <section class="pd-card polls-table-card">
+        <div class="pd-table-wrap">
+            <table class="pd-table polls-table">
+                <caption class="pd-sr-only">Polls this season, newest game first</caption>
+                <thead>
+                    <tr>
+                        <th scope="col" class="polls-date-col">Game date</th>
+                        <th scope="col">Poll</th>
+                        <th scope="col" class="polls-status-col">Status</th>
+                        <th scope="col" class="polls-actions-col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var poll in _polls)
+                    {
+                        <tr>
+                            <td class="pd-tnum">@poll.GameDate.ToString("ddd d MMM yyyy")</td>
+                            <th scope="row">@poll.Title</th>
+                            <td>@StatusBadge(poll.Status)</td>
+                            <td><div class="pd-btn-row polls-actions">@Actions(poll)</div></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @* Phones: the same polls and actions as cards (the table is hidden below 768px) *@
+    <ul class="pd-list-reset polls-cards" aria-label="Polls this season">
+        @foreach (var poll in _polls)
+        {
+            <li class="pd-card polls-card">
+                <div class="polls-card-top">
+                    <p class="pd-muted pd-tnum polls-card-date">@poll.GameDate.ToString("ddd d MMM yyyy")</p>
+                    @StatusBadge(poll.Status)
+                </div>
+                <h2 class="pd-h3 polls-card-title">@poll.Title</h2>
+                <div class="pd-btn-row polls-actions">@Actions(poll)</div>
+            </li>
+        }
+    </ul>
 }
 
 @code {
     private List<PollModel>? _polls;
+    private string? _seasonName;
     private bool _loading = true;
     private bool _actionInProgress;
     private string? _error;
+    private string? _statusMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -83,16 +111,18 @@ else
             var season = await Api.GetCurrentSeasonAsync();
             if (season is not null)
             {
-                _polls = await Api.GetPollsAsync(season.SeasonId);
+                _seasonName = season.Name;
+                var polls = await Api.GetPollsAsync(season.SeasonId);
+                _polls = polls?.OrderByDescending(p => p.GameDate).ToList() ?? [];
             }
             else
             {
                 _polls = [];
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _error = ex.Message;
+            _error = "Unable to load polls. Please try again later.";
         }
         finally
         {
@@ -100,22 +130,24 @@ else
         }
     }
 
-    private async Task PublishAsync(string pollId)
+    private async Task PublishAsync(PollModel poll)
     {
         if (_actionInProgress) return;
-        if (!await JS.InvokeAsync<bool>("confirm", "Publish this poll? It will open for voting immediately."))
+        if (!await JS.InvokeAsync<bool>("confirm", $"Publish \"{poll.Title}\"? It will open for voting immediately."))
             return;
 
         _actionInProgress = true;
         _error = null;
+        _statusMessage = null;
         try
         {
-            await Api.PublishPollAsync(pollId);
+            await Api.PublishPollAsync(poll.PollId);
             await LoadPollsAsync();
+            _statusMessage = $"“{poll.Title}” is now open for picks.";
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _error = $"Failed to publish poll: {ex.Message}";
+            _error = "Failed to publish poll. Please try again.";
         }
         finally
         {
@@ -123,22 +155,24 @@ else
         }
     }
 
-    private async Task CloseAsync(string pollId)
+    private async Task CloseAsync(PollModel poll)
     {
         if (_actionInProgress) return;
-        if (!await JS.InvokeAsync<bool>("confirm", "Close voting for this poll? This cannot be undone."))
+        if (!await JS.InvokeAsync<bool>("confirm", $"Close voting for \"{poll.Title}\"? This cannot be undone."))
             return;
 
         _actionInProgress = true;
         _error = null;
+        _statusMessage = null;
         try
         {
-            await Api.ClosePollAsync(pollId);
+            await Api.ClosePollAsync(poll.PollId);
             await LoadPollsAsync();
+            _statusMessage = $"Voting is closed for “{poll.Title}”.";
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _error = $"Failed to close poll: {ex.Message}";
+            _error = "Failed to close poll. Please try again.";
         }
         finally
         {
@@ -146,12 +180,50 @@ else
         }
     }
 
-    private static string GetStatusColor(string status) => status switch
+    private static string StatusBadgeClass(string status) => status switch
     {
-        "Draft" => "secondary",
-        "Open" => "success",
-        "Closed" => "warning",
-        "Scored" => "info",
-        _ => "light"
+        "Open" => "pd-badge-open",
+        "Closed" => "pd-badge-closed",
+        "Scored" => "pd-badge-scored",
+        _ => "pd-badge-draft"
     };
+
+    private static string StatusIcon(string status) => status switch
+    {
+        "Open" => "dot",
+        "Closed" => "lock",
+        "Scored" => "check",
+        _ => "dashed"
+    };
+
+    private static RenderFragment StatusBadge(string status) =>
+        @<span class="pd-badge @StatusBadgeClass(status)"><Icon Name="@StatusIcon(status)" Size="16" />@status</span>;
+
+    // Every control repeats per row, so each carries the poll title as hidden text to stay
+    // distinct out of context ("Publish Belfast Giants vs Guildford Flames").
+    private RenderFragment Actions(PollModel poll) =>
+        @<text>
+            @if (poll.Status is "Draft" or "Open")
+            {
+                <a href="admin/polls/@poll.PollId/edit" class="pd-btn pd-btn-quiet pd-btn-sm"><Icon Name="pencil" Size="18" />Edit<span class="pd-sr-only"> @poll.Title</span></a>
+            }
+            @if (poll.Status == "Draft")
+            {
+                <button type="button" class="pd-btn pd-btn-primary pd-btn-sm" disabled="@_actionInProgress"
+                        @onclick="() => PublishAsync(poll)">Publish<span class="pd-sr-only"> @poll.Title</span></button>
+            }
+            @if (poll.Status == "Open")
+            {
+                <button type="button" class="pd-btn pd-btn-quiet pd-btn-sm" disabled="@_actionInProgress"
+                        @onclick="() => CloseAsync(poll)"><Icon Name="lock" Size="18" />Close voting<span class="pd-sr-only"> @poll.Title</span></button>
+            }
+            @if (poll.Status == "Closed")
+            {
+                <a href="admin/polls/@poll.PollId/score" class="pd-btn pd-btn-primary pd-btn-sm">Score<span class="pd-sr-only"> @poll.Title</span></a>
+            }
+            @if (poll.Status == "Scored")
+            {
+                <a href="results/@poll.PollId" class="pd-btn pd-btn-secondary pd-btn-sm">View results<span class="pd-sr-only"> for @poll.Title</span></a>
+            }
+        </text>;
 }
