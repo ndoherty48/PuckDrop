@@ -672,6 +672,11 @@ html {
   color: var(--pd-blue-text);
 }
 
+.pd-badge-error {
+  background: var(--pd-miss-tint);
+  color: var(--pd-miss);
+}
+
 .pd-badge-you {
   min-height: 1.5rem;
   padding: 0.125rem 0.625rem;
@@ -1145,7 +1150,8 @@ html {
 @media (max-width: 767.98px) {
   html {
     scroll-padding-top: calc(var(--pd-topbar-h-sm) + 1rem);
-    scroll-padding-bottom: calc(var(--pd-tabbar-h) + 5rem);
+    /* tab bar + a pinned action bar (e.g. Poll's Submit picks) */
+    scroll-padding-bottom: calc(var(--pd-tabbar-h) + 9rem);
   }
 
   .pd-topbar-inner {
