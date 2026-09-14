@@ -3,64 +3,71 @@
 
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
 
-<div class="container-fluid">
-    <RemoteAuthenticatorView Action="@Action">
-        <LoggingIn>
-            <p><em>Checking login state...</em></p>
-        </LoggingIn>
-        <CompletingLoggingIn>
-            <p><em>Completing login...</em></p>
-        </CompletingLoggingIn>
-        <LogInFailed>
-            <div class="text-center py-5">
-                <h1 class="mb-3">🏒 PuckDrop</h1>
-                <div class="alert alert-warning d-inline-block" role="alert">
-                    We couldn't log you in. Please try again.
-                </div>
-                <p>
-                    <a href="authentication/login" class="btn btn-primary">Try Again</a>
-                    <a href="" class="btn btn-outline-secondary">Back to Home</a>
-                </p>
-            </div>
-        </LogInFailed>
-        <LogOut>
-            <p><em>Logging out...</em></p>
-        </LogOut>
-        <CompletingLogOut>
-            <p><em>Completing logout...</em></p>
-        </CompletingLogOut>
-        <LogOutSucceeded>
-            <div class="text-center py-5">
-                <h1 class="mb-3">🏒 PuckDrop</h1>
-                <p class="lead">You've been logged out.</p>
-                <a href="" class="btn btn-primary">Back to Home</a>
-            </div>
-        </LogOutSucceeded>
-        <LogOutFailed>
-            <div class="text-center py-5">
-                <h1 class="mb-3">🏒 PuckDrop</h1>
-                <div class="alert alert-warning d-inline-block" role="alert">
-                    We couldn't log you out cleanly, but your session may still have been cleared locally.
-                </div>
-                <a href="" class="btn btn-primary">Back to Home</a>
-            </div>
-        </LogOutFailed>
-        <Registering>
-            <div class="text-center py-5">
-                <h1 class="mb-3">🏒 PuckDrop</h1>
-                <p class="lead">Account registration isn't available here — contact an admin for access.</p>
-                <a href="" class="btn btn-primary">Back to Home</a>
-            </div>
-        </Registering>
-        <UserProfile>
-            <div class="text-center py-5">
-                <h1 class="mb-3">🏒 PuckDrop</h1>
-                <p class="lead">Profile editing isn't available here.</p>
-                <a href="" class="btn btn-primary">Back to Home</a>
-            </div>
-        </UserProfile>
-    </RemoteAuthenticatorView>
-</div>
+<RemoteAuthenticatorView Action="@Action">
+    <LoggingIn>
+        <p class="pd-muted" role="status">Checking login state…</p>
+    </LoggingIn>
+    <CompletingLoggingIn>
+        <p class="pd-muted" role="status">Completing login…</p>
+    </CompletingLoggingIn>
+    <LogInFailed>
+        <StatusScreen IconName="alert" Title="We couldn't log you in">
+            <ChildContent>
+                <p>Please try again.</p>
+            </ChildContent>
+            <Actions>
+                <a href="authentication/login" class="pd-btn pd-btn-primary">Try again</a>
+                <a href="" class="pd-btn pd-btn-quiet">Back to home</a>
+            </Actions>
+        </StatusScreen>
+    </LogInFailed>
+    <LogOut>
+        <p class="pd-muted" role="status">Logging out…</p>
+    </LogOut>
+    <CompletingLogOut>
+        <p class="pd-muted" role="status">Completing logout…</p>
+    </CompletingLogOut>
+    <LogOutSucceeded>
+        <StatusScreen IconName="logout" Title="Logged out">
+            <ChildContent>
+                <p>You've been logged out. Log back in any time to make your picks.</p>
+            </ChildContent>
+            <Actions>
+                <a href="authentication/login" class="pd-btn pd-btn-primary">Log back in</a>
+            </Actions>
+        </StatusScreen>
+    </LogOutSucceeded>
+    <LogOutFailed>
+        <StatusScreen IconName="alert" Title="We couldn't log you out cleanly">
+            <ChildContent>
+                <p>Your session may still have been cleared on this device.</p>
+            </ChildContent>
+            <Actions>
+                <a href="" class="pd-btn pd-btn-primary">Back to home</a>
+            </Actions>
+        </StatusScreen>
+    </LogOutFailed>
+    <Registering>
+        <StatusScreen IconName="info" Title="Registration isn't available">
+            <ChildContent>
+                <p>Contact an admin for access.</p>
+            </ChildContent>
+            <Actions>
+                <a href="" class="pd-btn pd-btn-primary">Back to home</a>
+            </Actions>
+        </StatusScreen>
+    </Registering>
+    <UserProfile>
+        <StatusScreen IconName="info" Title="Profile editing isn't available">
+            <ChildContent>
+                <p>Your name comes from your login account.</p>
+            </ChildContent>
+            <Actions>
+                <a href="" class="pd-btn pd-btn-primary">Back to home</a>
+            </Actions>
+        </StatusScreen>
+    </UserProfile>
+</RemoteAuthenticatorView>
 
 @code {
     [Parameter]

@@ -1,0 +1,25 @@
+@* Centred message screen for system states: no access, not found, sign-in outcomes and the
+   load-failure screen. The title is the page's h1, so FocusOnNavigate has a target. *@
+<div class="pd-state">
+    <span class="pd-state-icon" aria-hidden="true"><Icon Name="@IconName" Size="36" /></span>
+    <h1 class="pd-page-title pd-state-title">@Title</h1>
+    <div class="pd-state-body">@ChildContent</div>
+    @if (Actions is not null)
+    {
+        <div class="pd-state-actions">@Actions</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string IconName { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+}

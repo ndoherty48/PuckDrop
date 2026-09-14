@@ -1162,6 +1162,41 @@ html {
   color: var(--pd-blue-text);
 }
 
+.pd-state-title {
+  margin: 0;
+  font-size: 2.75rem;
+}
+
+.pd-state-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 1.0625rem;
+}
+
+.pd-state-body p {
+  margin: 0;
+}
+
+/* Technical detail, e.g. why the app couldn't load */
+.pd-state-detail {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--pd-line);
+  border-radius: var(--pd-radius);
+  background: var(--pd-surface);
+  color: var(--pd-slate);
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.pd-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
 /* ---------- Responsive ---------- */
 /* Desktop: top nav. Mobile: brand + account button on top, tabs at the bottom. */
 @media (min-width: 768px) {
@@ -1234,6 +1269,19 @@ html {
 
   .pd-with-aside {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pd-state-title {
+    font-size: 2.25rem;
+  }
+
+  .pd-state-actions {
+    flex-direction: column;
+    align-self: stretch;
+  }
+
+  .pd-state-actions .pd-btn {
+    width: 100%;
   }
 
   .pd-aside-sticky {
