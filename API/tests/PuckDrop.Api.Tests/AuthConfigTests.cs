@@ -19,6 +19,18 @@ public class AuthConfigMappingExtensionsTests
         Assert.Equal(options.Authority, response.Authority);
         Assert.Equal(options.ClientId, response.ClientId);
         Assert.Equal(options.ResponseType, response.ResponseType);
+        Assert.False(response.UseCognitoLogout);
+    }
+
+    [Fact]
+    public void ToResponse_CarriesUseCognitoLogout()
+    {
+        var options = new AuthDiscoveryOptions(
+            "https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_example", "client123", "code", UseCognitoLogout: true);
+
+        var response = options.ToResponse();
+
+        Assert.True(response.UseCognitoLogout);
     }
 }
 

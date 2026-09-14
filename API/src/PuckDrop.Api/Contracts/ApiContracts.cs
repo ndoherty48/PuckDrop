@@ -11,7 +11,7 @@ public record ErrorResponse(string Error, string Message);
 /// GET /auth-config endpoint instead of being baked into wwwroot/appsettings.json - see
 /// PuckDrop.Api.Auth.AuthDiscoveryOptions for why.
 /// </summary>
-public record AuthConfigResponse(string Authority, string ClientId, string ResponseType);
+public record AuthConfigResponse(string Authority, string ClientId, string ResponseType, bool UseCognitoLogout = false);
 
 // ─── Seasons ──────────────────────────────────────────────────────────────────
 

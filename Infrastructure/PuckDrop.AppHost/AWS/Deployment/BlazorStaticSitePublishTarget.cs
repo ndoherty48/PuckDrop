@@ -248,8 +248,10 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
 
         cfnUserPoolClient.CallbackUrLs =
             [Fn.Join("", ["https://", distribution.DomainName, "/authentication/login-callback"])];
+        // Must include the exact logout_uri MainLayout.Logout sends - Cognito's /logout redirects
+        // to its /login page for any logout_uri not on this list (confirmed live).
         cfnUserPoolClient.LogoutUrLs =
-            [Fn.Join("", ["https://", distribution.DomainName, "/"])];
+            [Fn.Join("", ["https://", distribution.DomainName, "/authentication/logged-out"])];
     }
 
     private static void ApplyBucketDefaults(BucketProps props)

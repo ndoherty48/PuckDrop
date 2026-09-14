@@ -19,4 +19,11 @@ namespace PuckDrop.Api.Auth;
 /// separate public client the browser actually logs in with.
 /// </param>
 /// <param name="ResponseType">The OAuth response type (always "code" - authorization code flow).</param>
-public record AuthDiscoveryOptions(string Authority, string ClientId, string ResponseType);
+/// <param name="UseCognitoLogout">
+/// True only for Cognito, whose <c>/logout</c> endpoint (its OIDC <c>end_session_endpoint</c>)
+/// ignores the standard <c>id_token_hint</c>/<c>post_logout_redirect_uri</c> parameters and
+/// instead requires <c>client_id</c> plus <c>logout_uri</c> - without them it just redirects to
+/// its <c>/login</c> page (confirmed live against the deployed user pool). The UI adds those two
+/// parameters to the logout request when this is set; Keycloak's standard OIDC logout needs neither.
+/// </param>
+public record AuthDiscoveryOptions(string Authority, string ClientId, string ResponseType, bool UseCognitoLogout = false);

@@ -46,7 +46,7 @@ public record LeaderboardEntryModel(
 /// OIDC config fetched from the unauthenticated GET auth-config endpoint at boot, in Program.cs -
 /// matches PuckDrop.Api.Contracts.AuthConfigResponse.
 /// </summary>
-public record AuthConfigModel(string Authority, string ClientId, string ResponseType);
+public record AuthConfigModel(string Authority, string ClientId, string ResponseType, bool UseCognitoLogout = false);
 
 // ─── Requests ─────────────────────────────────────────────────────────────────
 
