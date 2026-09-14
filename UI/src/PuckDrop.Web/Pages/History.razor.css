@@ -1,0 +1,96 @@
+.history-eyebrow {
+    margin: 0;
+}
+
+.history-empty {
+    max-width: 62.5rem;
+    margin: 0;
+    padding: 1.25rem 1.75rem;
+}
+
+.history-card {
+    max-width: 62.5rem;
+}
+
+.history-row {
+    display: grid;
+    grid-template-columns: 4rem minmax(0, 1fr) 8rem 12rem;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1.125rem 1.75rem;
+    border-bottom: 1px solid var(--pd-line);
+}
+
+.history-row:last-child {
+    border-bottom: 0;
+}
+
+.history-date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+}
+
+.history-day {
+    font-size: 2rem;
+}
+
+.history-month {
+    margin-top: 0.125rem;
+    font-size: 0.8125rem;
+}
+
+.history-title {
+    font-size: 1.1875rem;
+}
+
+.history-when {
+    margin: 0.125rem 0 0;
+}
+
+.history-action {
+    justify-self: end;
+}
+
+.history-pending {
+    font-size: 0.9375rem;
+}
+
+/* Phones: title and badge side by side, the results button full width underneath */
+@media (max-width: 767.98px) {
+    .history-empty {
+        padding: 1rem 1.25rem;
+    }
+
+    .history-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "main status"
+            "action action";
+        align-items: start;
+        gap: 0.625rem 1rem;
+        padding: 1rem 1.25rem 1.125rem;
+    }
+
+    .history-date {
+        display: none;
+    }
+
+    .history-main {
+        grid-area: main;
+    }
+
+    .history-status {
+        grid-area: status;
+    }
+
+    .history-action {
+        grid-area: action;
+        justify-self: stretch;
+    }
+
+    .history-action .pd-btn {
+        width: 100%;
+    }
+}

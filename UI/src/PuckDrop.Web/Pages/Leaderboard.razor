@@ -3,52 +3,66 @@
 @inject PuckDropApiClient Api
 @inject AuthenticationStateProvider AuthStateProvider
 
-<h2>Leaderboard</h2>
+<div class="pd-page-head">
+    <h1 class="pd-page-title">Leaderboard</h1>
+    <p class="pd-muted lb-rule">1 point per correct pick · updated after each scored game</p>
+</div>
 
 @if (_loading)
 {
-    <p><em>Loading leaderboard...</em></p>
+    <p class="pd-muted" role="status">Loading leaderboard…</p>
 }
 else if (_error is not null)
 {
-    <div class="alert alert-danger">@_error</div>
+    <div class="pd-alert pd-alert-danger" role="alert">
+        <Icon Name="alert" />
+        <p>@_error</p>
+    </div>
 }
 else if (_leaderboard is null || _leaderboard.Entries.Count == 0)
 {
-    <p class="text-muted">No leaderboard data yet.</p>
+    <p class="pd-card pd-muted lb-empty">No leaderboard data yet.</p>
 }
 else
 {
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Rank</th>
-                <th>Name</th>
-                <th>Points</th>
-                <th>Games Played</th>
-                <th>Accuracy %</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var entry in _leaderboard.Entries.OrderBy(e => e.Rank))
-            {
-                var isYou = entry.UserId == _currentUserId;
-                <tr class="@(isYou ? "table-primary" : "")">
-                    <td>@entry.Rank</td>
-                    <td>
-                        @entry.DisplayName
-                        @if (isYou)
-                        {
-                            <span class="badge bg-primary ms-1">You</span>
-                        }
-                    </td>
-                    <td>@entry.TotalPoints</td>
-                    <td>@entry.TotalAnswered</td>
-                    <td>@(CalculateAccuracy(entry))%</td>
+    <section class="pd-card lb-card">
+        @* One real table at every width. Below 768px, Answered and Accuracy fold into a line
+           under the player's name rather than a sideways-scrolling table. *@
+        <table class="pd-table lb-table">
+            <caption class="pd-sr-only">Season standings, ranked by points</caption>
+            <thead>
+                <tr>
+                    <th scope="col" class="lb-rank-col">Rank</th>
+                    <th scope="col">Player</th>
+                    <th scope="col" class="pd-num">Points</th>
+                    <th scope="col" class="pd-num lb-wide">Answered</th>
+                    <th scope="col" class="pd-num lb-wide">Accuracy</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var entry in _leaderboard.Entries.OrderBy(e => e.Rank))
+                {
+                    var isYou = entry.UserId == _currentUserId;
+                    <tr class="@(isYou ? "pd-row-you" : null)">
+                        <td class="pd-rank lb-rank">@entry.Rank</td>
+                        <th scope="row">
+                            <span class="lb-name">
+                                @entry.DisplayName
+                                @if (isYou)
+                                {
+                                    <span class="pd-badge pd-badge-you">You</span>
+                                }
+                            </span>
+                            <span class="pd-muted pd-tnum lb-sub">@entry.TotalPoints of @entry.TotalAnswered correct · @CalculateAccuracy(entry)</span>
+                        </th>
+                        <td class="pd-num lb-points">@entry.TotalPoints</td>
+                        <td class="pd-num lb-wide">@entry.TotalAnswered</td>
+                        <td class="pd-num lb-wide">@CalculateAccuracy(entry)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
 }
 
 @code {
@@ -81,6 +95,6 @@ else
 
     private static string CalculateAccuracy(LeaderboardEntryModel entry) =>
         entry.TotalAnswered > 0
-            ? ((double)entry.TotalPoints / entry.TotalAnswered * 100).ToString("F1")
-            : "0.0";
+            ? $"{(double)entry.TotalPoints / entry.TotalAnswered * 100:F1}%"
+            : "0.0%";
 }

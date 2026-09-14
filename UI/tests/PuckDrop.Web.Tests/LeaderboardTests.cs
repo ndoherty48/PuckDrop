@@ -16,10 +16,11 @@ namespace PuckDrop.Web.Tests;
 /// </summary>
 public class LeaderboardTests : BunitContext
 {
+    // Deliberately out of rank order - the page sorts by Rank.
     private static LeaderboardModel BuildLeaderboard() => new("2025-26",
     [
-        new LeaderboardEntryModel("user-1", "Nathan", 10, 12, 1),
-        new LeaderboardEntryModel("user-2", "Friend", 8, 12, 2)
+        new LeaderboardEntryModel("user-2", "Friend", 8, 12, 2),
+        new LeaderboardEntryModel("user-1", "Nathan", 10, 12, 1)
     ]);
 
     private IRenderedComponent<Leaderboard> RenderWithCurrentUser(string? currentUserSub)
@@ -44,10 +45,10 @@ public class LeaderboardTests : BunitContext
         cut.WaitForAssertion(() =>
         {
             var rows = cut.FindAll("tbody tr");
-            Assert.Contains("table-primary", rows[0].GetAttribute("class"));
+            Assert.Contains("pd-row-you", rows[0].GetAttribute("class"));
             Assert.Contains("You", rows[0].TextContent);
 
-            Assert.DoesNotContain("table-primary", rows[1].GetAttribute("class") ?? "");
+            Assert.DoesNotContain("pd-row-you", rows[1].GetAttribute("class") ?? "");
             Assert.DoesNotContain("You", rows[1].TextContent);
         });
     }
@@ -60,8 +61,26 @@ public class LeaderboardTests : BunitContext
         cut.WaitForAssertion(() =>
         {
             var rows = cut.FindAll("tbody tr");
-            Assert.All(rows, row => Assert.DoesNotContain("table-primary", row.GetAttribute("class") ?? ""));
+            Assert.All(rows, row => Assert.DoesNotContain("pd-row-you", row.GetAttribute("class") ?? ""));
             Assert.DoesNotContain("You", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void RowsFollowRank_WithPointsAnsweredAndAccuracy()
+    {
+        var cut = RenderWithCurrentUser(currentUserSub: null);
+
+        cut.WaitForAssertion(() =>
+        {
+            var rows = cut.FindAll("tbody tr");
+            Assert.Equal(2, rows.Count);
+
+            Assert.Equal("Nathan", rows[0].QuerySelector(".lb-name")!.TextContent.Trim());
+            Assert.Equal(
+                new[] { "1", "10", "12", "83.3%" },
+                rows[0].QuerySelectorAll("td").Select(cell => cell.TextContent.Trim()));
+            Assert.Equal("Friend", rows[1].QuerySelector(".lb-name")!.TextContent.Trim());
         });
     }
 }
