@@ -269,6 +269,13 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
         {
             behavior.ViewerProtocolPolicy ??= ViewerProtocolPolicy.REDIRECT_TO_HTTPS;
             behavior.CachePolicy ??= CachePolicy.CACHING_OPTIMIZED;
+            // Explicit rather than relying on CDK's own default: CloudFront compresses eligible
+            // file types (JS/CSS/wasm/etc.) on the fly for any client that sends Accept-Encoding,
+            // so the plain (uncompressed) files this target now uploads - see
+            // EnableDefaultCompressionFormats=false in PublishBlazorProjectAsync - still reach
+            // browsers compressed.
+            if (!behavior.Compress.HasValue)
+                behavior.Compress = true;
         }
     }
 
@@ -313,11 +320,7 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
     /// (confirmed directly: overriding StaticWebAssetBasePath alone left it unchanged). The
     /// deployed site is served from its own CloudFront origin root with no sub-path convention
     /// to match, so rewrite it here, post-publish, rather than touch the shared source file that
-    /// local dev still needs at "/web/". The pre-compressed index.html.br/.gz siblings dotnet
-    /// publish also produces are left as-is deliberately - nothing in this target's CloudFront
-    /// config serves them (no CloudFront Function/Lambda@Edge rewrite maps a request to its
-    /// compressed sibling by suffix), so their now-stale base href is inert, never actually
-    /// requested.
+    /// local dev still needs at "/web/".
     /// </summary>
     private static void FixIndexHtmlBaseHref(string buildOutputPath)
     {
@@ -349,7 +352,17 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
         // convention to match. A plain assignment in the csproj would otherwise silently win over
         // any command-line override regardless of value - confirmed directly, which is why that
         // property carries its own Condition rather than defaulting unconditionally.
-        var startInfo = new ProcessStartInfo("dotnet", "publish -c Release -p:PublishForRootStaticWebAssets=true")
+        //
+        // -p:EnableDefaultCompressionFormats=false skips generating the .br/.gz sibling of every
+        // published file - dead weight for this target specifically, since nothing in the
+        // CloudFront config here serves them (no CloudFront Function/Lambda@Edge rewrite maps a
+        // request to its compressed sibling by suffix; CloudFront's own Compress=true, set in
+        // ApplyDistributionDefaults, already compresses the plain files on the fly). Skipping
+        // their generation shrinks both the local publish step and BucketDeployment's upload -
+        // the upload's size was itself a confirmed cause of slow deploys (see the MemoryLimit
+        // fix in GenerateConstructAsync).
+        var startInfo = new ProcessStartInfo("dotnet",
+            "publish -c Release -p:PublishForRootStaticWebAssets=true -p:EnableDefaultCompressionFormats=false")
         {
             WorkingDirectory = projectDirectory,
             RedirectStandardOutput = true,

@@ -133,6 +133,18 @@ var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.A
     .WithAWSLocalCredentials()
     .PublishAsLambdaFunction(new PublishLambdaFunctionConfig
     {
+        // Aspire's own default (512MB/30s, confirmed via CDKDefaultsProviderPreviewV1) leaves
+        // this Lambda CPU-starved for a full ASP.NET Core boot (DI container, config providers,
+        // JIT) on every cold invocation - .NET's well-documented Lambda cold-start cost, not
+        // specific to this app's code. More memory gives proportionally more CPU (same lever as
+        // BlazorStaticSitePublishTarget's BucketDeployment MemoryLimit fix). SnapStart would be a more targeted fix for the cold
+        // start itself, but it's deliberately left out here for now - some recent .NET 10
+        // SnapStart reports (a different hosting model than this app's, but close enough to
+        // warrant caution) suggest it needs real-deployment verification before relying on it.
+        PropsFunctionCallback = (_, props) =>
+        {
+            props.MemorySize = 1024;
+        },
         ConstructFunctionCallback = (ctx, construct) =>
         {
             var stack = ctx.GetDeploymentStack<DeploymentStack>();
