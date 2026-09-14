@@ -5,13 +5,14 @@ using PuckDrop.Api.Contracts;
 using PuckDrop.Api.Mappings;
 using PuckDrop.Application.Services;
 using PuckDrop.Application.Models;
+using PuckDrop.Application.Services.Abstractions;
 
 namespace PuckDrop.Api.Controllers;
 
 [Authorize]
 [ApiController]
 [Route("polls/{pollId}/answers")]
-public class AnswersController(AnswerService answerService) : ControllerBase
+public class AnswersController(AnswerService answerService, IUserProfileService userProfileService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<UserAnswerResponse>>> GetAnswers(
@@ -27,7 +28,7 @@ public class AnswersController(AnswerService answerService) : ControllerBase
         string pollId, [FromBody] SubmitAnswersRequest request, CancellationToken ct)
     {
         var userId = User.GetUserId();
-        var displayName = User.GetDisplayName();
+        var displayName = await userProfileService.GetDisplayNameAsync(ct);
         var submissions = request.Answers
             .Select(a => new AnswerSubmission(a.QuestionId, a.SelectedOptionId))
             .ToList();

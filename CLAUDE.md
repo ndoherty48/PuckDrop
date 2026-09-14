@@ -64,7 +64,8 @@ There is no linter/formatter config (`.editorconfig`) and no CI workflow in this
 - **PuckDrop.Application** — use-case services (`SeasonService`, `PollService`, `AnswerService`,
   `ScoringService`, `ResultsService`, `LeaderboardService`), repository *interfaces*
   (`ISeasonRepository`, `IPollRepository`, `IUserAnswerRepository`, `ILeaderboardRepository`),
-  and the `IUserProfileService` abstraction. Depends only on Domain.
+  and the `IUserProfileService` abstraction (display-name resolution, implemented in PuckDrop.Api
+  as `Auth/UserProfileService`). Depends only on Domain.
 - **PuckDrop.Infrastructure** — DynamoDB repository implementations, `DynamoDbItem` models per
   entity, and `DynamoDbMapper` (domain entity ↔ DynamoDB item). Implements the Application
   interfaces.
@@ -128,6 +129,14 @@ the standard OIDC `id_token_hint`/`post_logout_redirect_uri` and requires `clien
 `AuthDiscoveryOptions.UseCognitoLogout`, and `MainLayout.Logout` then adds those two parameters to
 the logout request only, targeting `authentication/logged-out` — which must stay in the app
 client's allowed sign-out URLs (`BlazorStaticSitePublishTarget.FixCognitoCallbackUrls`).
+
+Display names are the other Cognito quirk: Cognito access tokens (all the API receives) carry no
+`name`/`preferred_username`/`email` claims, so on answer submission `UserProfileService`
+(`Api/Auth/`, behind Application's `IUserProfileService`) falls back to the OIDC `userInfo`
+endpoint — found via the JWT handler's cached discovery document — using the caller's own access
+token. Keycloak access tokens already carry `preferred_username`, so that path makes no call. The
+UI's `PuckDropClaimsPrincipalFactory` applies the same `name` → `preferred_username` → `email`
+precedence to the header name.
 
 Cognito is the production IdP (provisioned by CDK in `DeploymentStack`); Keycloak is used for
 local dev via Aspire (`AddKeycloak` + realm import from

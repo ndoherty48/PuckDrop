@@ -17,7 +17,7 @@ namespace PuckDrop.Web.Auth;
 /// <remarks>
 /// The Blazor OIDC pipeline merges claims from both the ID token and the userinfo endpoint
 /// response, so a claim present in both arrives as a JSON array of duplicate values rather than
-/// a single value - both extractors below tolerate that by flattening/deduplicating.
+/// a single value - the extractors below tolerate that by flattening/deduplicating.
 /// </remarks>
 public class PuckDropClaimsPrincipalFactory(IAccessTokenProviderAccessor accessor)
     : AccountClaimsPrincipalFactory<RemoteUserAccount>(accessor)
@@ -35,6 +35,18 @@ public class PuckDropClaimsPrincipalFactory(IAccessTokenProviderAccessor accesso
 
             foreach (var roleName in roleNames)
                 identity.AddClaim(new Claim(identity.RoleClaimType, roleName));
+
+            // Blazor names the user from the "name" claim by default, but Cognito users often have
+            // no name attribute set - fall back to the pool's required preferred_username, then
+            // email. Same precedence as the API's display-name resolution (UserProfileService).
+            if (string.IsNullOrEmpty(identity.Name))
+            {
+                var fallbackName = ExtractFirstString(account, "preferred_username")
+                    ?? ExtractFirstString(account, "email");
+
+                if (fallbackName is not null)
+                    identity.AddClaim(new Claim(identity.NameClaimType, fallbackName));
+            }
         }
 
         return user;
@@ -76,15 +88,34 @@ public class PuckDropClaimsPrincipalFactory(IAccessTokenProviderAccessor accesso
             value is not JsonElement element)
             return [];
 
-        return Flatten(element)
+        return FlattenStrings(element)
             .Select(role => role.GetString())
             .Where(roleName => !string.IsNullOrEmpty(roleName))!;
+    }
 
-        static IEnumerable<JsonElement> Flatten(JsonElement e) => e.ValueKind switch
+    /// <summary>
+    /// The first non-empty string value of a claim, whether it arrived as a plain string or as a
+    /// (possibly nested/duplicated - see class remarks) JSON array.
+    /// </summary>
+    private static string? ExtractFirstString(RemoteUserAccount account, string claimName)
+    {
+        if (!account.AdditionalProperties.TryGetValue(claimName, out var value))
+            return null;
+
+        return value switch
         {
-            JsonValueKind.Array => e.EnumerateArray().SelectMany(Flatten),
-            JsonValueKind.String => [e],
-            _ => []
+            string s when !string.IsNullOrWhiteSpace(s) => s,
+            JsonElement element => FlattenStrings(element)
+                .Select(e => e.GetString())
+                .FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)),
+            _ => null
         };
     }
+
+    private static IEnumerable<JsonElement> FlattenStrings(JsonElement e) => e.ValueKind switch
+    {
+        JsonValueKind.Array => e.EnumerateArray().SelectMany(FlattenStrings),
+        JsonValueKind.String => [e],
+        _ => []
+    };
 }

@@ -18,20 +18,29 @@ public static class ClaimsPrincipalExtensions
     /// Gets the authenticated user's display name from Cognito/Keycloak claims.
     /// Falls back to username, then email, then user ID.
     /// </summary>
+    public static string GetDisplayName(this ClaimsPrincipal principal)
+    {
+        return principal.TryGetDisplayNameFromClaims() ?? principal.GetUserId();
+    }
+
+    /// <summary>
+    /// Gets the authenticated user's display name from claims only - name, then username, then
+    /// email - or null when none are present. Cognito access tokens carry none of these, which is
+    /// why <see cref="UserProfileService"/> falls back to the userInfo endpoint.
+    /// </summary>
     /// <remarks>
     /// JwtBearerOptions.MapInboundClaims defaults to true, which remaps standard JWT claim
     /// types (e.g. "name" -> ClaimTypes.Name, "email" -> ClaimTypes.Email) before this ever
     /// runs - so both the raw and the mapped claim type need checking. "preferred_username"
     /// is Keycloak's standard username claim and isn't affected by that remapping.
     /// </remarks>
-    public static string GetDisplayName(this ClaimsPrincipal principal)
+    public static string? TryGetDisplayNameFromClaims(this ClaimsPrincipal principal)
     {
         return principal.FindFirstValue(ClaimTypes.Name)
             ?? principal.FindFirstValue("name")
             ?? principal.FindFirstValue("preferred_username")
             ?? principal.FindFirstValue("cognito:username")
             ?? principal.FindFirstValue(ClaimTypes.Email)
-            ?? principal.FindFirstValue("email")
-            ?? principal.GetUserId();
+            ?? principal.FindFirstValue("email");
     }
 }

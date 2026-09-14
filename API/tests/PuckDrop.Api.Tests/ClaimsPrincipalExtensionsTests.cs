@@ -79,4 +79,23 @@ public class ClaimsPrincipalExtensionsTests
 
         Assert.Throws<UnauthorizedAccessException>(() => principal.GetDisplayName());
     }
+
+    // ─── TryGetDisplayNameFromClaims ────────────────────────────────────────
+
+    [Fact]
+    public void TryGetDisplayNameFromClaims_OnlySubPresent_ReturnsNull()
+    {
+        // The shape of a Cognito access token as far as names go - no name, username, or email.
+        var principal = PrincipalWith(new Claim("sub", "user-abc"));
+
+        Assert.Null(principal.TryGetDisplayNameFromClaims());
+    }
+
+    [Fact]
+    public void TryGetDisplayNameFromClaims_PreferredUsernamePresent_ReturnsIt()
+    {
+        var principal = PrincipalWith(new Claim("sub", "user-abc"), new Claim("preferred_username", "nathan.d"));
+
+        Assert.Equal("nathan.d", principal.TryGetDisplayNameFromClaims());
+    }
 }
