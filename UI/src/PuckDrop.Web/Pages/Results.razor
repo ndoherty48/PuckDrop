@@ -1,72 +1,185 @@
 @page "/results/{PollId}"
 @attribute [Authorize]
 @inject PuckDropApiClient Api
-
-<h2>Poll Results</h2>
+@inject AuthenticationStateProvider AuthStateProvider
 
 @if (_loading)
 {
-    <p><em>Loading results...</em></p>
+    <p class="pd-muted" role="status">Loading results…</p>
 }
-else if (_error is not null)
+else if (_error is not null || _results is null)
 {
-    <div class="alert alert-danger">@_error</div>
-}
-else if (_results is not null)
-{
-    <div class="card mb-4">
-        <div class="card-header">
-            <h4 class="mb-0">@_poll?.Title</h4>
+    <a class="pd-back-link" href="history"><Icon Name="left" />Back to history</a>
+    <h1 class="pd-page-title results-error-title">Poll Results</h1>
+
+    @if (_error is not null)
+    {
+        <div class="pd-alert pd-alert-danger" role="alert">
+            <Icon Name="alert" />
+            <p>@_error</p>
         </div>
-        <div class="card-body">
-            @* One row per user, one column per question - keeps the table growing
-               vertically as the friend group grows, instead of gaining a new column
-               per user (which is the axis that's actually unbounded). *@
-            <div class="table-responsive">
-                <table class="table table-bordered table-sm align-middle">
-                    <thead>
-                        <tr>
-                            <th>User</th>
-                            @foreach (var question in _results.Questions)
-                            {
-                                var correctOption = question.Options.FirstOrDefault(o => o.OptionId == question.CorrectOptionId);
-                                <th>
-                                    @question.Text
-                                    <div class="fw-normal small text-success mt-1">
-                                        Correct: @(correctOption?.Text ?? "—")
-                                    </div>
-                                </th>
-                            }
-                            <th>Points</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var user in _results.UserResults.OrderByDescending(u => u.Points))
+    }
+    else
+    {
+        <p class="pd-card pd-muted results-empty">Results aren't available for this poll yet.</p>
+    }
+}
+else
+{
+    <div class="results-head">
+        <a class="pd-back-link" href="history"><Icon Name="left" />Back to history</a>
+        <p class="pd-eyebrow results-eyebrow">Poll results@(_poll is not null ? $" · {_poll.GameDate:ddd d MMM yyyy}" : "")</p>
+        <h1 class="pd-page-title">@(_poll?.Title ?? "Poll Results")</h1>
+        <div class="pd-meta-row">
+            @if (_results.Status == "Scored")
+            {
+                <span class="pd-badge pd-badge-scored"><Icon Name="check" Size="16" />Scored</span>
+            }
+            @if (YourResult is { } you)
+            {
+                <span class="pd-strong">You scored @you.Points of @_questions.Count</span>
+            }
+        </div>
+    </div>
+
+    @* ─── Desktop: one row per player, one column per question ──────────────
+       Grows downwards as the group grows, rather than gaining a column per player
+       (the axis that's actually unbounded). *@
+    <section class="pd-card results-table-card" aria-labelledby="results-picks-title">
+        <div class="pd-card-head results-card-head">
+            <h2 id="results-picks-title" class="pd-h2">Everyone's picks</h2>
+            <div class="results-legend" aria-hidden="true">
+                <span class="pd-pick"><span class="pd-mark pd-mark-correct"><Icon Name="check" Size="16" /></span>Correct</span>
+                <span class="pd-pick"><span class="pd-mark pd-mark-wrong"><Icon Name="x" Size="16" /></span>Wrong</span>
+                <span class="pd-muted">— No pick</span>
+            </div>
+        </div>
+
+        <div class="pd-table-wrap">
+            <table class="pd-table results-table">
+                <caption class="pd-sr-only">Each player's pick for every question, whether it was correct, and their points for this game</caption>
+                <thead>
+                    <tr>
+                        <th scope="col" class="results-player-col">Player</th>
+                        @foreach (var (question, index) in _questions.Select((q, i) => (q, i)))
                         {
-                            <tr>
-                                <td>@user.DisplayName</td>
-                                @foreach (var question in _results.Questions)
+                            <th scope="col" class="pd-th-plain">
+                                <span class="pd-eyebrow results-q-num">Q@(index + 1)</span>
+                                <span class="results-q-text">@question.Text</span>
+                                <span class="results-answer"><Icon Name="check" Size="16" />Answer: @CorrectAnswerText(question)</span>
+                            </th>
+                        }
+                        <th scope="col" class="pd-num">Points</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in RankedUsers)
+                    {
+                        <tr class="@(IsYou(user) ? "pd-row-you" : null)">
+                            <th scope="row">@PlayerName(user)</th>
+                            @foreach (var question in _questions)
+                            {
+                                var answer = AnswerFor(user, question);
+                                var option = SelectedOption(answer, question);
+
+                                if (answer is null || option is null)
                                 {
-                                    var answer = user.Answers.FirstOrDefault(a => a.QuestionId == question.QuestionId);
-                                    var selectedOption = question.Options.FirstOrDefault(o => o.OptionId == answer?.SelectedOptionId);
-                                    <td class="@(answer?.IsCorrect switch { true => "table-success", false => "table-danger", null => "" })">
-                                        @if (selectedOption is not null)
-                                        {
-                                            @selectedOption.Text
-                                            <span class="fw-bold ms-1">@(answer!.IsCorrect == true ? "✓" : "✗")</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">—</span>
-                                        }
+                                    <td><span class="pd-muted" aria-hidden="true">—</span><span class="pd-sr-only">No pick</span></td>
+                                }
+                                else if (answer.IsCorrect == true)
+                                {
+                                    <td class="pd-cell-correct">
+                                        <span class="pd-pick"><span class="pd-mark pd-mark-correct"><Icon Name="check" Size="16" /></span>@option.Text<span class="pd-sr-only">, correct</span></span>
                                     </td>
                                 }
-                                <td class="fw-bold">@user.Points</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+                                else if (answer.IsCorrect == false)
+                                {
+                                    <td class="pd-cell-wrong">
+                                        <span class="pd-pick"><span class="pd-mark pd-mark-wrong"><Icon Name="x" Size="16" /></span>@option.Text<span class="pd-sr-only">, wrong</span></span>
+                                    </td>
+                                }
+                                else
+                                {
+                                    <td>@option.Text</td>
+                                }
+                            }
+                            <td class="pd-num pd-display results-points">@user.Points</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @* ─── Phones: points first, then one expandable section per question ──── *@
+    <div class="results-mobile">
+        <section class="pd-card" aria-labelledby="results-points-title">
+            <div class="pd-card-head">
+                <h2 id="results-points-title" class="pd-h2 results-mobile-h2">Points this game</h2>
             </div>
+            <ol class="pd-list-reset results-points-list">
+                @foreach (var user in RankedUsers)
+                {
+                    <li class="results-points-row @(IsYou(user) ? "pd-row-you" : null)">
+                        @PlayerName(user)
+                        <span class="pd-strong pd-tnum">@user.Points <span class="pd-muted results-pts">@(user.Points == 1 ? "pt" : "pts")</span></span>
+                    </li>
+                }
+            </ol>
+        </section>
+
+        <h2 class="pd-h2 results-mobile-h2 results-by-question">Question by question</h2>
+
+        <div class="results-questions">
+            @foreach (var (question, index) in _questions.Select((q, i) => (q, i)))
+            {
+                var expanded = _expandedQuestions.Contains(question.QuestionId);
+                var panelId = $"results-q-{question.QuestionId}";
+
+                <section class="pd-card">
+                    <h3 class="results-disclosure-heading">
+                        <button type="button" class="pd-disclosure"
+                                aria-expanded="@(expanded ? "true" : "false")"
+                                aria-controls="@(expanded ? panelId : null)"
+                                @onclick="() => ToggleQuestion(question.QuestionId)">
+                            <span class="results-disclosure-text">
+                                <span class="pd-q-num">Question @(index + 1)</span>
+                                <span class="results-disclosure-q">@question.Text</span>
+                                <span class="results-answer"><Icon Name="check" Size="16" />Answer: @CorrectAnswerText(question)</span>
+                                <span class="pd-muted results-right-count">@RightCount(question) of @AnsweredCount(question) got it right</span>
+                            </span>
+                            <Icon Name="down" Size="24" />
+                        </button>
+                    </h3>
+
+                    @if (expanded)
+                    {
+                        <ul id="@panelId" class="pd-list-reset results-picks">
+                            @foreach (var user in RankedUsers)
+                            {
+                                var answer = AnswerFor(user, question);
+                                var option = SelectedOption(answer, question);
+
+                                <li class="results-pick-row">
+                                    @PlayerName(user)
+                                    @if (answer is null || option is null)
+                                    {
+                                        <span class="pd-muted">No pick</span>
+                                    }
+                                    else if (answer.IsCorrect is { } isCorrect)
+                                    {
+                                        <span class="pd-pick results-pick">@option.Text<span class="pd-mark @(isCorrect ? "pd-mark-correct" : "pd-mark-wrong")"><Icon Name="@(isCorrect ? "check" : "x")" Size="16" /></span><span class="pd-sr-only">@(isCorrect ? "correct" : "wrong")</span></span>
+                                    }
+                                    else
+                                    {
+                                        <span class="results-pick">@option.Text</span>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            }
         </div>
     </div>
 }
@@ -76,23 +189,76 @@ else if (_results is not null)
 
     private PollResultsModel? _results;
     private PollDetailModel? _poll;
+    private List<QuestionModel> _questions = [];
+    private readonly HashSet<string> _expandedQuestions = [];
     private bool _loading = true;
     private string? _error;
+    private string? _currentUserId;
+
+    private IEnumerable<UserResultModel> RankedUsers =>
+        _results?.UserResults.OrderByDescending(u => u.Points).ThenBy(u => u.DisplayName)
+        ?? Enumerable.Empty<UserResultModel>();
+
+    private UserResultModel? YourResult =>
+        _results?.UserResults.FirstOrDefault(IsYou);
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            // Raw "sub" claim, not ClaimTypes.NameIdentifier - same reason as Leaderboard.razor.
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            _currentUserId = authState.User.FindFirst("sub")?.Value;
+
             _poll = await Api.GetPollAsync(PollId);
             _results = await Api.GetResultsAsync(PollId);
+
+            if (_results is not null)
+            {
+                _questions = _results.Questions.OrderBy(q => q.SortOrder).ToList();
+                if (_questions.Count > 0)
+                    _expandedQuestions.Add(_questions[0].QuestionId);
+            }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _error = $"Failed to load results: {ex.Message}";
+            _error = "Unable to load results. Please try again later.";
         }
         finally
         {
             _loading = false;
         }
     }
+
+    private void ToggleQuestion(string questionId)
+    {
+        if (!_expandedQuestions.Remove(questionId))
+            _expandedQuestions.Add(questionId);
+    }
+
+    private bool IsYou(UserResultModel user) => user.UserId == _currentUserId;
+
+    private static UserAnswerModel? AnswerFor(UserResultModel user, QuestionModel question) =>
+        user.Answers.FirstOrDefault(a => a.QuestionId == question.QuestionId);
+
+    private static OptionModel? SelectedOption(UserAnswerModel? answer, QuestionModel question) =>
+        answer is null ? null : question.Options.FirstOrDefault(o => o.OptionId == answer.SelectedOptionId);
+
+    private static string CorrectAnswerText(QuestionModel question) =>
+        question.Options.FirstOrDefault(o => o.OptionId == question.CorrectOptionId)?.Text ?? "—";
+
+    private int RightCount(QuestionModel question) =>
+        _results?.UserResults.Count(u => AnswerFor(u, question)?.IsCorrect == true) ?? 0;
+
+    private int AnsweredCount(QuestionModel question) =>
+        _results?.UserResults.Count(u => AnswerFor(u, question) is not null) ?? 0;
+
+    private RenderFragment PlayerName(UserResultModel user) =>
+        @<span class="results-player">
+            @user.DisplayName
+            @if (IsYou(user))
+            {
+                <span class="pd-badge pd-badge-you">You</span>
+            }
+        </span>;
 }

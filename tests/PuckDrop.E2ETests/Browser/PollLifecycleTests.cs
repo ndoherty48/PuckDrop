@@ -97,12 +97,13 @@ public class PollLifecycleTests(AppHostFixture fixture)
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Submit Scores" }).ClickAsync();
 
         // ── Results: friend's real display name, one correct + one incorrect mark ──────────
-        await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Poll Results" }))
+        await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = poll1Title, Level = 1 }))
             .ToBeVisibleAsync();
         var resultsRow = admin.Locator("tr", new PageLocatorOptions { HasText = TestData.FriendDisplayName });
         await Assertions.Expect(resultsRow).ToBeVisibleAsync();
-        await Assertions.Expect(resultsRow.Locator("td.table-success")).ToHaveCountAsync(1);
-        await Assertions.Expect(resultsRow.Locator("td.table-danger")).ToHaveCountAsync(1);
+        // Each pick cell carries hidden ", correct" / ", wrong" text alongside its tick or cross.
+        await Assertions.Expect(resultsRow.Locator("td", new LocatorLocatorOptions { HasText = ", correct" })).ToHaveCountAsync(1);
+        await Assertions.Expect(resultsRow.Locator("td", new LocatorLocatorOptions { HasText = ", wrong" })).ToHaveCountAsync(1);
 
         // ── Leaderboard: 1 point so far ─────────────────────────────────────────────────────
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Leaderboard" }).ClickAsync();
@@ -142,7 +143,7 @@ public class PollLifecycleTests(AppHostFixture fixture)
         // an immediately-following manual navigation (confirmed live: without this wait, clicking
         // "Leaderboard" right after the click above intermittently lands back on Results once the
         // scoring call finally resolves after the click already went through).
-        await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Poll Results" }))
+        await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = poll2Title, Level = 1 }))
             .ToBeVisibleAsync();
 
         // ── Leaderboard again: 1 + 1 = 2, not reset to 1 ────────────────────────────────────
