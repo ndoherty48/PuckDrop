@@ -361,8 +361,17 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
         // their generation shrinks both the local publish step and BucketDeployment's upload -
         // the upload's size was itself a confirmed cause of slow deploys (see the MemoryLimit
         // fix in GenerateConstructAsync).
+        //
+        // -p:WasmBuildNative=false keeps the publish identical whether or not the machine has the
+        // wasm-tools workload installed. With it installed, a Release+trimmed publish defaults to
+        // relinking the native runtime (WasmApp.Common.targets), which needs Emscripten - and
+        // Emscripten's clang wrapper script doesn't quote its own path, so it fails outright
+        // whenever the SDK lives under a path with a space (e.g. macOS's
+        // ~/Library/Application Support/dotnet) - confirmed live, it broke a real deploy. This
+        // project sets none of the properties that actually require wasm-tools, so skipping the
+        // relink only forgoes a somewhat smaller dotnet.native.wasm.
         var startInfo = new ProcessStartInfo("dotnet",
-            "publish -c Release -p:PublishForRootStaticWebAssets=true -p:EnableDefaultCompressionFormats=false")
+            "publish -c Release -p:PublishForRootStaticWebAssets=true -p:EnableDefaultCompressionFormats=false -p:WasmBuildNative=false")
         {
             WorkingDirectory = projectDirectory,
             RedirectStandardOutput = true,
