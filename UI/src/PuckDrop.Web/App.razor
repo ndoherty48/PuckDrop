@@ -1,14 +1,35 @@
-﻿@inject AuthConfigLoadResult AuthConfigLoadResult
+@inject AuthConfigLoadResult AuthConfigLoadResult
 
 @if (!AuthConfigLoadResult.Success)
 {
     @* OIDC config couldn't be fetched from the API at boot (see Program.cs) - render this
        instead of the normal tree below, since AuthenticationStateProvider and friends were
-       never registered in that case. *@
-    <div class="container-fluid mt-5 text-center">
-        <h2>Couldn't reach the server</h2>
-        <p class="text-muted">@AuthConfigLoadResult.ErrorMessage</p>
-        <p>Please try again later.</p>
+       never registered in that case. MainLayout needs those too (its AuthorizeViews), so this
+       draws its own brand-only header. There's no Router here either, so "Try again" is a
+       plain full-page reload. *@
+    <div class="pd-app">
+        <header class="pd-topbar">
+            <div class="pd-topbar-inner pd-on-dark">
+                <span class="pd-brand">
+                    <img src="logo.svg" alt="" width="32" height="32" />
+                    <span>PuckDrop</span>
+                </span>
+            </div>
+        </header>
+        <main class="pd-main">
+            <StatusScreen IconName="cloudOff" Title="Couldn't reach the server">
+                <ChildContent>
+                    <p>PuckDrop can't load right now. Please try again later.</p>
+                    @if (!string.IsNullOrEmpty(AuthConfigLoadResult.ErrorMessage))
+                    {
+                        <p class="pd-state-detail">@AuthConfigLoadResult.ErrorMessage</p>
+                    }
+                </ChildContent>
+                <Actions>
+                    <a href="" class="pd-btn pd-btn-primary">Try again</a>
+                </Actions>
+            </StatusScreen>
+        </main>
     </div>
 }
 else
@@ -28,7 +49,7 @@ else
                         }
                     </NotAuthorized>
                     <Authorizing>
-                        <p><em>Checking login state...</em></p>
+                        <p class="pd-muted" role="status">Checking login state…</p>
                     </Authorizing>
                 </AuthorizeRouteView>
                 <FocusOnNavigate RouteData="@routeData" Selector="h1" />

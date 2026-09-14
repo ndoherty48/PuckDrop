@@ -25,7 +25,7 @@ dotnet test PuckDrop.slnx         # Run all tests (xUnit v3 on Microsoft.Testing
 
 `API/tests/` and `UI/tests/` hold four xUnit v3 test projects — `PuckDrop.Domain.Tests`,
 `PuckDrop.Application.Tests`, `PuckDrop.Api.Tests` (all pure/fast, no external dependencies), and
-`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 222 tests total, covered in
+`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 226 tests total, covered in
 `docs/implementation-plan.md`'s Phase 7.
 
 A fifth project, `tests/PuckDrop.E2ETests/` (repo-root `tests/`, not under `API/`/`UI/` — it's
@@ -192,8 +192,8 @@ top-level (`Home`, `Poll`, `Leaderboard`, `History`, `Results`) and `Pages/Admin
 
 Styling is mid-migration from Bootstrap 5 to the app's own WCAG 2.2 AA design system in
 `wwwroot/css/app1.css` — colour/type/size tokens plus `pd-`-prefixed components, loaded after
-Bootstrap so the two coexist while pages move over (`MainLayout`, `Home`, `Poll`, `Leaderboard`, `History`, `Results` and every `Admin/*` page are done;
-`Authentication`, `Unauthorized`, `NotFound` and `App.razor`'s load-failure screen are still Bootstrap). Page-only
+Bootstrap so the two coexist while pages move over (every page is done, including the system screens - `Authentication`, `Unauthorized`, `NotFound` and
+`App.razor`'s load-failure screen - which share `Components/StatusScreen.razor`). Page-only
 styles go in that page's `.razor.css`. Shared helpers: `Components/Icon.razor` (decorative inline
 SVG icons), `Display/DisplayText.cs` (avatar initials, "In 5 days"), and `Layout/NavSection.cs`
 (maps child routes like `poll/{id}` to their nav tab for `aria-current`). When migrating a page,
