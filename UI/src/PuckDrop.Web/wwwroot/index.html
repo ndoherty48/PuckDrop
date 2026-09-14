@@ -6,26 +6,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PuckDrop</title>
     <base href="/web/" />
-    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="css/app.css" />
-    <link rel="stylesheet" href="css/app1.css" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link href="PuckDrop.Web.styles.css" rel="stylesheet" />
 </head>
 
 <body>
     <div id="app">
-        <svg class="loading-progress">
+        <svg class="loading-progress" aria-hidden="true">
             <circle r="40%" cx="50%" cy="50%" />
             <circle r="40%" cx="50%" cy="50%" />
         </svg>
-        <div class="loading-progress-text"></div>
+        <div class="loading-progress-text" aria-hidden="true"></div>
+        <p class="pd-sr-only" role="status">Loading PuckDrop…</p>
     </div>
 
     <div id="blazor-error-ui">
         An unhandled error has occurred.
         <a href="." class="reload">Reload</a>
-        <span class="dismiss">🗙</span>
+        <button type="button" class="dismiss" aria-label="Dismiss">×</button>
     </div>
     <script src="_content/Microsoft.AspNetCore.Components.WebAssembly.Authentication/AuthenticationService.js"></script>
     <script src="_framework/blazor.webassembly.js"></script>

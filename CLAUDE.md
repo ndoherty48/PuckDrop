@@ -190,16 +190,14 @@ blank page. Pages are split into
 top-level (`Home`, `Poll`, `Leaderboard`, `History`, `Results`) and `Pages/Admin/*`
 (`CreatePoll`, `EditPoll`, `Polls`, `ScorePoll`) for the create/score workflow.
 
-Styling is mid-migration from Bootstrap 5 to the app's own WCAG 2.2 AA design system in
-`wwwroot/css/app1.css` — colour/type/size tokens plus `pd-`-prefixed components, loaded after
-Bootstrap so the two coexist while pages move over (every page is done, including the system screens - `Authentication`, `Unauthorized`, `NotFound` and
-`App.razor`'s load-failure screen - which share `Components/StatusScreen.razor`). Page-only
-styles go in that page's `.razor.css`. Shared helpers: `Components/Icon.razor` (decorative inline
-SVG icons), `Display/DisplayText.cs` (avatar initials, "In 5 days"), and `Layout/NavSection.cs`
-(maps child routes like `poll/{id}` to their nav tab for `aria-current`). When migrating a page,
-move its tests off Bootstrap class selectors onto roles/text/ARIA state at the same time; once no
-page uses a Bootstrap class, remove `lib/bootstrap`, its `<link>`, and the `--bs-*` bits of
-`app.css`.
+Styling is the app's own WCAG 2.2 AA design system in `wwwroot/css/app.css` - no Bootstrap. It
+holds a small reset, colour/type/size tokens, `pd-`-prefixed shared components, and the styling for
+Blazor's loading screen and error UI; page-only styles go in that page's `.razor.css`. Shared
+components: `Components/Icon.razor` (decorative inline SVG icons), `Components/PollStatusBadge.razor`
+and `Components/StatusScreen.razor` (no access, not found, sign-in outcomes, load failure). Helpers:
+`Display/DisplayText.cs` (avatar initials, "In 5 days") and `Layout/NavSection.cs` (maps child
+routes like `poll/{id}` to their nav tab for `aria-current`). Tests find elements by role, visible
+text or ARIA state rather than CSS classes where they can.
 
 ### Package versions
 
