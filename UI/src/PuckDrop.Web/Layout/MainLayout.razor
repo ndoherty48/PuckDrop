@@ -1,63 +1,135 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
 @using PuckDrop.Web.Auth
 @using PuckDrop.Web.Services
 @inject NavigationManager navigationManager;
 @inject AuthConfigModel authConfig;
 
-<div class="container-fluid p-0">
-    <nav class="navbar navbar-expand-md navbar-dark bg-dark sticky-top">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="">🏒 PuckDrop</a>
-            <button class="navbar-toggler" type="button" @onclick="ToggleNav" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="@NavCss">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Home</NavLink>
-                    </li>
-                    <li class="nav-item">
-                        <NavLink class="nav-link" href="leaderboard">Leaderboard</NavLink>
-                    </li>
-                    <li class="nav-item">
-                        <NavLink class="nav-link" href="history">History</NavLink>
-                    </li>
+<div class="pd-app">
+    <a class="pd-skip-link" href="@SkipLinkHref" @onclick="SkipToMainAsync" @onclick:preventDefault>Skip to main content</a>
+
+    <header class="pd-topbar">
+        <div class="pd-topbar-inner pd-on-dark">
+            <a class="pd-brand" href="">
+                <img src="logo.svg" alt="" width="32" height="32" />
+                <span>PuckDrop</span>
+            </a>
+
+            <nav class="pd-nav" aria-label="Main">
+                <ul>
+                    @foreach (var item in PlayerNav)
+                    {
+                        <li>@TopNavLink(item)</li>
+                    }
                     <AuthorizeView Roles="admin">
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="admin/polls">Admin</NavLink>
-                        </li>
+                        <li>@TopNavLink(AdminNav)</li>
                     </AuthorizeView>
                 </ul>
-            </div>
+            </nav>
+
             <AuthorizeView>
                 <Authorized>
-                    <p>Hello, @context.User.Identity?.Name</p>
+                    <div class="pd-account">
+                        <span class="pd-avatar" aria-hidden="true">@DisplayText.Initials(context.User.Identity?.Name)</span>
+                        <span class="pd-account-name">@context.User.Identity?.Name</span>
+                        <button class="pd-btn pd-btn-on-dark pd-btn-sm" type="button" @onclick="Logout">
+                            <Icon Name="logout" Size="18" />
+                            <span>Log out</span>
+                        </button>
 
-                    <button @onclick="Logout">
-                        Logout
-                    </button>
+                        @* Mobile only (hidden by CSS on desktop): name and Log out move into a menu *@
+                        <button class="pd-account-button" type="button" @onclick="ToggleAccountMenu"
+                                aria-expanded="@(accountMenuOpen ? "true" : "false")"
+                                aria-controls="@(accountMenuOpen ? AccountMenuId : null)">
+                            <span class="pd-avatar" aria-hidden="true">@DisplayText.Initials(context.User.Identity?.Name)</span>
+                            <span class="pd-sr-only">Account menu for @context.User.Identity?.Name</span>
+                        </button>
+                    </div>
                 </Authorized>
 
                 <NotAuthorized>
-                    <button @onclick="Login">
-                        Login
+                    <button class="pd-btn pd-btn-on-dark pd-btn-sm" type="button" @onclick="Login">
+                        <Icon Name="login" Size="18" />
+                        <span>Log in</span>
                     </button>
                 </NotAuthorized>
             </AuthorizeView>
-
         </div>
-    </nav>
 
-    <main class="container py-4">
+        @if (accountMenuOpen)
+        {
+            <AuthorizeView>
+                <div id="@AccountMenuId" class="account-menu">
+                    <p class="account-menu-name">
+                        <span class="pd-eyebrow">Signed in as</span>
+                        <span>@context.User.Identity?.Name</span>
+                    </p>
+                    <button class="pd-btn pd-btn-quiet pd-btn-block" type="button" @onclick="Logout">
+                        <Icon Name="logout" Size="18" />
+                        <span>Log out</span>
+                    </button>
+                </div>
+            </AuthorizeView>
+        }
+    </header>
+
+    <main id="main" class="pd-main" tabindex="-1" @ref="mainElement">
         @Body
     </main>
+
+    @* Mobile only (hidden by CSS on desktop) - same destinations, same order as the top nav *@
+    <nav class="pd-tabbar" aria-label="Main">
+        @foreach (var item in PlayerNav)
+        {
+            @TabLink(item)
+        }
+        <AuthorizeView Roles="admin">
+            @TabLink(AdminNav)
+        </AuthorizeView>
+    </nav>
 </div>
 
 @code {
-    private bool collapseNav = true;
-    private string NavCss => collapseNav ? "collapse navbar-collapse" : "navbar-collapse";
-    private void ToggleNav() => collapseNav = !collapseNav;
+    private const string AccountMenuId = "pd-account-menu";
+
+    private static readonly NavItem[] PlayerNav =
+    [
+        new("Home", "", "home", NavSection.Home),
+        new("Leaderboard", "leaderboard", "podium", NavSection.Leaderboard),
+        new("History", "history", "history", NavSection.History)
+    ];
+
+    private static readonly NavItem AdminNav = new("Admin", "admin/polls", "clipboard", NavSection.Admin);
+
+    private ElementReference mainElement;
+    private bool accountMenuOpen;
+
+    private NavSection CurrentSection =>
+        NavSections.FromRelativePath(navigationManager.ToBaseRelativePath(navigationManager.Uri));
+
+    // The current page is marked with aria-current (styled as a bar) rather than NavLink's
+    // "active" class, so it's announced and doesn't rely on colour - and a poll or results page
+    // keeps its parent section marked.
+    private string? AriaCurrent(NavItem item) => item.Section == CurrentSection ? "page" : null;
+
+    // A bare "#main" resolves against <base href> and would navigate to Home - keep the current path.
+    private string SkipLinkHref => $"{navigationManager.Uri.Split('#')[0]}#main";
+
+    protected override void OnInitialized()
+    {
+        navigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        accountMenuOpen = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private Task SkipToMainAsync() => mainElement.FocusAsync().AsTask();
+
+    private void ToggleAccountMenu() => accountMenuOpen = !accountMenuOpen;
 
     private void Login()
     {
@@ -66,6 +138,8 @@
 
     private void Logout()
     {
+        accountMenuOpen = false;
+
         if (!authConfig.UseCognitoLogout)
         {
             navigationManager.NavigateToLogout(CognitoLogout.LogoutPath);
@@ -81,4 +155,23 @@
             navigationManager.ToAbsoluteUri(CognitoLogout.LoggedOutPath).ToString());
         navigationManager.NavigateToLogin(CognitoLogout.LogoutPath, request);
     }
+
+    public void Dispose()
+    {
+        navigationManager.LocationChanged -= OnLocationChanged;
+    }
+
+    private RenderFragment TopNavLink(NavItem item) =>
+        @<a class="pd-nav-link" href="@item.Href" aria-current="@AriaCurrent(item)">
+            <Icon Name="@item.Icon" />
+            <span>@item.Label</span>
+        </a>;
+
+    private RenderFragment TabLink(NavItem item) =>
+        @<a class="pd-tab" href="@item.Href" aria-current="@AriaCurrent(item)">
+            <Icon Name="@item.Icon" Size="24" />
+            <span>@item.Label</span>
+        </a>;
+
+    private sealed record NavItem(string Label, string Href, string Icon, NavSection Section);
 }

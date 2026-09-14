@@ -25,7 +25,7 @@ dotnet test PuckDrop.slnx         # Run all tests (xUnit v3 on Microsoft.Testing
 
 `API/tests/` and `UI/tests/` hold four xUnit v3 test projects — `PuckDrop.Domain.Tests`,
 `PuckDrop.Application.Tests`, `PuckDrop.Api.Tests` (all pure/fast, no external dependencies), and
-`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 139 tests total, covered in
+`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 197 tests total, covered in
 `docs/implementation-plan.md`'s Phase 7.
 
 A fifth project, `tests/PuckDrop.E2ETests/` (repo-root `tests/`, not under `API/`/`UI/` — it's
@@ -189,6 +189,16 @@ its normal `<Router>`/`<CascadingAuthenticationState>` tree, showing a clear err
 blank page. Pages are split into
 top-level (`Home`, `Poll`, `Leaderboard`, `History`, `Results`) and `Pages/Admin/*`
 (`CreatePoll`, `EditPoll`, `Polls`, `ScorePoll`) for the create/score workflow.
+
+Styling is mid-migration from Bootstrap 5 to the app's own WCAG 2.2 AA design system in
+`wwwroot/css/app1.css` — colour/type/size tokens plus `pd-`-prefixed components, loaded after
+Bootstrap so the two coexist while pages move over (`MainLayout` and `Home` are done). Page-only
+styles go in that page's `.razor.css`. Shared helpers: `Components/Icon.razor` (decorative inline
+SVG icons), `Display/DisplayText.cs` (avatar initials, "In 5 days"), and `Layout/NavSection.cs`
+(maps child routes like `poll/{id}` to their nav tab for `aria-current`). When migrating a page,
+move its tests off Bootstrap class selectors onto roles/text/ARIA state at the same time; once no
+page uses a Bootstrap class, remove `lib/bootstrap`, its `<link>`, and the `--bs-*` bits of
+`app.css`.
 
 ### Package versions
 

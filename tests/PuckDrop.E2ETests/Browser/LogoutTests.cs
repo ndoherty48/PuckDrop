@@ -25,7 +25,7 @@ public class LogoutTests(AppHostFixture fixture)
         await page.FillAsync("#password", TestData.FriendPassword);
         await page.ClickAsync("#kc-login");
 
-        var logoutButton = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Logout" });
+        var logoutButton = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Log out" });
         await Assertions.Expect(logoutButton).ToBeVisibleAsync();
 
         await logoutButton.ClickAsync();
@@ -40,7 +40,7 @@ public class LogoutTests(AppHostFixture fixture)
                 Timeout = 12_000
             });
             // The actual logout already happened server-side by this point - reload and retry
-            // rather than re-click Logout.
+            // rather than re-click Log out.
             await fixture.ReloadOnBootstrapFailureAsync(page, maxAttempts: 3);
         }
         catch (TimeoutException)
