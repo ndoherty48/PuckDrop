@@ -1,0 +1,50 @@
+namespace PuckDrop.Web.Display;
+
+/// <summary>
+/// Small text-formatting helpers shared by the layout and pages.
+/// </summary>
+public static class DisplayText
+{
+    private static readonly char[] NameSeparators = [' ', '.', '_', '-'];
+
+    /// <summary>
+    /// Up to two initials for the account avatar - "Sam Rafferty" -> "SR", "friend" -> "F".
+    /// Cognito users can fall back to an email as their name (see PuckDropClaimsPrincipalFactory),
+    /// so only the part before the @ is used.
+    /// </summary>
+    public static string Initials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return "?";
+
+        var at = name.IndexOf('@');
+        var localPart = at > 0 ? name[..at] : name;
+        var parts = localPart.Split(NameSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (parts.Length == 0)
+            return "?";
+
+        var first = char.ToUpperInvariant(parts[0][0]);
+        return parts.Length == 1 ? first.ToString() : $"{first}{char.ToUpperInvariant(parts[^1][0])}";
+    }
+
+    /// <summary>
+    /// "In 5 days" / "In 3 hours" / "In 20 minutes" until a poll deadline, or "Closed" once it's
+    /// passed. Compares the same way Poll.razor decides whether voting is closed.
+    /// </summary>
+    public static string TimeUntilDeadline(DateTime deadline, DateTime now)
+    {
+        var remaining = deadline - now;
+
+        if (remaining <= TimeSpan.Zero)
+            return "Closed";
+        if (remaining.TotalHours < 1)
+            return InUnits(Math.Max(1, (int)Math.Ceiling(remaining.TotalMinutes)), "minute");
+        if (remaining.TotalDays < 1)
+            return InUnits((int)remaining.TotalHours, "hour");
+
+        return InUnits((int)remaining.TotalDays, "day");
+    }
+
+    private static string InUnits(int count, string unit) => $"In {count} {unit}{(count == 1 ? "" : "s")}";
+}

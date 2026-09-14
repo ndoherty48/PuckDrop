@@ -1,0 +1,162 @@
+.home-eyebrow {
+    margin: 0;
+}
+
+.home-alert {
+    margin-bottom: 1.25rem;
+}
+
+.home-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+@media (min-width: 992px) {
+    .home-grid {
+        grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+        gap: 1.75rem;
+    }
+}
+
+/* ─── Next game ─────────────────────────────────────────────────────── */
+.home-next {
+    overflow: hidden;
+}
+
+.home-hero {
+    position: relative;
+    overflow: hidden;
+    padding: 2rem 2rem 2.25rem;
+    background: var(--pd-boards);
+    color: var(--pd-surface);
+}
+
+.home-rink {
+    position: absolute;
+    top: -3.75rem;
+    right: -4.375rem;
+    width: 21.25rem;
+    height: 21.25rem;
+    pointer-events: none;
+}
+
+.home-hero-eyebrow {
+    position: relative;
+    margin: 0;
+    color: var(--pd-frost);
+}
+
+.home-hero-title {
+    position: relative;
+    margin: 0.75rem 0 0;
+    font-size: 4rem;
+    line-height: 0.95;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+}
+
+.home-next-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+    padding: 1.75rem 2rem 2rem;
+}
+
+.home-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+    margin: 0;
+}
+
+.home-fact-value {
+    margin: 0.375rem 0 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.home-fact-sub {
+    margin: 0.125rem 0 0;
+    padding-left: 1.75rem;
+}
+
+.home-cta {
+    align-self: flex-start;
+}
+
+.home-empty-text {
+    margin: 0.5rem 0 0;
+}
+
+/* ─── Quick leaderboard ─────────────────────────────────────────────── */
+.home-card-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--pd-target-min);
+    font-weight: 700;
+}
+
+.home-rank-name {
+    display: flex;
+    flex-grow: 1;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    font-weight: 700;
+}
+
+.home-rank-points {
+    font-size: 1.125rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.home-rank-points .pd-muted {
+    font-size: 0.9375rem;
+    font-weight: 400;
+}
+
+.home-empty {
+    margin: 0;
+    padding: 1.25rem 1.75rem;
+}
+
+@media (max-width: 767.98px) {
+    .home-hero {
+        padding: 1.5rem 1.25rem 1.625rem;
+    }
+
+    /* The title fills the width on a phone - tuck the drawing into the corner so the red dot
+       never sits behind the text */
+    .home-rink {
+        top: auto;
+        right: -7rem;
+        bottom: -7rem;
+        width: 14rem;
+        height: 14rem;
+    }
+
+    .home-hero-title {
+        font-size: 2.75rem;
+    }
+
+    .home-next-body {
+        gap: 1.25rem;
+        padding: 1.25rem;
+    }
+
+    .home-facts {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1rem;
+    }
+
+    .home-cta {
+        align-self: stretch;
+    }
+
+    .home-empty {
+        padding: 1rem 1.25rem;
+    }
+}

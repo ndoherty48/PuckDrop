@@ -27,7 +27,9 @@ public class LoginTests(AppHostFixture fixture)
         await page.FillAsync("#password", TestData.AdminPassword);
         await page.ClickAsync("#kc-login");
 
-        await page.WaitForSelectorAsync($"text=Hello, {TestData.AdminDisplayName}");
+        await Assertions.Expect(page.GetByRole(AriaRole.Banner)
+                .GetByText(TestData.AdminDisplayName, new LocatorGetByTextOptions { Exact = true }))
+            .ToBeVisibleAsync();
 
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }))
             .ToBeVisibleAsync();
@@ -46,7 +48,9 @@ public class LoginTests(AppHostFixture fixture)
         await page.FillAsync("#password", TestData.FriendPassword);
         await page.ClickAsync("#kc-login");
 
-        await page.WaitForSelectorAsync($"text=Hello, {TestData.FriendDisplayName}");
+        await Assertions.Expect(page.GetByRole(AriaRole.Banner)
+                .GetByText(TestData.FriendDisplayName, new LocatorGetByTextOptions { Exact = true }))
+            .ToBeVisibleAsync();
 
         await Assertions.Expect(page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }))
             .Not.ToBeVisibleAsync();

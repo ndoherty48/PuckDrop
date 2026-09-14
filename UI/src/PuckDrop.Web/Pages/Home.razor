@@ -2,88 +2,122 @@
 @attribute [Authorize]
 
 @inject PuckDropApiClient Api
+@inject AuthenticationStateProvider AuthStateProvider
 
-<div class="container-fluid">
-    <h1 class="mb-4">🏒 PuckDrop</h1>
-
-    @if (loading)
-    {
-        <p><em>Loading...</em></p>
-    }
-    else
-    {
-        @if (!string.IsNullOrEmpty(errorMessage))
+<div class="pd-page-head">
+    <div>
+        @if (seasonName is not null)
         {
-            <div class="alert alert-warning" role="alert">
-                @errorMessage
-            </div>
+            <p class="pd-eyebrow home-eyebrow">@seasonName</p>
         }
+        <h1 class="pd-page-title">Game day</h1>
+    </div>
+</div>
 
-        <div class="row g-4">
-            @* ─── Next Game Card ─────────────────────────────────────────── *@
-            <div class="col-12 col-md-6">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h5 class="mb-0">🎯 Next Game</h5>
-                    </div>
-                    <div class="card-body d-flex flex-column">
-                        @if (activePoll is not null)
-                        {
-                            <h5 class="card-title">@activePoll.Title</h5>
-                            <p class="card-text text-muted">
-                                Deadline: @activePoll.Deadline.ToString("g")
-                            </p>
-                            <p>
+@if (loading)
+{
+    <p class="pd-muted" role="status">Loading game day…</p>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="pd-alert pd-alert-warning home-alert" role="alert">
+            <Icon Name="alert" />
+            <p>@errorMessage</p>
+        </div>
+    }
+
+    <div class="home-grid">
+        @* ─── Next game ─────────────────────────────────────────────────── *@
+        <section class="pd-card home-next" aria-labelledby="next-game-title">
+            @if (activePoll is not null)
+            {
+                <div class="home-hero pd-on-dark">
+                    <svg class="home-rink" viewBox="0 0 340 340" aria-hidden="true" focusable="false">
+                        <circle cx="170" cy="170" r="140" fill="none" stroke="#1D3E66" stroke-width="4" />
+                        <circle cx="170" cy="170" r="90" fill="none" stroke="#1D3E66" stroke-width="2" />
+                        <circle cx="170" cy="170" r="9" fill="#DE3C37" />
+                        <path d="M150 170h-40M190 170h40M170 150v-40M170 190v40" stroke="#1D3E66" stroke-width="2" />
+                    </svg>
+                    <p class="pd-eyebrow home-hero-eyebrow">Next game · @activePoll.GameDate.ToString("dddd d MMMM")</p>
+                    <h2 id="next-game-title" class="pd-display home-hero-title">@activePoll.Title</h2>
+                </div>
+
+                <div class="home-next-body">
+                    <dl class="home-facts">
+                        <div>
+                            <dt class="pd-eyebrow">Picks close</dt>
+                            <dd class="pd-meta home-fact-value">
+                                <Icon Name="clock" />
+                                <span>@activePoll.Deadline.ToString("ddd d MMM, HH:mm")</span>
+                            </dd>
+                            <dd class="pd-muted home-fact-sub">@DisplayText.TimeUntilDeadline(activePoll.Deadline, DateTime.UtcNow)</dd>
+                        </div>
+                        <div>
+                            <dt class="pd-eyebrow">Your picks</dt>
+                            <dd class="home-fact-value">
                                 @if (hasPicked)
                                 {
-                                    <span class="badge bg-success">✓ Picks submitted</span>
+                                    <span class="pd-badge pd-badge-open"><Icon Name="check" Size="16" />Picks submitted</span>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-warning text-dark">Picks not yet in</span>
+                                    <span class="pd-badge pd-badge-pending"><Icon Name="alert" Size="16" />Not in yet</span>
                                 }
-                            </p>
-                            <a href="poll/@activePoll.PollId" class="btn btn-primary mt-auto">
-                                @(hasPicked ? "Update your picks" : "Make your picks")
-                            </a>
-                        }
-                        else
-                        {
-                            <p class="card-text text-muted">No upcoming poll</p>
-                        }
-                    </div>
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <a href="poll/@activePoll.PollId" class="pd-btn pd-btn-primary pd-btn-lg home-cta">
+                        @(hasPicked ? "Update your picks" : "Make your picks")
+                        <Icon Name="right" />
+                    </a>
                 </div>
+            }
+            else
+            {
+                <div class="home-next-body">
+                    <h2 id="next-game-title" class="pd-h2">Next game</h2>
+                    <p class="pd-muted home-empty-text">No upcoming poll</p>
+                </div>
+            }
+        </section>
+
+        @* ─── Quick leaderboard ─────────────────────────────────────────── *@
+        <section class="pd-card" aria-labelledby="quick-leaderboard-title">
+            <div class="pd-card-head">
+                <h2 id="quick-leaderboard-title" class="pd-h2">Leaderboard</h2>
+                <a href="leaderboard" class="home-card-link">Full standings</a>
             </div>
 
-            @* ─── Quick Leaderboard ──────────────────────────────────────── *@
-            <div class="col-12 col-md-6">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h5 class="mb-0">🏆 Quick Leaderboard</h5>
-                    </div>
-                    <div class="card-body">
-                        @if (topEntries is not null && topEntries.Count > 0)
-                        {
-                            <ol class="list-group list-group-numbered">
-                                @foreach (var entry in topEntries)
+            @if (topEntries is { Count: > 0 })
+            {
+                <ol class="pd-rank-list">
+                    @foreach (var entry in topEntries)
+                    {
+                        var isYou = entry.UserId == currentUserId;
+                        <li class="pd-rank-row @(isYou ? "pd-row-you" : null)">
+                            <span class="pd-rank"><span class="pd-sr-only">Rank </span>@entry.Rank</span>
+                            <span class="home-rank-name">
+                                @entry.DisplayName
+                                @if (isYou)
                                 {
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        @entry.DisplayName
-                                        <span class="badge bg-primary rounded-pill">@entry.TotalPoints pts</span>
-                                    </li>
+                                    <span class="pd-badge pd-badge-you">You</span>
                                 }
-                            </ol>
-                        }
-                        else
-                        {
-                            <p class="card-text text-muted">No leaderboard data yet</p>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
-</div>
+                            </span>
+                            <span class="home-rank-points pd-tnum">@entry.TotalPoints <span class="pd-muted">pts</span></span>
+                        </li>
+                    }
+                </ol>
+            }
+            else
+            {
+                <p class="pd-muted home-empty">No leaderboard data yet</p>
+            }
+        </section>
+    </div>
+}
 
 @code {
     private PollModel? activePoll;
@@ -91,15 +125,23 @@
     private bool hasPicked;
     private bool loading = true;
     private string? errorMessage;
+    private string? seasonName;
+    private string? currentUserId;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            // Raw "sub" claim, not ClaimTypes.NameIdentifier - same reason as Leaderboard.razor.
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            currentUserId = authState.User.FindFirst("sub")?.Value;
+
             var season = await Api.GetCurrentSeasonAsync();
 
             if (season is not null)
             {
+                seasonName = season.Name;
+
                 var activePolls = await Api.GetActivePollsAsync(season.SeasonId);
                 activePoll = activePolls?.FirstOrDefault();
 

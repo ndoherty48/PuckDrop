@@ -1,0 +1,29 @@
+@* Stroke icons on a 24px grid. Always decorative (aria-hidden) - pair with visible text, or an
+   aria-label on the control that contains the icon. *@
+<svg class="pd-icon @Class" width="@Size" height="@Size" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">@((MarkupString)Paths[Name])</svg>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = "";
+
+    [Parameter]
+    public int Size { get; set; } = 20;
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private static readonly Dictionary<string, string> Paths = new()
+    {
+        ["home"] = """<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>""",
+        ["podium"] = """<path d="M3 21h18"/><path d="M9 21V8h6v13"/><path d="M3 21v-8h6"/><path d="M15 21v-5h6v5"/>""",
+        ["history"] = """<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3 4v5h5"/><path d="M12 7.5V12l3 2"/>""",
+        ["clipboard"] = """<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.8h6V4"/><path d="M9 13l2 2 4-4"/>""",
+        ["logout"] = """<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/>""",
+        ["login"] = """<path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3"/><path d="M14 17l5-5-5-5"/><path d="M19 12H8"/>""",
+        ["clock"] = """<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>""",
+        ["alert"] = """<path d="M12 3.5 2.5 20h19L12 3.5z"/><path d="M12 10v4"/><path d="M12 17h.01"/>""",
+        ["check"] = """<path d="M5 12.5 10 17.5 19 7"/>""",
+        ["right"] = """<path d="M9 6l6 6-6 6"/>""",
+    };
+}
