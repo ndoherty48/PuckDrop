@@ -1,90 +1,105 @@
-.poll-head {
+.score-head {
     margin-bottom: 2rem;
 }
 
-.poll-eyebrow {
+.score-eyebrow {
     margin: 0;
 }
 
-.poll-error-title {
+.score-error-title {
     margin-bottom: 1.25rem;
 }
 
-.poll-questions {
+.score-questions {
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
     min-width: 0;
 }
 
-.poll-legend {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.5rem 1rem;
-    margin-bottom: 1.125rem;
+.score-q-heading {
+    margin: 0;
+    font-size: 1rem;
 }
 
-/* The question keeps a readable width; a status badge beside it wraps underneath when narrow */
-.poll-legend > :first-child {
-    flex: 1 1 14rem;
-    min-width: 0;
+/* Radio-style marker on the toggle buttons, filled when that answer is the correct one */
+.score-dot {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 2px solid var(--pd-steel);
+    border-radius: 50%;
+    background: var(--pd-surface);
+}
+
+.pd-opt[aria-pressed="true"] .score-dot {
+    border-color: var(--pd-win);
+    background: radial-gradient(circle, var(--pd-win) 0 45%, var(--pd-surface) 50%);
 }
 
 /* ─── Summary ───────────────────────────────────────────────────────── */
-.poll-summary {
+.score-summary {
     padding: 1.75rem;
 }
 
-.poll-summary-title {
+.score-summary-title {
     font-size: 1.625rem;
 }
 
-.poll-count {
+.score-count {
     margin: 0.875rem 0 0.5rem;
 }
 
-.poll-summary-list {
+.score-summary-list {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
     margin: 1.25rem 0 1.5rem;
 }
 
-.poll-summary-list li {
+.score-summary-list li {
     display: flex;
     justify-content: space-between;
     gap: 0.75rem;
 }
 
-.poll-summary-list li > :last-child {
+.score-summary-list li > :last-child {
     text-align: right;
 }
 
-.poll-not-picked {
+.score-answer {
+    color: var(--pd-win);
+}
+
+.score-not-set {
     color: var(--pd-amber);
 }
 
-.poll-message {
+.score-message {
     margin-bottom: 1rem;
 }
 
-.poll-summary-hint {
+.score-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.score-hint {
     margin-top: 0.75rem;
 }
 
 /* Phones: the summary becomes a bar pinned above the tab bar - count, messages, Submit */
 @media (max-width: 767.98px) {
-    .poll-head {
+    .score-head {
         margin-bottom: 1.5rem;
     }
 
-    .poll-questions {
+    .score-questions {
         gap: 1rem;
     }
 
-    .poll-summary {
+    .score-summary {
         position: sticky;
         bottom: var(--pd-tabbar-h);
         z-index: 999;
@@ -98,21 +113,22 @@
         border-radius: 0;
     }
 
-    .poll-summary-title,
-    .poll-progress,
-    .poll-summary-list,
-    .poll-summary-hint {
+    .score-summary-title,
+    .score-progress,
+    .score-summary-list,
+    .score-hint,
+    .score-cancel {
         display: none;
     }
 
-    .poll-count,
-    .poll-message {
+    .score-count,
+    .score-message {
         margin: 0;
     }
 
-    /* Keep the pinned bar short: the flagged question's badge and the focus move already show
-       what's missing, so the message stays for screen readers only (it's still role="alert") */
-    .poll-missing {
+    /* Keep the pinned bar short: the flagged question and the focus move show what's missing,
+       so the message stays for screen readers only (it's still role="alert") */
+    .score-missing {
         position: absolute;
         width: 1px;
         height: 1px;
@@ -122,19 +138,5 @@
         clip: rect(0, 0, 0, 0);
         white-space: nowrap;
         border: 0;
-    }
-
-    /* Nothing to submit once voting closes, so don't pin it */
-    .poll-summary.is-closed {
-        position: static;
-        margin: 0;
-        padding: 1.25rem;
-        border: 1px solid var(--pd-line);
-        border-radius: var(--pd-radius-lg);
-    }
-
-    .poll-summary.is-closed .poll-summary-hint {
-        display: block;
-        margin: 0;
     }
 }
