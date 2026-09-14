@@ -1,0 +1,52 @@
+.create-title {
+    margin-bottom: 2rem;
+}
+
+.create-summary {
+    max-width: 45rem;
+    margin-bottom: 1.5rem;
+}
+
+.create-summary-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--pd-miss);
+}
+
+.create-summary-list {
+    margin-top: 0.5rem;
+}
+
+.create-card {
+    max-width: 45rem;
+    padding: 2rem;
+}
+
+.create-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+}
+
+.create-date {
+    max-width: 16.25rem;
+}
+
+@media (max-width: 767.98px) {
+    .create-title {
+        margin-bottom: 1.25rem;
+    }
+
+    .create-card {
+        padding: 1.25rem;
+    }
+
+    .create-fields {
+        gap: 1.5rem;
+    }
+
+    .create-date {
+        max-width: none;
+    }
+}

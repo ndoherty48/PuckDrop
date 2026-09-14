@@ -64,7 +64,7 @@ else
                         <tr>
                             <td class="pd-tnum">@poll.GameDate.ToString("ddd d MMM yyyy")</td>
                             <th scope="row">@poll.Title</th>
-                            <td>@StatusBadge(poll.Status)</td>
+                            <td><PollStatusBadge Status="@poll.Status" /></td>
                             <td><div class="pd-btn-row polls-actions">@Actions(poll)</div></td>
                         </tr>
                     }
@@ -80,7 +80,7 @@ else
             <li class="pd-card polls-card">
                 <div class="polls-card-top">
                     <p class="pd-muted pd-tnum polls-card-date">@poll.GameDate.ToString("ddd d MMM yyyy")</p>
-                    @StatusBadge(poll.Status)
+                    <PollStatusBadge Status="@poll.Status" />
                 </div>
                 <h2 class="pd-h3 polls-card-title">@poll.Title</h2>
                 <div class="pd-btn-row polls-actions">@Actions(poll)</div>
@@ -179,25 +179,6 @@ else
             _actionInProgress = false;
         }
     }
-
-    private static string StatusBadgeClass(string status) => status switch
-    {
-        "Open" => "pd-badge-open",
-        "Closed" => "pd-badge-closed",
-        "Scored" => "pd-badge-scored",
-        _ => "pd-badge-draft"
-    };
-
-    private static string StatusIcon(string status) => status switch
-    {
-        "Open" => "dot",
-        "Closed" => "lock",
-        "Scored" => "check",
-        _ => "dashed"
-    };
-
-    private static RenderFragment StatusBadge(string status) =>
-        @<span class="pd-badge @StatusBadgeClass(status)"><Icon Name="@StatusIcon(status)" Size="16" />@status</span>;
 
     // Every control repeats per row, so each carries the poll title as hidden text to stay
     // distinct out of context ("Publish Belfast Giants vs Guildford Flames").

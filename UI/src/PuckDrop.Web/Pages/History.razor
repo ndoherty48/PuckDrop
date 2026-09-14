@@ -47,14 +47,7 @@ else if (_polls is not null)
                         </div>
 
                         <div class="history-status">
-                            @if (poll.Status == "Scored")
-                            {
-                                <span class="pd-badge pd-badge-scored"><Icon Name="check" Size="16" />Scored</span>
-                            }
-                            else
-                            {
-                                <span class="pd-badge pd-badge-closed"><Icon Name="lock" Size="16" />Closed</span>
-                            }
+                            <PollStatusBadge Status="@poll.Status" />
                         </div>
 
                         <div class="history-action">

@@ -622,6 +622,7 @@ html {
 
 /* Icon-only button: always give it an aria-label */
 .pd-btn-icon {
+  flex-shrink: 0;
   width: var(--pd-control);
   padding: 0;
 }
@@ -753,6 +754,13 @@ html {
   padding: 0 0.8125rem;
 }
 
+/* Blazor's EditForm adds valid/modified/invalid classes, which the template app.css outlines
+   green/red. Errors here are shown with aria-invalid and a message instead. */
+.pd-input.modified.valid:not(:focus-visible),
+.pd-input.invalid:not(:focus-visible) {
+  outline: none;
+}
+
 .pd-error-msg {
   display: flex;
   align-items: center;
@@ -782,6 +790,15 @@ html {
   padding: 0.875rem 1rem;
   border-radius: var(--pd-radius-md);
   background: var(--pd-blue-tint);
+}
+
+.pd-info > p {
+  margin: 0;
+}
+
+.pd-info .pd-icon {
+  margin-top: 0.125rem;
+  color: var(--pd-blue-text);
 }
 
 /* ---------- Alerts ---------- */

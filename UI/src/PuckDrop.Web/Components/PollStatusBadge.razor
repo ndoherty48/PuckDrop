@@ -1,0 +1,23 @@
+@* A poll's status as icon + word, never colour alone *@
+<span class="pd-badge @BadgeClass"><Icon Name="@IconName" Size="16" />@Status</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Status { get; set; } = "";
+
+    private string BadgeClass => Status switch
+    {
+        "Open" => "pd-badge-open",
+        "Closed" => "pd-badge-closed",
+        "Scored" => "pd-badge-scored",
+        _ => "pd-badge-draft"
+    };
+
+    private string IconName => Status switch
+    {
+        "Open" => "dot",
+        "Closed" => "lock",
+        "Scored" => "check",
+        _ => "dashed"
+    };
+}
