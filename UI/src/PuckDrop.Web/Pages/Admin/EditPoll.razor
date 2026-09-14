@@ -2,98 +2,146 @@
 @attribute [Authorize(Roles = "admin")]
 @inject PuckDropApiClient Api
 
-<h2 class="mb-4">Edit Poll</h2>
+<nav class="pd-crumbs" aria-label="Breadcrumb">
+    <a href="admin/polls">Manage polls</a>
+    <Icon Name="right" Size="16" />
+    <span aria-current="page">Edit poll</span>
+</nav>
 
-@if (_loading)
+@if (_poll is null && _loading)
 {
-    <p>Loading poll...</p>
+    <p class="pd-muted" role="status">Loading poll…</p>
 }
 else if (_poll is null)
 {
-    <p class="text-danger">Poll not found.</p>
+    <h1 class="pd-page-title edit-title">Poll not found</h1>
+    <div class="pd-alert pd-alert-danger" role="alert">
+        <Icon Name="alert" />
+        <p>@(_loadError ?? "This poll doesn't exist or has been removed.")</p>
+    </div>
 }
 else
 {
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger">@_error</div>
-    }
-
-    <div class="card mb-4">
-        <div class="card-body">
-            <h5 class="card-title">@_poll.Title</h5>
-            <p class="card-text text-muted">
-                Game Date: @_poll.GameDate &bull; Deadline: @_poll.Deadline
-            </p>
+    <div class="edit-head">
+        <p class="pd-eyebrow edit-eyebrow">Edit poll</p>
+        <h1 class="pd-page-title">@_poll.Title</h1>
+        <div class="pd-meta-row">
+            <PollStatusBadge Status="@_poll.Status" />
+            <span class="pd-meta"><Icon Name="calendar" />@_poll.GameDate.ToString("ddd d MMM yyyy")</span>
+            <span class="pd-meta"><Icon Name="clock" />Picks close @_poll.Deadline.ToString("ddd d MMM, HH:mm")</span>
         </div>
     </div>
 
-    <h5 class="mb-3">Questions</h5>
-
-    @if (_poll.Questions.Count == 0)
-    {
-        <p class="text-muted">No questions yet. Add one below.</p>
-    }
-    else
-    {
-        @foreach (var question in _poll.Questions.OrderBy(q => q.SortOrder))
+    @* Always rendered, so screen readers announce additions and deletions *@
+    <div role="status">
+        @if (_statusMessage is not null)
         {
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h6 class="card-title">@question.Text</h6>
-                            <ul class="list-unstyled mb-0">
-                                @foreach (var option in question.Options.OrderBy(o => o.SortOrder))
-                                {
-                                    <li class="ms-3">• @option.Text</li>
-                                }
-                            </ul>
-                        </div>
-                        <button class="btn btn-sm btn-outline-danger"
-                                @onclick="() => DeleteQuestionAsync(question.QuestionId)">
-                            Delete
-                        </button>
-                    </div>
-                </div>
+            <div class="pd-alert pd-alert-success edit-message">
+                <Icon Name="check" />
+                <p>@_statusMessage</p>
             </div>
         }
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="pd-alert pd-alert-danger edit-message" role="alert">
+            <Icon Name="alert" />
+            <p>@_error</p>
+        </div>
     }
 
-    <div class="card border-primary">
-        <div class="card-header bg-primary text-white">Add Question</div>
-        <div class="card-body">
-            <div class="mb-3">
-                <label class="form-label">Question Text</label>
-                <input type="text" class="form-control" @bind="_newQuestionText" />
-            </div>
+    <div class="edit-layout">
+        <section aria-labelledby="questions-title">
+            <h2 id="questions-title" class="pd-h2 edit-section-title" tabindex="-1" @ref="_questionsHeading">Questions (@Questions.Count)</h2>
 
-            @for (var i = 0; i < _newOptions.Count; i++)
+            @if (Questions.Count == 0)
             {
-                var index = i;
-                <div class="mb-2 d-flex align-items-center">
-                    <label class="form-label me-2 mb-0">Option @(index + 1)</label>
-                    <input type="text" class="form-control"
-                           value="@_newOptions[index]"
-                           @onchange="(e) => _newOptions[index] = e.Value?.ToString() ?? string.Empty" />
-                    @if (i >= 2)
-                    {
-                        <button class="btn btn-sm btn-outline-danger ms-2"
-                                @onclick="() => _newOptions.RemoveAt(index)">✕</button>
-                    }
-                </div>
+                <p class="pd-card pd-muted edit-empty">No questions yet. Add one with “Add a question”.</p>
             }
+            else
+            {
+                <ol class="pd-list-reset edit-questions">
+                    @foreach (var (question, index) in Questions.Select((q, i) => (q, i)))
+                    {
+                        <li class="pd-card edit-question">
+                            <span class="pd-display edit-question-num" aria-hidden="true">@(index + 1)</span>
+                            <div class="edit-question-body">
+                                <h3 class="pd-h3 edit-question-text"><span class="pd-sr-only">Question @(index + 1): </span>@question.Text</h3>
+                                <ul class="pd-list-reset edit-options" aria-label="Options">
+                                    @foreach (var option in question.Options.OrderBy(o => o.SortOrder))
+                                    {
+                                        <li class="edit-option">@option.Text</li>
+                                    }
+                                </ul>
+                            </div>
+                            <button type="button" class="pd-btn pd-btn-danger pd-btn-sm" disabled="@Busy"
+                                    @onclick="() => DeleteQuestionAsync(question)"><Icon Name="trash" Size="18" />Delete<span class="pd-sr-only"> question @(index + 1)</span></button>
+                        </li>
+                    }
+                </ol>
+            }
+        </section>
 
-            <button class="btn btn-sm btn-outline-secondary mb-3" @onclick="AddOptionInput">
-                + Add Option
-            </button>
+        <section class="pd-card edit-add" aria-labelledby="add-question-title">
+            <h2 id="add-question-title" class="pd-h2 edit-section-title">Add a question</h2>
 
-            <div>
-                <button class="btn btn-primary" @onclick="AddQuestionAsync" disabled="@_addingQuestion">
-                    @(_addingQuestion ? "Adding..." : "Add Question")
+            <div class="edit-add-fields">
+                <div class="pd-field">
+                    <label for="new-question" class="pd-label">Question</label>
+                    @if (_questionError is not null)
+                    {
+                        <p id="new-question-error" class="pd-error-msg"><Icon Name="alert" Size="18" />@_questionError</p>
+                    }
+                    <input id="new-question" type="text" class="pd-input" @bind="_newQuestionText" @ref="_questionInput"
+                           aria-invalid="@(_questionError is null ? null : "true")"
+                           aria-describedby="@(_questionError is null ? null : "new-question-error")" />
+                </div>
+
+                <fieldset class="edit-options-fieldset"
+                          aria-describedby="@(_optionsError is null ? "options-hint" : "options-hint options-error")">
+                    <legend class="pd-label">Options</legend>
+                    <p id="options-hint" class="pd-hint">At least 2. Friends pick one.</p>
+                    @if (_optionsError is not null)
+                    {
+                        <p id="options-error" class="pd-error-msg"><Icon Name="alert" Size="18" />@_optionsError</p>
+                    }
+
+                    @for (var i = 0; i < _newOptions.Count; i++)
+                    {
+                        var index = i;
+                        <div class="edit-option-row">
+                            <label for="new-option-@index" class="pd-sr-only">Option @(index + 1)</label>
+                            <span class="pd-muted pd-strong pd-tnum edit-option-num" aria-hidden="true">@(index + 1)</span>
+                            <input id="new-option-@index" type="text" class="pd-input"
+                                   value="@_newOptions[index]"
+                                   @onchange="e => _newOptions[index] = e.Value?.ToString() ?? string.Empty"
+                                   @ref="_optionInputs[index]"
+                                   aria-invalid="@(_optionsError is not null && string.IsNullOrWhiteSpace(_newOptions[index]) ? "true" : null)" />
+                            @if (index >= 2)
+                            {
+                                <button type="button" class="pd-btn pd-btn-quiet pd-btn-icon" aria-label="Remove option @(index + 1)"
+                                        @onclick="() => _newOptions.RemoveAt(index)"><Icon Name="x" /></button>
+                            }
+                            else
+                            {
+                                <span class="edit-option-spacer" aria-hidden="true"></span>
+                            }
+                        </div>
+                    }
+
+                    <div>
+                        <button type="button" class="pd-btn pd-btn-quiet pd-btn-sm edit-add-option" @onclick="() => _newOptions.Add(string.Empty)">
+                            <Icon Name="plus" Size="18" />Add option
+                        </button>
+                    </div>
+                </fieldset>
+
+                <button type="button" class="pd-btn pd-btn-primary edit-add-submit" disabled="@Busy" @onclick="AddQuestionAsync">
+                    @(_addingQuestion ? "Adding…" : "Add question")
                 </button>
             </div>
-        </div>
+        </section>
     </div>
 }
 
@@ -103,10 +151,24 @@ else
     private PollDetailModel? _poll;
     private bool _loading = true;
     private bool _addingQuestion;
+    private bool _deleting;
+    private string? _loadError;
     private string? _error;
+    private string? _statusMessage;
+    private string? _questionError;
+    private string? _optionsError;
 
     private string _newQuestionText = "";
-    private List<string> _newOptions = new() { "", "" };
+    private List<string> _newOptions = ["", ""];
+
+    private ElementReference _questionsHeading;
+    private ElementReference _questionInput;
+    private readonly Dictionary<int, ElementReference> _optionInputs = new();
+
+    private bool Busy => _addingQuestion || _deleting;
+
+    private List<QuestionModel> Questions =>
+        _poll?.Questions.OrderBy(q => q.SortOrder).ToList() ?? [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -116,41 +178,69 @@ else
     private async Task LoadPollAsync()
     {
         _loading = true;
-        _poll = await Api.GetPollAsync(PollId);
-        _loading = false;
-    }
-
-    private void AddOptionInput()
-    {
-        _newOptions.Add("");
+        try
+        {
+            _poll = await Api.GetPollAsync(PollId);
+        }
+        catch (Exception)
+        {
+            if (_poll is null)
+                _loadError = "Unable to load poll. Please try again later.";
+            else
+                _error = "Unable to refresh the poll. Please reload the page.";
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task AddQuestionAsync()
     {
-        if (string.IsNullOrWhiteSpace(_newQuestionText))
-            return;
+        if (Busy) return;
 
+        _statusMessage = null;
+        _error = null;
+
+        var questionText = _newQuestionText.Trim();
         var options = _newOptions
             .Where(o => !string.IsNullOrWhiteSpace(o))
-            .Select((text, i) => new CreateOptionRequest(text, i + 1))
+            .Select((text, i) => new CreateOptionRequest(text.Trim(), i + 1))
             .ToList();
 
-        if (options.Count < 2)
+        _questionError = questionText.Length == 0 ? "Enter the question" : null;
+        _optionsError = options.Count < 2 ? "Enter at least 2 options" : null;
+
+        // Errors are shown next to each field; focus goes to the first one to fix.
+        if (_questionError is not null)
+        {
+            await _questionInput.FocusAsync();
             return;
+        }
+
+        if (_optionsError is not null)
+        {
+            var firstBlank = Math.Max(_newOptions.FindIndex(string.IsNullOrWhiteSpace), 0);
+            if (_optionInputs.TryGetValue(firstBlank, out var optionInput))
+                await optionInput.FocusAsync();
+            return;
+        }
 
         _addingQuestion = true;
-        _error = null;
 
         try
         {
             var sortOrder = (_poll?.Questions.Count ?? 0) + 1;
-            var request = new CreateQuestionRequest(_newQuestionText, sortOrder, options);
-            await Api.AddQuestionAsync(PollId, request);
+            await Api.AddQuestionAsync(PollId, new CreateQuestionRequest(questionText, sortOrder, options));
 
             _newQuestionText = "";
-            _newOptions = new List<string> { "", "" };
+            _newOptions = ["", ""];
 
             await LoadPollAsync();
+            _statusMessage = $"Added “{questionText}”.";
+
+            // Ready for the next question
+            await _questionInput.FocusAsync();
         }
         catch (Exception)
         {
@@ -162,17 +252,30 @@ else
         }
     }
 
-    private async Task DeleteQuestionAsync(string questionId)
+    private async Task DeleteQuestionAsync(QuestionModel question)
     {
+        if (Busy) return;
+
+        _statusMessage = null;
         _error = null;
+        _deleting = true;
+
         try
         {
-            await Api.DeleteQuestionAsync(PollId, questionId);
+            await Api.DeleteQuestionAsync(PollId, question.QuestionId);
             await LoadPollAsync();
+            _statusMessage = $"Deleted “{question.Text}”.";
+
+            // The Delete button that had focus is gone - move focus somewhere sensible
+            await _questionsHeading.FocusAsync();
         }
         catch (Exception)
         {
             _error = "Failed to delete question. Please try again.";
+        }
+        finally
+        {
+            _deleting = false;
         }
     }
 }

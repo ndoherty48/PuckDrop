@@ -166,24 +166,23 @@ public class PollLifecycleTests(AppHostFixture fixture)
         await admin.FillAsync("#deadline", deadline.ToString("yyyy-MM-ddTHH:mm"));
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Create Poll" }).ClickAsync();
 
-        await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Edit Poll" }))
+        // The edit page's h1 is the poll's own title
+        await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = title, Level = 1 }))
             .ToBeVisibleAsync();
     }
 
     /// <summary>
-    /// EditPoll's "Add Question" inputs have no id/name/for-linked label (confirmed reading
-    /// EditPoll.razor) - only positional: the question-text field, then one field per option, in
-    /// DOM order within the "Add Question" card.
+    /// Fills EditPoll's "Add a question" form by its labels: the question field, then the first
+    /// two option fields.
     /// </summary>
     private static async Task AddQuestionAsync(IPage admin, string questionText, string option1, string option2)
     {
-        var addQuestionCard = admin.Locator(".card.border-primary");
-        var fields = addQuestionCard.Locator("input.form-control");
+        var addQuestion = admin.GetByRole(AriaRole.Region, new PageGetByRoleOptions { Name = "Add a question" });
 
-        await fields.Nth(0).FillAsync(questionText);
-        await fields.Nth(1).FillAsync(option1);
-        await fields.Nth(2).FillAsync(option2);
-        await addQuestionCard.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Add Question" })
+        await addQuestion.GetByLabel("Question", new LocatorGetByLabelOptions { Exact = true }).FillAsync(questionText);
+        await addQuestion.GetByLabel("Option 1", new LocatorGetByLabelOptions { Exact = true }).FillAsync(option1);
+        await addQuestion.GetByLabel("Option 2", new LocatorGetByLabelOptions { Exact = true }).FillAsync(option2);
+        await addQuestion.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Add question" })
             .ClickAsync();
 
         await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = questionText }))

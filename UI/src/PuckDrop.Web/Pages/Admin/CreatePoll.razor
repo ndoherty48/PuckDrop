@@ -3,56 +3,152 @@
 @inject PuckDropApiClient Api
 @inject NavigationManager Nav
 
-<h2 class="mb-4">Create Poll</h2>
+<nav class="pd-crumbs" aria-label="Breadcrumb">
+    <a href="admin/polls">Manage polls</a>
+    <Icon Name="right" Size="16" />
+    <span aria-current="page">Create poll</span>
+</nav>
+<h1 class="pd-page-title create-title">Create poll</h1>
 
-<div class="row">
-    <div class="col-md-6">
-        <EditForm Model="_model" OnValidSubmit="HandleSubmitAsync" FormName="CreatePollForm">
-            <div class="mb-3">
-                <label for="title" class="form-label">Title</label>
-                <InputText id="title" class="form-control" @bind-Value="_model.Title" />
-            </div>
-
-            <div class="mb-3">
-                <label for="gameDate" class="form-label">Game Date</label>
-                <InputDate id="gameDate" class="form-control" @bind-Value="_model.GameDate" />
-            </div>
-
-            <div class="mb-3">
-                <label for="deadline" class="form-label">Deadline</label>
-                <InputDate id="deadline" class="form-control" Type="InputDateType.DateTimeLocal" @bind-Value="_model.Deadline" />
-            </div>
-
-            <button type="submit" class="btn btn-primary" disabled="@_submitting">
-                @(_submitting ? "Creating..." : "Create Poll")
-            </button>
-            <a href="admin/polls" class="btn btn-outline-secondary ms-2">Cancel</a>
-        </EditForm>
+@if (_titleError is not null)
+{
+    @* Focused after a failed submit, so the problem is announced and one Tab away from the fix *@
+    <div class="pd-error-summary create-summary" role="alert" tabindex="-1" aria-labelledby="create-summary-title"
+         @ref="_errorSummary">
+        <h2 id="create-summary-title" class="pd-h3 create-summary-title"><Icon Name="alert" Size="22" />There is a problem</h2>
+        <ul class="pd-list-reset create-summary-list">
+            <li><a href="admin/polls/create#title" @onclick="FocusTitleAsync" @onclick:preventDefault>@_titleError</a></li>
+        </ul>
     </div>
+}
+
+@if (_submitError is not null)
+{
+    <div class="pd-alert pd-alert-danger create-summary" role="alert">
+        <Icon Name="alert" />
+        <p>@_submitError</p>
+    </div>
+}
+
+<div class="pd-card create-card">
+    <EditForm EditContext="_editContext" OnSubmit="HandleSubmitAsync" novalidate>
+        <div class="create-fields">
+            <div class="pd-field">
+                <label for="title" class="pd-label">Title</label>
+                <p id="title-hint" class="pd-hint">Usually the matchup, e.g. Belfast Giants vs Guildford Flames</p>
+                @if (_titleError is not null)
+                {
+                    <p id="title-error" class="pd-error-msg"><Icon Name="alert" Size="18" />@_titleError</p>
+                }
+                @* InputText sets aria-invalid itself from the EditContext's validation messages *@
+                <InputText id="title" class="pd-input" @bind-Value="_model.Title" @ref="_titleInput"
+                           aria-describedby="@(_titleError is null ? "title-hint" : "title-hint title-error")" />
+            </div>
+
+            <div class="pd-field">
+                <label for="gameDate" class="pd-label">Game date</label>
+                <div class="create-date">
+                    <InputDate id="gameDate" class="pd-input" @bind-Value="_model.GameDate" />
+                </div>
+            </div>
+
+            <div class="pd-field">
+                <label for="deadline" class="pd-label">Picks deadline</label>
+                <p id="deadline-hint" class="pd-hint">Friends can submit and change their picks until this time</p>
+                <div class="create-date">
+                    <InputDate id="deadline" class="pd-input" Type="InputDateType.DateTimeLocal" @bind-Value="_model.Deadline"
+                               aria-describedby="deadline-hint" />
+                </div>
+            </div>
+
+            <div class="pd-info">
+                <Icon Name="info" />
+                <p>The poll is saved as a <strong>draft</strong>. You'll add questions next, and friends can't see it until you publish.</p>
+            </div>
+
+            <div class="pd-btn-row">
+                <button type="submit" class="pd-btn pd-btn-primary" disabled="@_submitting">
+                    @(_submitting ? "Creating…" : "Create poll")
+                </button>
+                <a href="admin/polls" class="pd-btn pd-btn-quiet">Cancel</a>
+            </div>
+        </div>
+    </EditForm>
 </div>
 
 @code {
-    private CreatePollFormModel _model = new();
+    private readonly CreatePollFormModel _model = new();
+    private EditContext _editContext = default!;
+    private ValidationMessageStore _validationMessages = default!;
+    private InputText? _titleInput;
+    private ElementReference _errorSummary;
+    private string? _titleError;
+    private string? _submitError;
     private bool _submitting;
+    private bool _focusErrorSummary;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_model);
+        _validationMessages = new ValidationMessageStore(_editContext);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusErrorSummary)
+        {
+            _focusErrorSummary = false;
+            await _errorSummary.FocusAsync();
+        }
+    }
 
     private async Task HandleSubmitAsync()
     {
-        _submitting = true;
+        if (_submitting) return;
 
-        var request = new CreatePollRequest(
-            _model.Title,
-            _model.GameDate,
-            _model.Deadline
-        );
+        _submitError = null;
+        _titleError = string.IsNullOrWhiteSpace(_model.Title) ? "Enter a title for the poll" : null;
 
-        var poll = await Api.CreatePollAsync(request);
+        _validationMessages.Clear();
+        if (_titleError is not null)
+            _validationMessages.Add(() => _model.Title, _titleError);
+        _editContext.NotifyValidationStateChanged();
 
-        if (poll is not null)
+        if (_titleError is not null)
         {
-            Nav.NavigateTo($"admin/polls/{poll.PollId}/edit");
+            _focusErrorSummary = true;
+            return;
         }
 
-        _submitting = false;
+        _submitting = true;
+
+        try
+        {
+            var request = new CreatePollRequest(_model.Title.Trim(), _model.GameDate, _model.Deadline);
+            var poll = await Api.CreatePollAsync(request);
+
+            if (poll is not null)
+            {
+                Nav.NavigateTo($"admin/polls/{poll.PollId}/edit");
+                return;
+            }
+
+            _submitError = "Failed to create poll. Please try again.";
+        }
+        catch (Exception)
+        {
+            _submitError = "Failed to create poll. Please try again.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private async Task FocusTitleAsync()
+    {
+        if (_titleInput?.Element is { } element)
+            await element.FocusAsync();
     }
 
     private class CreatePollFormModel

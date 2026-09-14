@@ -1,0 +1,157 @@
+.edit-head {
+    margin-bottom: 1.75rem;
+}
+
+.edit-eyebrow {
+    margin: 0;
+}
+
+.edit-title {
+    margin-bottom: 1.25rem;
+}
+
+.edit-message {
+    margin-bottom: 1.25rem;
+}
+
+.edit-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.75rem;
+    align-items: start;
+}
+
+@media (min-width: 992px) {
+    .edit-layout {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 2rem;
+    }
+}
+
+.edit-section-title {
+    margin-bottom: 1rem;
+    font-size: 1.625rem;
+}
+
+/* ─── Questions ─────────────────────────────────────────────────────── */
+.edit-empty {
+    margin: 0;
+    padding: 1.25rem 1.5rem;
+}
+
+.edit-questions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.edit-question {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+}
+
+.edit-question-num {
+    flex-shrink: 0;
+    width: 1.25rem;
+    font-size: 1.75rem;
+    line-height: 1;
+}
+
+.edit-question-body {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.edit-question-text {
+    font-size: 1.1875rem;
+    overflow-wrap: anywhere;
+}
+
+.edit-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.625rem;
+}
+
+.edit-option {
+    padding: 0.25rem 0.75rem;
+    border: 1px solid var(--pd-steel);
+    border-radius: var(--pd-radius-sm);
+    font-size: 0.9375rem;
+}
+
+/* ─── Add a question ────────────────────────────────────────────────── */
+.edit-add {
+    padding: 1.75rem;
+}
+
+.edit-add .edit-section-title {
+    margin-bottom: 1.25rem;
+}
+
+.edit-add-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.edit-options-fieldset {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.edit-options-fieldset legend {
+    margin-bottom: 0.25rem;
+    padding: 0;
+}
+
+.edit-option-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.edit-option-num {
+    flex-shrink: 0;
+    width: 1.125rem;
+}
+
+.edit-option-spacer {
+    flex-shrink: 0;
+    width: var(--pd-control);
+}
+
+.edit-add-option {
+    margin-left: 1.625rem;
+}
+
+.edit-add-submit {
+    align-self: flex-start;
+}
+
+@media (max-width: 767.98px) {
+    .edit-head {
+        margin-bottom: 1.25rem;
+    }
+
+    .edit-question {
+        gap: 0.75rem;
+        padding: 1rem 1.25rem;
+    }
+
+    .edit-add {
+        padding: 1.25rem;
+    }
+
+    .edit-add-submit {
+        align-self: stretch;
+    }
+}
