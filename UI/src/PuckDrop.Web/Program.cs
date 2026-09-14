@@ -79,10 +79,12 @@ builder.Services.AddSingleton(authConfigLoadResult);
 if (authConfig is not null)
 {
     // Config is deliberately provider-agnostic (standard OIDC authorization-code-flow settings
-    // work identically against Cognito or Keycloak's own discovery/token endpoints - there's no
-    // per-provider divergence at the protocol level the way there is server-side, see
-    // PuckDrop.Api.ApiServiceCollectionExtensions). Switching providers is purely a server-side
-    // config change now - the UI just reflects whatever auth-config returns.
+    // work identically against Cognito or Keycloak's own discovery/token endpoints). The one
+    // protocol-level divergence is logout - Cognito's end_session_endpoint needs extra parameters,
+    // flagged by auth-config's UseCognitoLogout and applied in MainLayout.Logout, which is why the
+    // model itself is registered here. Switching providers is still purely a server-side config
+    // change - the UI just reflects whatever auth-config returns.
+    builder.Services.AddSingleton(authConfig);
     builder.Services.AddOidcAuthentication(options =>
     {
         options.ProviderOptions.Authority = authConfig.Authority;

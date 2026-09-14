@@ -26,7 +26,8 @@ public static class ApiServiceCollectionExtensions
             services.AddTransient<IClaimsTransformation, CognitoClaimsTransformation>();
             // Cognito has only one UserPoolClient serving both the API's own JWT-audience
             // validation and the browser's OIDC login flow, so ClientId is correct for both.
-            services.AddSingleton(new AuthDiscoveryOptions(cognitoSettings.Authority, cognitoSettings.ClientId, "code"));
+            services.AddSingleton(new AuthDiscoveryOptions(
+                cognitoSettings.Authority, cognitoSettings.ClientId, "code", UseCognitoLogout: true));
 
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>

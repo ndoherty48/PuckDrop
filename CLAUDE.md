@@ -122,6 +122,13 @@ isn't the client the browser logs in with. In production this endpoint needs its
 route with `AuthorizationType = "NONE"` (`DeploymentStack.cs`), since the catch-all Lambda route
 otherwise requires a JWT for every path under `/puckdrop/`.
 
+Logout is the one place the UI can't stay fully provider-agnostic: Cognito's `/logout` ignores
+the standard OIDC `id_token_hint`/`post_logout_redirect_uri` and requires `client_id` plus
+`logout_uri` (otherwise it bounces to `/login`). The Cognito branch sets
+`AuthDiscoveryOptions.UseCognitoLogout`, and `MainLayout.Logout` then adds those two parameters to
+the logout request only, targeting `authentication/logged-out` — which must stay in the app
+client's allowed sign-out URLs (`BlazorStaticSitePublishTarget.FixCognitoCallbackUrls`).
+
 Cognito is the production IdP (provisioned by CDK in `DeploymentStack`); Keycloak is used for
 local dev via Aspire (`AddKeycloak` + realm import from
 `Infrastructure/PuckDrop.AppHost/Keycloak/PuckDrop-realm.json`).
