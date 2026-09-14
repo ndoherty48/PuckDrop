@@ -4,85 +4,174 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 
-<h2 class="mb-4">Score Poll</h2>
+<nav class="pd-crumbs" aria-label="Breadcrumb">
+    <a href="admin/polls">Manage polls</a>
+    <Icon Name="right" Size="16" />
+    <span aria-current="page">Score poll</span>
+</nav>
 
-@if (_loading)
+@if (_poll is null && _loading)
 {
-    <p>Loading poll...</p>
+    <p class="pd-muted" role="status">Loading poll…</p>
 }
 else if (_poll is null)
 {
-    <p class="text-danger">@(_error ?? "Poll not found.")</p>
+    <h1 class="pd-page-title score-error-title">Poll not found</h1>
+    <div class="pd-alert pd-alert-danger" role="alert">
+        <Icon Name="alert" />
+        <p>@(_loadError ?? "This poll doesn't exist or has been removed.")</p>
+    </div>
 }
 else
 {
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger">@_error</div>
-    }
-
-    <p class="text-muted mb-4">Select the correct answer for each question.</p>
-
-    @foreach (var question in _poll.Questions.OrderBy(q => q.SortOrder))
-    {
-        <div class="card mb-3">
-            <div class="card-body">
-                <h6 class="card-title">@question.Text</h6>
-                <div class="d-flex flex-wrap gap-2 mt-2">
-                    @foreach (var option in question.Options.OrderBy(o => o.SortOrder))
-                    {
-                        var isSelected = _correctAnswers.TryGetValue(question.QuestionId, out var selectedId)
-                                         && selectedId == option.OptionId;
-                        <button type="button" class="btn @(isSelected ? "btn-success" : "btn-outline-secondary")"
-                                aria-pressed="@isSelected"
-                                @onclick="() => SelectAnswer(question.QuestionId, option.OptionId)">
-                            @option.Text
-                        </button>
-                    }
-                </div>
-            </div>
+    <div class="score-head">
+        <p class="pd-eyebrow score-eyebrow">Score poll · @_poll.GameDate.ToString("ddd d MMM yyyy")</p>
+        <h1 class="pd-page-title">@_poll.Title</h1>
+        <div class="pd-meta-row">
+            <PollStatusBadge Status="@_poll.Status" />
+            <span>Pick the correct answer for each question.</span>
         </div>
-    }
-
-    <div class="mt-4">
-        <button class="btn btn-primary btn-lg" @onclick="SubmitScoresAsync"
-                disabled="@(!AllQuestionsAnswered || _submitting)">
-            @(_submitting ? "Submitting..." : "Submit Scores")
-        </button>
-        <a href="admin/polls" class="btn btn-outline-secondary btn-lg ms-2">Cancel</a>
     </div>
 
-    @if (!AllQuestionsAnswered)
-    {
-        <p class="text-muted mt-2">
-            Please select an answer for all @_poll.Questions.Count questions
-            (@_correctAnswers.Count of @_poll.Questions.Count selected).
-        </p>
-    }
+    <div class="pd-with-aside">
+        <div class="score-questions">
+            @foreach (var (question, index) in _questions.Select((q, i) => (q, i)))
+            {
+                var answered = _correctAnswers.ContainsKey(question.QuestionId);
+                var flagged = _showMissing && !answered;
+                var headingId = $"sq-{question.QuestionId}";
+
+                <section class="pd-card pd-q" id="q-@question.QuestionId" tabindex="-1" aria-labelledby="@headingId"
+                         @ref="_questionSections[question.QuestionId]">
+                    <div class="pd-q-head">
+                        <h2 id="@headingId" class="score-q-heading">
+                            <span class="pd-q-num">Question @(index + 1) of @_questions.Count</span>
+                            <span class="pd-q-text">@question.Text</span>
+                        </h2>
+                        @if (flagged)
+                        {
+                            <span class="pd-badge pd-badge-error"><Icon Name="alert" Size="16" />Pick the correct answer</span>
+                        }
+                        else if (!answered)
+                        {
+                            <span class="pd-badge pd-badge-pending"><Icon Name="alert" Size="16" />Not set</span>
+                        }
+                    </div>
+
+                    @* Toggle buttons: the chosen one is aria-pressed, with a check and "Correct answer" as well as green *@
+                    <div class="pd-options" role="group" aria-labelledby="@headingId">
+                        @foreach (var option in question.Options.OrderBy(o => o.SortOrder))
+                        {
+                            var isCorrect = _correctAnswers.TryGetValue(question.QuestionId, out var selectedId)
+                                            && selectedId == option.OptionId;
+
+                            <button type="button" class="pd-opt" aria-pressed="@(isCorrect ? "true" : "false")"
+                                    @onclick="() => SelectAnswer(question.QuestionId, option.OptionId)">
+                                <span class="score-dot" aria-hidden="true"></span>
+                                <span>@option.Text</span>
+                                <span class="pd-opt-tag"><Icon Name="check" Size="18" />Correct answer</span>
+                            </button>
+                        }
+                    </div>
+                </section>
+            }
+        </div>
+
+        @* Desktop: a sticky sidebar. Below 768px, ScorePoll.razor.css turns it into a bar pinned above the tab bar. *@
+        <aside class="pd-card pd-aside-sticky score-summary" aria-labelledby="score-summary-title">
+            <h2 id="score-summary-title" class="pd-h2 score-summary-title">Ready to score?</h2>
+            <p class="pd-strong pd-tnum score-count">@_correctAnswers.Count of @_questions.Count answers set</p>
+            <progress class="pd-progress score-progress" max="@_questions.Count" value="@_correctAnswers.Count" aria-hidden="true"></progress>
+
+            <ol class="pd-list-reset score-summary-list">
+                @foreach (var (question, index) in _questions.Select((q, i) => (q, i)))
+                {
+                    <li>
+                        <span class="pd-muted">@(index + 1). @question.Text</span>
+                        @if (_correctAnswers.TryGetValue(question.QuestionId, out var optionId))
+                        {
+                            <span class="pd-strong score-answer">@OptionText(question, optionId)</span>
+                        }
+                        else
+                        {
+                            <span class="pd-strong score-not-set">Not set</span>
+                        }
+                    </li>
+                }
+            </ol>
+
+            @if (MissingAnswersMessage is { } missing)
+            {
+                <div class="pd-alert pd-alert-danger score-message score-missing" role="alert">
+                    <Icon Name="alert" />
+                    <p>@missing</p>
+                </div>
+            }
+
+            @if (_error is not null)
+            {
+                <div class="pd-alert pd-alert-danger score-message" role="alert">
+                    <Icon Name="alert" />
+                    <p>@_error</p>
+                </div>
+            }
+
+            <div class="score-actions">
+                <button type="button" class="pd-btn pd-btn-primary pd-btn-lg pd-btn-block" disabled="@_submitting"
+                        @onclick="SubmitScoresAsync">
+                    @(_submitting ? "Submitting…" : "Submit scores")
+                </button>
+                <a href="admin/polls" class="pd-btn pd-btn-quiet pd-btn-block score-cancel">Cancel</a>
+            </div>
+            <p class="pd-hint score-hint">You'll be asked to confirm first. Scoring marks everyone's picks and updates the leaderboard.</p>
+        </aside>
+    </div>
 }
 
 @code {
     [Parameter] public string PollId { get; set; } = "";
 
     private PollDetailModel? _poll;
+    private List<QuestionModel> _questions = [];
+    private readonly Dictionary<string, string> _correctAnswers = new();
+    private readonly Dictionary<string, ElementReference> _questionSections = new();
     private bool _loading = true;
     private bool _submitting;
+    private bool _showMissing;
+    private string? _loadError;
     private string? _error;
-    private Dictionary<string, string> _correctAnswers = new();
 
-    private bool AllQuestionsAnswered =>
-        _poll is not null && _correctAnswers.Count == _poll.Questions.Count;
+    private List<QuestionModel> UnsetQuestions =>
+        _questions.Where(q => !_correctAnswers.ContainsKey(q.QuestionId)).ToList();
+
+    private string? MissingAnswersMessage
+    {
+        get
+        {
+            if (!_showMissing)
+                return null;
+
+            var numbers = UnsetQuestions.Select(q => _questions.IndexOf(q) + 1).ToList();
+            return numbers.Count switch
+            {
+                0 => null,
+                1 => $"Pick the correct answer for question {numbers[0]} before submitting.",
+                _ => $"Pick the correct answers for questions {string.Join(", ", numbers[..^1])} and {numbers[^1]} before submitting."
+            };
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        _loading = true;
         try
         {
             _poll = await Api.GetPollAsync(PollId);
+            if (_poll is not null)
+                _questions = _poll.Questions.OrderBy(q => q.SortOrder).ToList();
         }
         catch (Exception)
         {
-            _error = "Unable to load poll. Please try again later.";
+            _loadError = "Unable to load poll. Please try again later.";
         }
         finally
         {
@@ -97,8 +186,22 @@ else
 
     private async Task SubmitScoresAsync()
     {
-        if (!AllQuestionsAnswered || _submitting)
+        if (_submitting)
             return;
+
+        _error = null;
+
+        // Submit stays enabled rather than silently disabled: a question without a correct answer
+        // is flagged and focused instead, so keyboard and screen reader users are told what's left.
+        var unset = UnsetQuestions;
+        if (unset.Count > 0)
+        {
+            _showMissing = true;
+            await _questionSections[unset[0].QuestionId].FocusAsync();
+            return;
+        }
+
+        _showMissing = false;
 
         var confirmed = await JS.InvokeAsync<bool>("confirm",
             "Submit these scores? This sets the correct answers and updates the leaderboard.");
@@ -106,7 +209,6 @@ else
             return;
 
         _submitting = true;
-        _error = null;
 
         try
         {
@@ -123,4 +225,7 @@ else
             _submitting = false;
         }
     }
+
+    private static string OptionText(QuestionModel question, string optionId) =>
+        question.Options.FirstOrDefault(o => o.OptionId == optionId)?.Text ?? "—";
 }
