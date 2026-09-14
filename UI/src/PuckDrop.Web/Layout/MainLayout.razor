@@ -1,6 +1,9 @@
 @inherits LayoutComponentBase
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using PuckDrop.Web.Auth
+@using PuckDrop.Web.Services
 @inject NavigationManager navigationManager;
+@inject AuthConfigModel authConfig;
 
 <div class="container-fluid p-0">
     <nav class="navbar navbar-expand-md navbar-dark bg-dark sticky-top">
@@ -63,6 +66,19 @@
 
     private void Logout()
     {
-        navigationManager.NavigateToLogout("authentication/logout");
+        if (!authConfig.UseCognitoLogout)
+        {
+            navigationManager.NavigateToLogout(CognitoLogout.LogoutPath);
+            return;
+        }
+
+        // Cognito needs client_id + logout_uri on the logout request - see CognitoLogout.
+        // NavigateToLogin (not NavigateToLogout) is the overload that takes a full
+        // InteractiveRequestOptions; Interaction = SignOut is what the logout page validates.
+        var request = CognitoLogout.CreateRequest(
+            authConfig.ClientId,
+            navigationManager.BaseUri,
+            navigationManager.ToAbsoluteUri(CognitoLogout.LoggedOutPath).ToString());
+        navigationManager.NavigateToLogin(CognitoLogout.LogoutPath, request);
     }
 }
