@@ -28,7 +28,13 @@ public class LogoutTests(AppHostFixture fixture)
         var logoutButton = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Logout" });
         await Assertions.Expect(logoutButton).ToBeVisibleAsync();
 
+        // wwwroot/js/persist-login.js revokes the refresh token (best-effort) before the logout
+        // redirect, so a copy that outlived the browser session can't be reused afterwards.
+        var revokeRequest = page.WaitForRequestAsync(request => request.Url.Contains("/protocol/openid-connect/revoke"));
+
         await logoutButton.ClickAsync();
+
+        await revokeRequest;
 
         // NavigateToLogout makes a real cross-origin round trip to Keycloak's own logout
         // endpoint and back, re-running Program.cs's bootstrap fetch on return - which can hit
@@ -37,7 +43,7 @@ public class LogoutTests(AppHostFixture fixture)
         {
             await page.WaitForSelectorAsync("text=Couldn't reach the server", new PageWaitForSelectorOptions
             {
-                Timeout = 12_000
+                Timeout = AppHostFixture.BootstrapFailureWindowMs
             });
             // The actual logout already happened server-side by this point - reload and retry
             // rather than re-click Logout.
@@ -49,6 +55,10 @@ public class LogoutTests(AppHostFixture fixture)
         }
 
         await Assertions.Expect(page.GetByText("You've been logged out.")).ToBeVisibleAsync();
+
+        var persistedUserKeys = await page.EvaluateAsync<string[]>(
+            "() => Object.keys(localStorage).filter(key => key.startsWith('puckdrop.oidc.'))");
+        Assert.Empty(persistedUserKeys);
 
         // In-SPA navigation (a nav-link click, not a fresh page load) is enough to prove the
         // session is really gone - AuthorizeRouteView re-checks auth state on every navigation
