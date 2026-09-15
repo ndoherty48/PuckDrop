@@ -104,8 +104,29 @@ public class DeploymentStack : Stack
                 CallbackUrls = ["https://localhost/authentication/login-callback"],
                 LogoutUrls = ["https://localhost/"]
             },
-            PreventUserExistenceErrors = true
+            PreventUserExistenceErrors = true,
+            // How long "stay logged in" lasts: the UI keeps the signed-in user in localStorage
+            // (UI/src/PuckDrop.Web/wwwroot/js/persist-login.js), so a user stays signed in across
+            // browser restarts until this refresh token expires. 30 days is Cognito's default -
+            // set explicitly so the window is visible here.
+            RefreshTokenValidity = Duration.Days(30)
         });
+
+        // Refresh token rotation: every refresh returns a new refresh token and invalidates the
+        // old one, which limits how long a copy taken from localStorage stays usable. Only the L1
+        // resource exposes it in the installed Amazon.CDK.Lib (confirmed by reflection), hence the
+        // escape hatch - same pattern as BlazorStaticSitePublishTarget.FixCognitoCallbackUrls.
+        // The grace period lets two tabs that refresh at the same moment both succeed.
+        if (UserPoolClient.Node.DefaultChild is not CfnUserPoolClient cfnUserPoolClient)
+            throw new InvalidOperationException(
+                "Expected UserPoolClient's default child to be a CfnUserPoolClient - " +
+                "Amazon.CDK.Lib's Cognito construct shape may have changed.");
+
+        cfnUserPoolClient.RefreshTokenRotation = new CfnUserPoolClient.RefreshTokenRotationProperty
+        {
+            Feature = "ENABLED",
+            RetryGracePeriodSeconds = 60
+        };
 
         _ = new CfnUserPoolGroup(this, "AdminGroup", new CfnUserPoolGroupProps
         {

@@ -186,7 +186,19 @@ resort). Provider-agnostic OIDC auth is wired up in `Program.cs`, which fetches 
 the API's `GET /auth-config` at boot rather than a static file — see "Auth" above. If that fetch
 fails, `Program.cs` registers an `AuthConfigLoadResult` that `App.razor` checks before rendering
 its normal `<Router>`/`<CascadingAuthenticationState>` tree, showing a clear error instead of a
-blank page. Pages are split into
+blank page.
+
+Logins survive closing the site: `wwwroot/js/persist-login.js` (loaded between
+`AuthenticationService.js` and `blazor.webassembly.js` in `index.html`) wraps Blazor's internal
+`window.AuthenticationService.createUserManagerCore` so the oidc-client user - including its
+refresh token - lives in `localStorage` under a `puckdrop.oidc.` prefix instead of Blazor's
+default per-tab `sessionStorage`. On reopen, Blazor's startup silent sign-in renews via that
+refresh token, for up to the app client's 30-day `RefreshTokenValidity` (rotation enabled, both in
+`DeploymentStack`). Logout revokes the refresh token best-effort before the provider logout
+redirect. If a Blazor upgrade removes the hook the script no-ops; `PersistentLoginTests` and
+`LogoutTests` (E2E) guard both behaviours.
+
+Pages are split into
 top-level (`Home`, `Poll`, `Leaderboard`, `History`, `Results`) and `Pages/Admin/*`
 (`CreatePoll`, `EditPoll`, `Polls`, `ScorePoll`) for the create/score workflow.
 

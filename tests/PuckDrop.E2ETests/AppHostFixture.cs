@@ -24,6 +24,10 @@ public class AppHostFixture : IAsyncLifetime
     // rather than fail on it; a test that's truly stuck will still fail, just slower.
     public const float DefaultTimeoutMs = 120_000;
 
+    // How long to watch for Program.cs's "Couldn't reach the server" page after a navigation
+    // before treating the bootstrap as having succeeded - see RetryOnBootstrapFailureAsync.
+    public const float BootstrapFailureWindowMs = 25_000;
+
     private DistributedApplication _app = null!;
     private IPlaywright _playwright = null!;
     private IBrowser _browser = null!;
@@ -126,20 +130,17 @@ public class AppHostFixture : IAsyncLifetime
     /// page in it starts already authenticated - without repeating the login UI.
     /// </summary>
     /// <remarks>
-    /// Two separate mechanisms, both needed. Blazor's built-in WASM auth service keeps its
-    /// session entirely in <c>sessionStorage</c> (confirmed live: <c>localStorage</c> is empty
-    /// after a real login), which <see cref="IBrowserContext.StorageStateAsync"/>/
-    /// <see cref="BrowserNewContextOptions.StorageState"/> never cover (only cookies and
-    /// localStorage) - seeded here instead via a context-level init script, which Playwright runs
-    /// before any page script on every navigation in the context, so it's already there by the
-    /// time Blazor's own auth check runs on first load. But sessionStorage alone isn't enough
-    /// either: if this suite's own slowness means the access token it holds (5-minute lifespan in
-    /// the imported realm) has expired by the time a test actually uses it, the app correctly
-    /// attempts a silent SSO renewal - which needs Keycloak's own session cookie on its origin to
-    /// succeed, without it the renewal fails and the app falls back to a real interactive login
-    /// page (confirmed live: this is exactly what an intermittent RoleGatingTests failure showed).
-    /// storageState - which does cover cookies - carries that over too, so a stale token can still
-    /// silently renew instead of forcing a real login.
+    /// The signed-in user (including its refresh token) lives in <c>localStorage</c> - moved there
+    /// from Blazor's default <c>sessionStorage</c> by <c>wwwroot/js/persist-login.js</c> - and
+    /// <see cref="IBrowserContext.StorageStateAsync"/>/<see cref="BrowserNewContextOptions.StorageState"/>
+    /// cover localStorage and cookies, so the captured storageState carries the session over.
+    /// It also carries Keycloak's own session cookie, which matters when this suite's own slowness
+    /// means the access token (5-minute lifespan in the imported realm) has expired by the time a
+    /// test uses it: the app then renews silently instead of falling back to a real interactive
+    /// login page (confirmed live: an intermittent RoleGatingTests failure showed exactly that
+    /// before cookies were carried over). sessionStorage is still seeded too, via a context-level
+    /// init script that Playwright runs before any page script on every navigation - Blazor keeps
+    /// its cached auth settings there, and it costs nothing to restore.
     /// </remarks>
     public async Task<IBrowserContext> NewAuthenticatedBrowserContextAsync(CapturedSession session)
     {
@@ -199,10 +200,13 @@ public class AppHostFixture : IAsyncLifetime
                 // Give the bootstrap fetch's own 10s timeout room to fail visibly before deciding
                 // whether to retry - if this throws (times out), no failure page ever appeared,
                 // meaning the bootstrap fetch succeeded and normal navigation/assertions can
-                // proceed as usual.
+                // proceed as usual. The window starts at the page's load event, before the WASM
+                // runtime has booted and made that fetch, so it has to cover boot time plus the
+                // 10s timeout: 12s wasn't enough (confirmed live - a slow boot put the failure page
+                // just past it, and the test then waited out its full timeout on that page).
                 await page.WaitForSelectorAsync("text=Couldn't reach the server", new PageWaitForSelectorOptions
                 {
-                    Timeout = 12_000
+                    Timeout = BootstrapFailureWindowMs
                 });
             }
             catch (TimeoutException)
