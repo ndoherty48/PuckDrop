@@ -161,9 +161,10 @@ local dev via Aspire (`AddKeycloak` + realm import from
   `IAWSPublishTarget` registered via `builder.Services.AddTransient<IAWSPublishTarget,
   BlazorStaticSitePublishTarget>()` in `AppHost.cs` (the same DI mechanism every built-in AWS
   target uses — a genuine, consumer-usable extensibility point in `Aspire.Hosting.AWS`, not a
-  workaround), invoked via `.PublishAsS3WithCloudFront()` on `web`. Runs `dotnet publish -c
-  Release` on the Blazor project, builds the bucket/OAC/distribution/SPA-fallback/deployment CDK
-  constructs, bakes in a `/puckdrop/*` CloudFront behavior routing to the real API Gateway (read
+  workaround), invoked via `.PublishAsS3WithCloudFront()` on `web`. That extension adds a
+  `build-web-static-site` pipeline step that runs `dotnet publish -c Release` into a temp folder,
+  alongside the Lambda's `build-api` and before the CDK step. The target then builds the
+  bucket/OAC/distribution/SPA-fallback/deployment CDK constructs, bakes in a `/puckdrop/*` CloudFront behavior routing to the real API Gateway (read
   directly off `DeploymentStack.HttpApi`, since that API Gateway isn't wrapped by any Aspire
   resource), and fixes up the Cognito `UserPoolClient`'s OAuth callback/logout URLs — created
   with a `localhost` placeholder in `DeploymentStack` before the CloudFront domain exists — via

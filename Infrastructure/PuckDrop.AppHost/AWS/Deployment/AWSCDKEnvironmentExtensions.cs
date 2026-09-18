@@ -1,8 +1,10 @@
 #pragma warning disable ASPIREAWSPUBLISHERS001
 #pragma warning disable ASPIREBLAZOR001
+#pragma warning disable ASPIREPIPELINES001
 
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting.Pipelines;
 
 namespace PuckDrop.AppHost.AWS.Deployment;
 
@@ -21,10 +23,7 @@ public static class AWSCDKEnvironmentExtensions
         this IResourceBuilder<BlazorWasmAppResource> builder,
         Action<PublishS3WithCloudFrontConfig>? configure = null)
     {
-        var annotation = new PublishS3WithCloudFrontAnnotation
-        {
-            ProjectDirectory = builder.Resource.ProjectDirectory,
-        };
+        var annotation = new PublishS3WithCloudFrontAnnotation();
         configure?.Invoke(annotation.Config);
 
         builder.WithAnnotation(annotation);
@@ -32,6 +31,21 @@ public static class AWSCDKEnvironmentExtensions
         // AddBlazorWasmProject excludes itself from publishing, so the CDK step would skip it.
         // Replacing that marker with a no-op callback includes it again.
         builder.WithManifestPublishingCallback(_ => { });
+
+        // Publish in its own build step, like the Lambda packaging, so it runs alongside it and
+        // finishes before the CDK step (which depends on "build") reads the output.
+        var resource = builder.Resource;
+        builder.WithPipelineStepFactory(
+            $"build-{resource.Name}-static-site",
+            async context => annotation.PublishedWwwrootPath = await BlazorWasmPublisher.PublishAsync(
+                resource.ProjectPath,
+                Path.Combine(Path.GetTempPath(), "puckdrop-aspire", resource.Name),
+                context.Logger,
+                context.CancellationToken),
+            dependsOn: [WellKnownPipelineSteps.BuildPrereq],
+            requiredBy: [WellKnownPipelineSteps.Build],
+            tags: [WellKnownPipelineTags.BuildCompute],
+            description: $"Publishes the Blazor WASM app '{resource.Name}' for S3.");
 
         if(builder.ApplicationBuilder.ExecutionContext.IsPublishMode)
         {
@@ -49,6 +63,7 @@ public static class AWSCDKEnvironmentExtensions
                 return Task.CompletedTask;
             });
         }
+
         return builder;
     }
 }

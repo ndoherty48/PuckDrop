@@ -13,7 +13,7 @@ internal class PublishS3WithCloudFrontAnnotation : IAWSPublishTargetAnnotation
     public PublishS3WithCloudFrontConfig Config { get; } = new();
 
     /// <summary>
-    /// Directory of the Blazor project, captured at registration time.
+    /// The published <c>wwwroot</c>, set by the build step <c>PublishAsS3WithCloudFront</c> adds.
     /// </summary>
-    public string? ProjectDirectory { get; set; }
+    public string? PublishedWwwrootPath { get; set; }
 }

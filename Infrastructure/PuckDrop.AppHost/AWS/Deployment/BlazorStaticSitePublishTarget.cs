@@ -1,8 +1,6 @@
 #pragma warning disable ASPIREAWSPUBLISHERS001
 #pragma warning disable ASPIREBLAZOR001
 
-using System.Diagnostics;
-using System.Text.RegularExpressions;
 using Amazon.CDK;
 using Amazon.CDK.AWS.CloudFront;
 using Amazon.CDK.AWS.CloudFront.Origins;
@@ -25,9 +23,10 @@ namespace PuckDrop.AppHost.AWS.Deployment;
 ///
 /// Adapted from AWS's unreleased <c>S3StaticWebsitePublishTarget</c>
 /// (aws/integrations-on-dotnet-aspire-for-aws#203), so it can be swapped out if that ships. The
-/// differences: it runs <c>dotnet publish</c>, bakes in the API behavior from
-/// <see cref="DeploymentStack.HttpApi"/>, and fixes the Cognito callback URLs once the CloudFront
-/// domain is known. Constructs go in <see cref="DeploymentStack"/> because Aspire's own CDK stack
+/// differences: <c>dotnet publish</c> runs in its own build step (see
+/// <see cref="AWSCDKEnvironmentExtensions.PublishAsS3WithCloudFront"/>), the API behavior comes
+/// from <see cref="DeploymentStack.HttpApi"/>, and the Cognito callback URLs are fixed once the
+/// CloudFront domain is known. Constructs go in <see cref="DeploymentStack"/> because Aspire's own CDK stack
 /// is internal.
 /// </summary>
 internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarget> logger)
@@ -40,7 +39,7 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
 
     public override Type PublishTargetAnnotation => typeof(PublishS3WithCloudFrontAnnotation);
 
-    public override async Task GenerateConstructAsync(
+    public override Task GenerateConstructAsync(
         AWSCDKEnvironmentResource environment,
         IResource resource,
         IAWSPublishTargetAnnotation annotation,
@@ -52,30 +51,10 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
 
         var config = publishAnnotation.Config;
 
-        var projectDirectory = publishAnnotation.ProjectDirectory
+        var buildOutputPath = publishAnnotation.PublishedWwwrootPath
             ?? throw new InvalidOperationException(
-                $"Resource '{resource.Name}' is missing a project directory. " +
-                $"Ensure PublishAsS3WithCloudFront() is called on a Blazor WASM project resource.");
-
-        await PublishBlazorProjectAsync(resource.Name, projectDirectory, cancellationToken);
-
-        if (Path.IsPathRooted(config.OutputPath))
-            throw new InvalidOperationException(
-                $"OutputPath must be a relative path, but got: '{config.OutputPath}'.");
-
-        var buildOutputPath = Path.GetFullPath(Path.Combine(projectDirectory, config.OutputPath));
-
-        var expectedRoot = projectDirectory.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        if (!buildOutputPath.StartsWith(expectedRoot, StringComparison.Ordinal))
-            throw new InvalidOperationException(
-                $"OutputPath '{config.OutputPath}' resolves to '{buildOutputPath}', which is outside the project directory '{projectDirectory}'.");
-
-        if (!Directory.Exists(buildOutputPath))
-            throw new InvalidOperationException(
-                $"Published output for '{resource.Name}' was not found at '{buildOutputPath}'. " +
-                $"'dotnet publish' may have failed, or produced a different layout than expected.");
-
-        FixIndexHtmlBaseHref(buildOutputPath);
+                $"Resource '{resource.Name}' has no published output. " +
+                $"Ensure PublishAsS3WithCloudFront() is called on the Blazor WASM project resource.");
 
         var context = CreatePublishTargetContext(environment);
         var stack = context.GetDeploymentStack<DeploymentStack>();
@@ -142,6 +121,7 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
         _ = new BucketDeployment(stack, $"Project-{resource.Name}-Deployment", deploymentProps);
 
         ApplyAWSLinkedObjectsAnnotation(environment, resource, distribution, this);
+        return Task.CompletedTask;
     }
 
     public override ReferenceConnectionInfo GetReferenceConnectionInfo(AWSLinkedObjectsAnnotation linkedAnnotation)
@@ -161,15 +141,12 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
     public override IsDefaultPublishTargetMatchResult IsDefaultPublishTargetMatch(
         CDKDefaultsProvider cdkDefaultsProvider, IResource resource)
     {
-        if (resource is BlazorWasmAppResource blazorResource)
+        if (resource is BlazorWasmAppResource)
         {
             return new IsDefaultPublishTargetMatchResult
             {
                 IsMatch = true,
-                PublishTargetAnnotation = new PublishS3WithCloudFrontAnnotation
-                {
-                    ProjectDirectory = blazorResource.ProjectDirectory,
-                },
+                PublishTargetAnnotation = new PublishS3WithCloudFrontAnnotation(),
                 Rank = IsDefaultPublishTargetMatchResult.DEFAULT_MATCH_RANK,
             };
         }
@@ -253,55 +230,4 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
                 }
                 """),
         });
-
-    /// <summary>
-    /// index.html hardcodes <c>&lt;base href="/web/" /&gt;</c> for local dev under blazor-gateway;
-    /// the deployed site is served from the root.
-    /// </summary>
-    private static void FixIndexHtmlBaseHref(string buildOutputPath)
-    {
-        var indexHtmlPath = Path.Combine(buildOutputPath, "index.html");
-        if (!File.Exists(indexHtmlPath))
-            return;
-
-        var html = File.ReadAllText(indexHtmlPath);
-        var fixedHtml = Regex.Replace(html, """<base\s+href="[^"]*"\s*/?>""", """<base href="/" />""");
-        if (fixedHtml != html)
-            File.WriteAllText(indexHtmlPath, fixedHtml);
-    }
-
-    private async Task PublishBlazorProjectAsync(string resourceName, string projectDirectory, CancellationToken cancellationToken)
-    {
-        Logger.LogInformation(
-            "Publishing Blazor WASM project '{ResourceName}' via 'dotnet publish -c Release' in '{ProjectDirectory}'",
-            resourceName, projectDirectory);
-
-        // PublishForRootStaticWebAssets: serve from the root, not the local-dev "web" base path.
-        // EnableDefaultCompressionFormats=false: skip unused .br/.gz files (CloudFront compresses).
-        // WasmBuildNative=false: skip the Emscripten relink, which breaks on SDK paths containing
-        // spaces (e.g. ~/Library/Application Support/dotnet) when wasm-tools is installed.
-        var startInfo = new ProcessStartInfo("dotnet",
-            "publish -c Release -p:PublishForRootStaticWebAssets=true -p:EnableDefaultCompressionFormats=false -p:WasmBuildNative=false")
-        {
-            WorkingDirectory = projectDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException($"Failed to start 'dotnet publish' for '{resourceName}'.");
-
-        process.OutputDataReceived += (_, e) => { if (e.Data is not null) Logger.LogInformation("{Line}", e.Data); };
-        process.ErrorDataReceived += (_, e) => { if (e.Data is not null) Logger.LogWarning("{Line}", e.Data); };
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-
-        await process.WaitForExitAsync(cancellationToken);
-
-        if (process.ExitCode != 0)
-            throw new InvalidOperationException(
-                $"'dotnet publish -c Release' for '{resourceName}' failed with exit code {process.ExitCode} " +
-                $"in '{projectDirectory}'.");
-    }
 }

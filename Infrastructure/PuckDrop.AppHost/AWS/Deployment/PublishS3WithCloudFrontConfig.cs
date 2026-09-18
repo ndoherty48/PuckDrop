@@ -13,11 +13,6 @@ namespace PuckDrop.AppHost.AWS.Deployment;
 /// </summary>
 public class PublishS3WithCloudFrontConfig
 {
-    /// <summary>
-    /// Path to the published <c>wwwroot</c>, relative to the Blazor project directory.
-    /// </summary>
-    public string OutputPath { get; set; } = Path.Combine("bin", "Release", "net10.0", "publish", "wwwroot");
-
     /// <summary>Callback to modify the <see cref="BucketProps"/> before the S3 bucket is created.</summary>
     public PublishCallback<BucketProps>? PropsBucketCallback { get; set; }
 
