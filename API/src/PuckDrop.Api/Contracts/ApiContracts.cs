@@ -7,9 +7,7 @@ public record ErrorResponse(string Error, string Message);
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// OIDC config for the Blazor WASM app to log in with, fetched at boot from the unauthenticated
-/// GET /auth-config endpoint instead of being baked into wwwroot/appsettings.json - see
-/// PuckDrop.Api.Auth.AuthDiscoveryOptions for why.
+/// OIDC config the Blazor app fetches at boot - see PuckDrop.Api.Auth.AuthDiscoveryOptions.
 /// </summary>
 public record AuthConfigResponse(string Authority, string ClientId, string ResponseType, bool UseCognitoLogout = false);
 

@@ -6,22 +6,10 @@ using Xunit;
 namespace PuckDrop.Api.Tests;
 
 /// <summary>
-/// Regression coverage for a real, confirmed-live bug: Cognito user pool access tokens carry no
-/// "aud" claim at all unless the user pool has a configured resource server (AWS's own docs:
-/// "Present only if your application requested a resource binding") - this app has none. The
-/// original ApiServiceCollectionExtensions config set ValidateAudience=true/ValidAudience=ClientId,
-/// which rejected every single Cognito access token, admin or not, with
-/// SecurityTokenInvalidAudienceException ("the 'audiences' parameter is empty") - confirmed via a
-/// real deployed distribution, where an admin-group user's requests came back 403 even though API
-/// Gateway's own JWT authorizer (which has documented Cognito-aware "check client_id when aud is
-/// absent" fallback logic) had already accepted the identical token.
-///
-/// The E2E suite can't catch this: it runs against local Keycloak, whose tokens do carry a normal
-/// "aud" claim, so this Cognito-specific token shape is only ever exercised by a real deployment.
-/// This test constructs a token matching that exact documented shape and proves the *approach*
-/// ApiServiceCollectionExtensions.AddApis now uses (ValidateAudience=false, manual "client_id"
-/// check) validates it, while the original config does not - a literal call into AddApis itself
-/// would need a full DI/hosting harness, which is more than this specific regression needs.
+/// Cognito access tokens have no "aud" claim, so validating the audience rejected every token.
+/// These build a Cognito-shaped token and check that the approach AddApis uses (no audience
+/// check, manual "client_id" check) accepts it. The E2E suite can't catch this, since Keycloak
+/// tokens do carry "aud".
 /// </summary>
 public class CognitoJwtValidationTests
 {
@@ -113,10 +101,7 @@ public class CognitoJwtValidationTests
     [Fact]
     public async Task CognitoGroupsArrayClaim_ExpandsIntoMultipleSameTypedClaims()
     {
-        // Confirms CognitoClaimsTransformation's own documented assumption about how the JWT
-        // handler represents a JSON array claim - one Claim per element, not a single
-        // JSON-string-valued claim - since that assumption was previously untested against a
-        // real token (the existing unit tests simulate the shape rather than prove it).
+        // CognitoClaimsTransformation relies on the handler splitting a JSON array into claims.
         var (token, key) = CreateCognitoShapedAccessToken();
 
         var result = await new JsonWebTokenHandler().ValidateTokenAsync(token, new TokenValidationParameters

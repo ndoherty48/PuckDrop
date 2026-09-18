@@ -13,11 +13,9 @@ namespace PuckDrop.AppHost.AWS.Deployment;
 public static class AWSCDKEnvironmentExtensions
 {
     /// <summary>
-    /// Publishes this Blazor WASM project as an S3 bucket fronted by a CloudFront distribution
-    /// (see <see cref="BlazorStaticSitePublishTarget"/>) when the AWS CDK environment is
-    /// published. Requires <c>builder.Services.AddTransient&lt;IAWSPublishTarget,
-    /// BlazorStaticSitePublishTarget&gt;()</c> to be registered separately - this only adds the
-    /// annotation the registered target looks for.
+    /// Publishes this Blazor WASM project to S3 + CloudFront via
+    /// <see cref="BlazorStaticSitePublishTarget"/>, which must also be registered as an
+    /// <c>IAWSPublishTarget</c>.
     /// </summary>
     public static IResourceBuilder<BlazorWasmAppResource> PublishAsS3WithCloudFront(
         this IResourceBuilder<BlazorWasmAppResource> builder,
@@ -31,18 +29,26 @@ public static class AWSCDKEnvironmentExtensions
 
         builder.WithAnnotation(annotation);
 
-        // AddBlazorWasmProject calls ExcludeFromManifest() on itself internally (Aspire.Hosting.
-        // Blazor's own default expectation is that a Blazor WASM app publishes via its gateway's
-        // container-companion mechanism, not a generic AWS publish target) - and
-        // CDKPublishingStep.ProcessResources skips any resource where IsExcludedFromPublish() is
-        // true, before it ever looks at annotations like the one just added above. Confirmed via
-        // a real `aspire deploy` attempt: no S3 bucket/CloudFront distribution were created, and
-        // the deploy log never mentioned "web" or BlazorStaticSitePublishTarget at all.
-        // WithManifestPublishingCallback replaces the ExcludeFromManifest sentinel with a fresh
-        // (non-Ignore) annotation, which un-excludes it - the callback itself is a no-op since
-        // the CDK publish path doesn't read the JSON manifest.
+        // AddBlazorWasmProject excludes itself from publishing, so the CDK step would skip it.
+        // Replacing that marker with a no-op callback includes it again.
         builder.WithManifestPublishingCallback(_ => { });
 
+        if(builder.ApplicationBuilder.ExecutionContext.IsPublishMode)
+        {
+            builder.ApplicationBuilder.OnBeforeStart((_, _) =>
+            {
+                var appBuilder = builder.ApplicationBuilder;
+
+                if (builder.Resource.Parent is { } gateway)
+                    appBuilder.CreateResourceBuilder(gateway).ExcludeFromManifest();
+
+                var companionName = $"{builder.Resource.Name}publish";
+                if (appBuilder.Resources.FirstOrDefault(r => r.Name == companionName) is { } companion)
+                    appBuilder.CreateResourceBuilder(companion).ExcludeFromManifest();
+
+                return Task.CompletedTask;
+            });
+        }
         return builder;
     }
 }

@@ -1,17 +1,12 @@
 // Keeps users signed in after they close the site.
 //
-// Blazor's OIDC support stores the signed-in user - including its refresh token - in oidc-client's
-// default store, sessionStorage, which is per tab and cleared when the site closes, and it exposes
-// no option to change that. This wraps Blazor's internal AuthenticationService.createUserManagerCore
-// (the one place the oidc-client UserManager is built) to:
-//   - persist the user in localStorage, so Blazor's startup silent sign-in can renew the session
-//     with the stored refresh token when the site is reopened;
-//   - revoke that refresh token before the logout redirect, so a copy that outlives the browser
-//     session can't be reused. Best-effort: a failed revoke is logged and logout carries on.
+// Blazor keeps the OIDC user, refresh token included, in sessionStorage, which is cleared when the
+// site closes. This wraps Blazor's internal createUserManagerCore to store it in localStorage
+// instead, and to revoke the refresh token (best-effort) before the logout redirect.
 //
-// It relies on Blazor/oidc-client internals. If a Blazor upgrade removes the hook, this does
-// nothing and the app falls back to Blazor's default behaviour - the E2E PersistentLoginTests and
-// LogoutTests flag that. Must load after AuthenticationService.js and before blazor.webassembly.js.
+// Relies on Blazor internals: if the hook disappears this does nothing, and the E2E
+// PersistentLoginTests and LogoutTests fail. Load it between AuthenticationService.js and
+// blazor.webassembly.js.
 (() => {
     const authenticationService = window.AuthenticationService;
     if (!authenticationService || typeof authenticationService.createUserManagerCore !== 'function') {

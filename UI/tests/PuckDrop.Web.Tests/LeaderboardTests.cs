@@ -9,10 +9,8 @@ using Xunit;
 namespace PuckDrop.Web.Tests;
 
 /// <summary>
-/// Regression coverage for a real bug fixed earlier in this project's history: the current-user
-/// row highlight has to match the raw "sub" claim, not ClaimTypes.NameIdentifier - Blazor WASM's
-/// claims factory doesn't remap claim types the way server-side ASP.NET Core does, so the two
-/// only look equivalent, and using the wrong one silently never highlights any row.
+/// The current-user highlight must match the raw "sub" claim: Blazor WASM doesn't map it to
+/// ClaimTypes.NameIdentifier the way the server does.
 /// </summary>
 public class LeaderboardTests : BunitContext
 {

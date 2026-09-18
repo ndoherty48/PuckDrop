@@ -24,8 +24,7 @@ public static class ApiServiceCollectionExtensions
         {
             services.AddSingleton(cognitoSettings);
             services.AddTransient<IClaimsTransformation, CognitoClaimsTransformation>();
-            // Cognito has only one UserPoolClient serving both the API's own JWT-audience
-            // validation and the browser's OIDC login flow, so ClientId is correct for both.
+            // One Cognito client serves both the API and the browser login.
             services.AddSingleton(new AuthDiscoveryOptions(
                 cognitoSettings.Authority, cognitoSettings.ClientId, "code", UseCognitoLogout: true));
 
@@ -37,16 +36,8 @@ public static class ApiServiceCollectionExtensions
                     {
                         ValidateIssuer = true,
                         ValidIssuer = cognitoSettings.Authority,
-                        // Cognito access tokens carry no "aud" claim at all unless you configure
-                        // a resource server (confirmed against AWS's own docs) - this app doesn't,
-                        // so ValidateAudience=true/ValidAudience here would reject every single
-                        // token, valid or not (confirmed live: an admin-group user's requests came
-                        // back 403, even though API Gateway's own JWT authorizer - which already
-                        // has documented Cognito-aware "check client_id when aud is absent"
-                        // fallback logic - had accepted the exact same token). The client
-                        // identity check happens below instead, against "client_id" - the claim
-                        // Cognito does emit, matching how API Gateway's authorizer itself
-                        // validates the client for this same token.
+                        // Cognito access tokens have no "aud" claim, so the client is checked
+                        // against "client_id" in OnTokenValidated instead.
                         ValidateAudience = false,
                         ValidateLifetime = true
                     };
@@ -66,9 +57,7 @@ public static class ApiServiceCollectionExtensions
         {
             services.AddSingleton(keycloakSettings);
             services.AddTransient<IClaimsTransformation, KeycloakClaimsTransformation>();
-            // Keycloak's realm has two separate clients: keycloakSettings.ClientId ("PuckDrop-API")
-            // is only for the API's own audience validation - the browser logs in with the
-            // different UiClientId ("PuckDrop-UI"), so that's what gets served to the UI here.
+            // The browser logs in with UiClientId; ClientId is only for audience validation.
             services.AddSingleton(new AuthDiscoveryOptions(
                 $"{keycloakSettings.ServerUrl}/realms/{keycloakSettings.Realm}", keycloakSettings.UiClientId, "code"));
 
@@ -89,19 +78,12 @@ public static class ApiServiceCollectionExtensions
         }
         else
         {
-            // No real auth configured, and no dev-auth bypass to fall back to (that was
-            // DevAuthenticationHandler, removed deliberately - a shipped auto-admin-bypass isn't
-            // worth carrying forward). Fail fast and clearly rather than come up with broken auth.
+            // Fail fast rather than start with no auth.
             throw new InvalidOperationException(
                 "No identity provider configured: either the 'Cognito' or 'Keycloak' configuration section must be bound and non-placeholder.");
         }
 
-        // One provider-agnostic admin policy. Whichever branch above ran has already normalized
-        // that provider's own admin signal (Cognito's "cognito:groups", Keycloak's
-        // "realm_access.roles", or the dev handler's claim) into a standard ClaimTypes.Role
-        // "admin" claim - via IClaimsTransformation, or directly for the dev handler - so this
-        // policy (and every controller using it) never needs to know which provider is active.
-        // Switching Cognito <-> Keycloak is then purely a config change, not a code change.
+        // The claims transformations above map each provider's admin signal to the "admin" role.
         services.AddAuthorizationBuilder()
             .AddPolicy(AdminPolicy, policy => policy.RequireRole("admin"));
 
@@ -115,11 +97,10 @@ public static class ApiServiceCollectionExtensions
             });
         });
 
-        // Display-name resolution for answer submissions - see UserProfileService for why Cognito
-        // users need a userInfo lookup.
+        // Display names for answer submissions - see UserProfileService.
         services.AddHttpContextAccessor();
         services.AddHttpClient();
-        services.AddScoped<PuckDrop.Application.Services.Abstractions.IUserProfileService, UserProfileService>();
+        services.AddScoped<Application.Services.Abstractions.IUserProfileService, UserProfileService>();
 
         services.AddLambdaServiceDefaults(configuration);
         return services;

@@ -4,9 +4,7 @@ using Xunit;
 namespace PuckDrop.E2ETests.Browser;
 
 /// <summary>
-/// The real running app's version of PuckDrop.Web.Tests' bUnit AppTests -
-/// AuthConfigLoadFailed_RendersErrorMessage_NotTheNormalRouterTree - exercising the actual WASM
-/// boot sequence in a real browser instead of an in-memory component render.
+/// The real-browser version of the bUnit AppTests auth-config failure test.
 /// </summary>
 [Collection(E2ETestCollection.Name)]
 public class AuthConfigFailureTests(AppHostFixture fixture)
@@ -17,11 +15,7 @@ public class AuthConfigFailureTests(AppHostFixture fixture)
         await using var context = await fixture.NewBrowserContextAsync();
         var page = await context.NewPageAsync();
 
-        // Page-level routes take precedence over the context-level one AppHostFixture already
-        // registers (which redirects Program.cs's hardcoded API-URL fallback to the real
-        // resolved endpoint) - so this fails only auth-config specifically, while everything else
-        // still resolves normally, matching a real "this one endpoint is down" scenario rather
-        // than the whole backend being unreachable.
+        // Page routes win over the fixture's context route, so only auth-config fails.
         await page.RouteAsync("**/auth-config", route => route.FulfillAsync(new RouteFulfillOptions
         {
             Status = 500,

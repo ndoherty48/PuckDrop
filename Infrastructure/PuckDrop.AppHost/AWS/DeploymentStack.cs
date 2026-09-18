@@ -30,10 +30,6 @@ public class DeploymentStack : Stack
             TableName = "PuckDrop",
             BillingMode = BillingMode.PAY_PER_REQUEST,
             RemovalPolicy = RemovalPolicy.RETAIN,
-            // RETAIN above protects the table from being deleted along with the stack, but does
-            // nothing against a bad admin action or app bug corrupting/wiping real data (e.g. a
-            // season's UserAnswer items). PITR is cheap at this table's size and gives a 35-day
-            // restore-to-any-point safety net for exactly that case.
             PointInTimeRecoverySpecification = new PointInTimeRecoverySpecification
             {
                 PointInTimeRecoveryEnabled = true
@@ -79,10 +75,6 @@ public class DeploymentStack : Stack
             },
             AccountRecovery = AccountRecovery.EMAIL_ONLY,
             RemovalPolicy = RemovalPolicy.RETAIN,
-            // Optional, not required - a friend-group app shouldn't force every user through
-            // MFA, but the "admin" group can score polls, which the whole season leaderboard's
-            // integrity rests on, so admins need the option. TOTP only (no SMS - avoids per-use
-            // SMS cost for a feature most users won't turn on).
             Mfa = Mfa.OPTIONAL,
             MfaSecondFactor = new MfaSecondFactor
             {
@@ -94,9 +86,6 @@ public class DeploymentStack : Stack
         UserPoolClient = UserPool.AddClient("PuckDropWebClient", new UserPoolClientOptions
         {
             UserPoolClientName = "PuckDrop-Web",
-            // No direct AuthFlows (USER_SRP_AUTH etc.) - the Blazor client only ever uses the
-            // OAuth Authorization Code flow via Cognito's Hosted UI (see AuthDiscoveryOptions'
-            // hardcoded ResponseType="code"), never Cognito's InitiateAuth API directly.
             OAuth = new OAuthSettings
             {
                 Flows = new OAuthFlows { AuthorizationCodeGrant = true },
@@ -105,18 +94,12 @@ public class DeploymentStack : Stack
                 LogoutUrls = ["https://localhost/"]
             },
             PreventUserExistenceErrors = true,
-            // How long "stay logged in" lasts: the UI keeps the signed-in user in localStorage
-            // (UI/src/PuckDrop.Web/wwwroot/js/persist-login.js), so a user stays signed in across
-            // browser restarts until this refresh token expires. 30 days is Cognito's default -
-            // set explicitly so the window is visible here.
             RefreshTokenValidity = Duration.Days(30)
         });
 
-        // Refresh token rotation: every refresh returns a new refresh token and invalidates the
-        // old one, which limits how long a copy taken from localStorage stays usable. Only the L1
-        // resource exposes it in the installed Amazon.CDK.Lib (confirmed by reflection), hence the
-        // escape hatch - same pattern as BlazorStaticSitePublishTarget.FixCognitoCallbackUrls.
-        // The grace period lets two tabs that refresh at the same moment both succeed.
+        // Rotation limits how long a refresh token copied from localStorage stays usable. It's only
+        // on the L1 resource, hence the escape hatch. The grace period covers two tabs refreshing
+        // at once.
         if (UserPoolClient.Node.DefaultChild is not CfnUserPoolClient cfnUserPoolClient)
             throw new InvalidOperationException(
                 "Expected UserPoolClient's default child to be a CfnUserPoolClient - " +
@@ -135,27 +118,14 @@ public class DeploymentStack : Stack
             Description = "Administrators who can create/score polls"
         });
 
-        // Cognito hosted-domain prefixes are unique across every AWS account in the partition,
-        // not just this one - a bare "puckdrop" risks colliding with someone else's pool and
-        // failing at deploy time with no way to know in advance. Suffixing with the account ID
-        // makes it unique to this deployment instead.
+        // Domain prefixes are global across all AWS accounts, so add the account ID.
         UserPool.AddDomain("PuckDropDomain", new UserPoolDomainOptions
         {
             CognitoDomain = new CognitoDomainOptions { DomainPrefix = $"puckdrop-{Account}" }
-            // ManagedLoginVersion left at its default (NEWER_MANAGED_LOGIN) - see the
-            // CfnManagedLoginBranding below for why that needs its own resource.
         });
 
-        // An app client created via CloudFormation/the SDK (as this one is) gets no managed-login
-        // branding style at all - AWS's own docs confirm managed login "isn't available for an
-        // app client created with an AWS SDK until you create one with a
-        // CreateManagedLoginBranding request" - and without one, the hosted login page shows
-        // "Login pages unavailable. Please contact an administrator." (confirmed live, via a real
-        // deployed distribution). UseCognitoProvidedValues = true satisfies that requirement with
-        // Cognito's own default look - no custom logo/colors needed for this app today, but
-        // Managed Login (vs. the older Classic Hosted UI) leaves room to add real branding, or
-        // pick up features like passkey sign-in, later without changing the domain's branding
-        // version again.
+        // Without a branding style, managed login shows "Login pages unavailable" for clients
+        // created through CloudFormation. Cognito's default look is enough.
         _ = new CfnManagedLoginBranding(this, "PuckDropManagedLoginBranding", new CfnManagedLoginBrandingProps
         {
             UserPoolId = UserPool.UserPoolId,
@@ -227,11 +197,8 @@ public class DeploymentStack : Stack
             AuthorizerId = JwtAuthorizer.Ref
         });
 
-        // Route: GET /puckdrop/auth-config, deliberately unauthenticated - the Blazor WASM app
-        // fetches its OIDC config from here at boot (see AuthConfigController), so it can't
-        // itself require a token yet. HTTP APIs match the most specific route over the
-        // {proxy+} catch-all above, so this exact-path route safely coexists with the blanket
-        // JWT authorizer on every other path under /puckdrop/ without opening anything else up.
+        // Route: GET /puckdrop/auth-config without auth - the UI fetches its OIDC config here
+        // before it has a token. The exact path takes precedence over {proxy+}.
         _ = new Amazon.CDK.AWS.Apigatewayv2.CfnRoute(this, "PuckDropAuthConfigRoute", new Amazon.CDK.AWS.Apigatewayv2.CfnRouteProps
         {
             ApiId = HttpApi.Ref,
@@ -253,13 +220,6 @@ public class DeploymentStack : Stack
         _ = new CfnOutput(this, "UserPoolId", new CfnOutputProps { Value = UserPool.UserPoolId });
         _ = new CfnOutput(this, "UserPoolClientId", new CfnOutputProps { Value = UserPoolClient.UserPoolClientId });
         _ = new CfnOutput(this, "DynamoDbTableName", new CfnOutputProps { Value = PuckDropTable.TableName });
-        // Plain string interpolation, not Fn.Sub - CDK's own token-resolution machinery already
-        // encodes HttpApi.Ref correctly here (same proven pattern as JwtAuthorizer's Issuer
-        // above and BlazorStaticSitePublishTarget's CloudFront origin). Wrapping it in Fn.Sub's
-        // own "${...}" template syntax on top of that double-encodes the token into nested
-        // "${${...}}" braces, which is what a real `aspire deploy` attempt actually hit:
-        // "One or more Fn::Sub intrinsic functions don't specify expected arguments" - confirmed
-        // via CloudFormation's own template validation warning naming this exact output.
         _ = new CfnOutput(this, "ApiGatewayUrl", new CfnOutputProps
         {
             Value = $"https://{HttpApi.Ref}.execute-api.{Region}.amazonaws.com"

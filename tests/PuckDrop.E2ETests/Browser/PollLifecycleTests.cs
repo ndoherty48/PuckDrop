@@ -4,32 +4,15 @@ using Xunit;
 namespace PuckDrop.E2ETests.Browser;
 
 /// <summary>
-/// The highest-value single test in this suite: the full poll lifecycle through the real UI, as
-/// an admin and a friend would actually experience it - nothing here is mocked. One long test
-/// rather than several short ones, deliberately: every step after the initial login is an in-SPA
-/// click/nav (no full page reload, so no fresh bootstrap fetch - see
-/// AppHostFixture.GotoWithBootstrapRetryAsync), which keeps this materially cheaper against the
-/// Lambda emulator than the same coverage split across separate tests each paying a fresh cold
-/// boot would be.
+/// The full poll lifecycle through the real UI, as an admin and a friend. One long test on
+/// purpose: after login every step is in-app navigation, so it avoids extra cold boots against
+/// the Lambda emulator.
 /// </summary>
 /// <remarks>
-/// Covers, in one pass: admin creates a poll with two questions -> poll appears in Admin/Polls as
-/// Draft, invisible on Home's "Next Game" card -> Publish (real JS confirm()) -> now visible on
-/// Home as the active poll, for a separate friend session (proving GSI2's active-polls index
-/// stays in sync with the status transition) -> friend picks answers and submits -> admin Close
-/// (confirm) -> admin Score, deliberately getting one question "right" and one "wrong" for the
-/// friend, so Results shows both a correct-answer green row and an incorrect-answer red row, with
-/// the friend's real display name (not a UUID - the exact regression class an earlier bug in this
-/// app came from) -> Leaderboard reflects the resulting 1 point, with the "You"/highlight styling
-/// exercised implicitly by both accounts viewing it -> a second, single-question poll is run
-/// through the same publish/vote/close/score cycle for the same friend, confirming their
-/// leaderboard total accumulates to 2 rather than resetting to 1.
-///
-/// Deliberately out of scope here: the "voting closed" UI state (a poll whose deadline has
-/// passed) - already covered by PuckDrop.Web.Tests' bUnit PollTests against mocked data, and
-/// exercising it for real would mean either waiting out a real deadline or a second poll +
-/// context just for that one assertion, which isn't worth the extra load on the emulator for
-/// coverage that already exists elsewhere.
+/// Create a two-question poll → Draft stays off Home → Publish → friend votes → Close → Score one
+/// right and one wrong → Results shows the friend's name and both marks → Leaderboard shows 1.
+/// A second poll then checks the total accumulates to 2. The "voting closed" state is covered by
+/// the bUnit PollTests instead.
 /// </remarks>
 [Collection(E2ETestCollection.Name)]
 public class PollLifecycleTests(AppHostFixture fixture)
@@ -137,12 +120,7 @@ public class PollLifecycleTests(AppHostFixture fixture)
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Yes" }).ClickAsync();
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Submit Scores" }).ClickAsync();
 
-        // ScorePollAsync's real API call (not just the click) is what's slow under the emulator -
-        // wait for the Nav.NavigateTo("results/...") it triggers on completion to actually land
-        // before navigating away again, or a late-arriving navigation here can silently clobber
-        // an immediately-following manual navigation (confirmed live: without this wait, clicking
-        // "Leaderboard" right after the click above intermittently lands back on Results once the
-        // scoring call finally resolves after the click already went through).
+        // Wait for scoring's redirect to Results, or it can land after the next navigation.
         await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = poll2Title, Level = 1 }))
             .ToBeVisibleAsync();
 
@@ -156,9 +134,7 @@ public class PollLifecycleTests(AppHostFixture fixture)
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Create Poll" }).ClickAsync();
 
         var gameDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        // Generous future deadline - this whole test can genuinely take several minutes against
-        // the Lambda emulator, and a poll whose deadline has already passed by the time the
-        // friend gets to vote would show "Voting closed" with disabled inputs instead.
+        // Far enough ahead that voting is still open after a slow run.
         var deadline = DateTime.UtcNow.AddHours(6);
 
         await admin.FillAsync("#title", title);

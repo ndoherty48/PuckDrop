@@ -67,11 +67,7 @@ public class DomainExceptionFilterTests
     [Fact]
     public void OnException_ArgumentExceptionSubclass_IsStillMappedByTheBaseTypePattern()
     {
-        // C# type-pattern matching (the switch in DomainExceptionFilter) matches subclasses too,
-        // same as a catch clause - so ArgumentOutOfRangeException (a subclass of
-        // ArgumentException) IS caught by the `ArgumentException => ...` arm, not left unhandled.
-        // Worth pinning down explicitly since it's easy to assume type patterns require an exact
-        // match.
+        // Type patterns match subclasses, so the ArgumentException arm handles this.
         var context = CreateContext(new ArgumentOutOfRangeException("count"));
 
         new DomainExceptionFilter().OnException(context);

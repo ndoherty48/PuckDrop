@@ -11,14 +11,8 @@ using PuckDrop.AppHost.Extensions;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Aspire's own resource-health polling has no built-in "run until healthy, then stop" option -
-// it keeps re-invoking every registered check on an ongoing interval for as long as the AppHost
-// runs, since the same checks also drive the dashboard's live status (not just the initial
-// WaitFor gate). For a check that hits a real backend - like the two below, both of which end up
-// making a real HTTP call through to the "api" Lambda function - that ongoing polling is itself
-// extra load on an emulator that can't handle much concurrency (see api-gateway's health check
-// below). This wraps a check so it only ever does the real work once: after the first Healthy
-// result, every later invocation returns Healthy immediately without touching the network again.
+// Aspire keeps polling health checks for as long as the AppHost runs. This makes a check do the
+// real work only until it first passes, so it stops loading the single-threaded Lambda emulator.
 static Func<CancellationToken, Task<HealthCheckResult>> CheckOnceThenLatchHealthy(
     Func<CancellationToken, Task<HealthCheckResult>> check)
 {
@@ -40,12 +34,7 @@ var deployedCdk = builder.AddAWSCDKEnvironment(
     CDKDefaultsProviderFactory.Preview_V1,
     stackFactory: (app, props) => new DeploymentStack(app, "PuckDrop", props));
 
-// Registers our own IAWSPublishTarget the same way every built-in AWS target is registered
-// (Aspire.Hosting.AWS's own AWSCDKEnvironmentExtensions.AddEnvironmentServices does the same
-// AddTransient<IAWSPublishTarget, T>() for LambdaFunctionPublishTarget etc.) - this makes it a
-// real participant in the CDK publish pipeline (CDKPublishingStep resolves every registered
-// target via GetServices<IAWSPublishTarget>()), not a workaround. See
-// AWS/Deployment/BlazorStaticSitePublishTarget.cs.
+// Publishes the Blazor UI to S3 + CloudFront; registered the same way as the built-in AWS targets.
 builder.Services.AddTransient<IAWSPublishTarget, BlazorStaticSitePublishTarget>();
 
 var dynamoDbLocal = builder.AddAWSDynamoDBLocal("dynamodb", new DynamoDBLocalOptions
@@ -53,14 +42,8 @@ var dynamoDbLocal = builder.AddAWSDynamoDBLocal("dynamodb", new DynamoDBLocalOpt
     SharedDb = true
 });
 
-// AddAWSDynamoDBLocal registers no health check of its own (confirmed by inspecting
-// Aspire.Hosting.AWS.dll directly - it has zero health-check-related members), so without this,
-// create-table's WaitFor(dynamoDbLocal) below only ever waits for the container to reach
-// "Running" - not for its HTTP listener to actually accept connections. DynamoDB Local can
-// report Running slightly before that's true, so create-table would sometimes fire too early and
-// fail ("Connection was closed before we received a valid response"), cascading into "api" never
-// starting. Any completed HTTP response (even the 400 DynamoDB Local returns for an unsigned
-// request) proves the listener is up; only a connection failure means it isn't ready yet.
+// DynamoDB Local has no built-in health check and can report Running before it accepts
+// connections, which made create-table fail. Any HTTP response (even a 400) means it's listening.
 const string dynamoDbListeningCheckKey = "dynamodb-local-listening";
 builder.Services.AddHealthChecks().AddAsyncCheck(dynamoDbListeningCheckKey, CheckOnceThenLatchHealthy(async cancellationToken =>
 {
@@ -86,24 +69,10 @@ var keycloakPassword = builder.AddParameter("keycloak-password", secret: true, v
         MinSpecial = 1
     }, persist: true)
     .ExcludeFromManifest();
-// Historically pinned (not dynamically allocated) because the Blazor WASM app couldn't read
-// AppHost-injected env vars, so its Keycloak authority had to be baked into
-// UI/src/PuckDrop.Web/wwwroot/appsettings.json by hand at build time - a stable port meant
-// that file only needed setting once. That's no longer why this matters: the UI now fetches its
-// OIDC config at runtime from the API's /auth-config endpoint (see PuckDrop.Api.Controllers.
-// AuthConfigController), which gets Keycloak's real endpoint dynamically via the `api` resource's
-// own env vars below - real env vars work fine for the Lambda process, unlike the WASM bundle.
-// Left pinned anyway; there's no reason to change it, just no longer a requirement.
+
 var keycloak = builder
-    .AddKeycloak("keycloak", port: 8543, adminUsername: keycloakUsername, adminPassword: keycloakPassword)
+    .AddKeycloak("keycloak", adminUsername: keycloakUsername, adminPassword: keycloakPassword)
     .WithRealmImport("./Keycloak/PuckDrop-realm.json")
-    // Keycloak__ServerUrl below ends up as the OIDC Authority served to the browser (via
-    // /auth-config -> AuthDiscoveryOptions), not just consumed server-side by "api" - so
-    // GetEndpoint("http") needs to resolve to a URL the browser can actually reach. Without this,
-    // it resolved to the "internal" plain-localhost form instead, which Keycloak's own hostname
-    // handling would intermittently refuse (net::ERR_CONNECTION_CLOSED - confirmed by
-    // reproducing it directly in a browser). Matches the same call already made on blazorGateway
-    // below for the same reason.
     .WithExternalHttpEndpoints()
     .ExcludeFromManifest();
 
@@ -126,21 +95,12 @@ var api = builder.AddAWSLambdaFunction<Projects.PuckDrop_Api>("api", "PuckDrop.A
         x.EnvironmentVariables["Keycloak__ServerUrl"] = keycloak.GetEndpoint("http");
         x.EnvironmentVariables["Keycloak__Realm"] = "PuckDrop";
         x.EnvironmentVariables["Keycloak__ClientId"] = "PuckDrop-API";
-        // The browser's login client, distinct from the API's own audience-validation client
-        // above - see KeycloakSettings.UiClientId.
+        // The browser logs in with a separate client - see KeycloakSettings.UiClientId.
         x.EnvironmentVariables["Keycloak__UiClientId"] = "PuckDrop-UI";
     })
     .WithAWSLocalCredentials()
     .PublishAsLambdaFunction(new PublishLambdaFunctionConfig
     {
-        // Aspire's own default (512MB/30s, confirmed via CDKDefaultsProviderPreviewV1) leaves
-        // this Lambda CPU-starved for a full ASP.NET Core boot (DI container, config providers,
-        // JIT) on every cold invocation - .NET's well-documented Lambda cold-start cost, not
-        // specific to this app's code. More memory gives proportionally more CPU (same lever as
-        // BlazorStaticSitePublishTarget's BucketDeployment MemoryLimit fix). SnapStart would be a more targeted fix for the cold
-        // start itself, but it's deliberately left out here for now - some recent .NET 10
-        // SnapStart reports (a different hosting model than this app's, but close enough to
-        // warrant caution) suggest it needs real-deployment verification before relying on it.
         PropsFunctionCallback = (_, props) =>
         {
             props.MemorySize = 1024;
@@ -170,27 +130,15 @@ var apiGateway = builder.AddAWSAPIGatewayEmulator("api-gateway", Aspire.Hosting.
     .WithHttpEndpoint(port: 8080)
     .WithHttpsEndpoint(port: 8081);
 
-// Same gap as dynamodb above: AddAWSAPIGatewayEmulator registers no health check of its own
-// (confirmed the same way - zero health-check members anywhere in Aspire.Hosting.AWS.dll), so
-// this resource can report "Running" before its route table (which depends on the "api" Lambda
-// function being fully wired as a target) is actually serving requests - callers can get a
-// spurious 404 in that window. /puckdrop/auth-config is a real, cheap, unauthenticated route that
-// only returns 200 once API Gateway -> Lambda -> ASP.NET Core routing is genuinely working end to
-// end, so it doubles as a true readiness probe, not just "is the port open". A custom check
-// (rather than the built-in WithHttpHealthCheck, which has no latch hook) so
-// CheckOnceThenLatchHealthy can stop it hitting the real Lambda emulator - which can only process
-// one invocation at a time - on every poll once it's already proven ready.
+// The API Gateway emulator also has no health check and can 404 before the Lambda route is live.
+// /puckdrop/auth-config is cheap and unauthenticated, so a 200 proves the whole path works.
 const string apiGatewayReadyCheckKey = "api-gateway-auth-config-ready";
 builder.Services.AddHealthChecks().AddAsyncCheck(apiGatewayReadyCheckKey, CheckOnceThenLatchHealthy(async cancellationToken =>
 {
     try
     {
         using var client = new HttpClient();
-        // Explicitly the "http" endpoint, not "https" - left to a default endpoint pick (as the
-        // built-in WithHttpHealthCheck was), this hung indefinitely completing a TLS handshake
-        // against the self-signed local-dev cert instead of erroring (confirmed live: the health
-        // check's own HttpClient never got past EnsureFullTlsFrameAsync). Plain HTTP has no such
-        // problem and is just as valid a readiness signal for local dev.
+        // HTTP, not HTTPS: the TLS handshake against the self-signed dev cert hangs.
         var authConfigUrl = new Uri(new Uri(apiGateway.GetEndpoint("http").Url), "/puckdrop/auth-config");
         using var response = await client.GetAsync(authConfigUrl, cancellationToken);
         return response.IsSuccessStatusCode
@@ -204,43 +152,12 @@ builder.Services.AddHealthChecks().AddAsyncCheck(apiGatewayReadyCheckKey, CheckO
 }));
 apiGateway.WithHealthCheck(apiGatewayReadyCheckKey);
 
-// OIDC config doesn't need wiring here - the app fetches it at boot from the API's
-// /auth-config endpoint instead (see "Auth" in CLAUDE.md).
-//
-// WithReference(apiGateway.GetEndpoint("http")) is what actually gets api-gateway's endpoint to
-// the browser: Blazor WASM has no runtime process of its own for AppHost-injected values to
-// land in, so WithBlazorClientApp (below) auto-forwards WithReference'd endpoints from this
-// resource to blazor-gateway, which serves them to the browser as services__api-gateway__http__0
-// in its boot-time config JSON - matching Program.cs's first fallback branch. A plain
-// .WithEnvironment(...) call here would NOT do this (confirmed by reading
-// Aspire.Hosting.Blazor's source - it only ever forwards WithReference'd endpoints, never
-// arbitrary WithEnvironment values), which is why one used to sit here uselessly.
-// PuckDrop.Web.csproj sets <StaticWebAssetBasePath>web</StaticWebAssetBasePath> for local dev
-// under blazor-gateway (to match this resource's name) - which normally also nests `dotnet
-// publish`'s real output under wwwroot/web/ and bakes <base href="/web/"> into index.html
-// itself. Neither is wanted for this S3/CloudFront deployment, which serves from its own
-// origin root with no gateway sub-path convention to match - BlazorStaticSitePublishTarget
-// handles both directly (an MSBuild property override for the directory layout, a post-publish
-// rewrite for the hardcoded base href - see its own comments), so no config override is needed
-// here; the default OutputPath ("wwwroot") is correct once those two fixes are in place.
-//
-// (Two earlier, incomplete attempts lived in this comment's history: first moving OutputPath to
-// wwwroot/web fixed the root request but broke every other asset, since index.html's hardcoded
-// <base href="/web/"> then pointed at paths that no longer existed at that prefix ("Unexpected
-// token '<'" - confirmed live). Pointing CloudFront's DefaultRootObject/error pages at
-// web/index.html instead fixed that, but broke Program.cs's origin-root fallback logic, since
-// HostEnvironment.BaseAddress reflects <base href> and so was "/web/" in production too, making
-// it indistinguishable from local dev. Fixing the actual root cause - the build output and its
-// base href - avoids needing either workaround.)
 var web = builder.AddBlazorWasmProject<Projects.PuckDrop_Web>("web")
     .WithReference(apiGateway.GetEndpoint("http"))
     .PublishAsS3WithCloudFront(config =>
     {
-        // Europe-only access: CloudFront answers 403 to viewers geolocated (by IP) outside this
-        // allowlist - EU27, EEA (IS, LI, NO), UK, Switzerland, the Crown Dependencies and
-        // Gibraltar. Applies to every behavior on the distribution, including /puckdrop/* API
-        // calls. It doesn't cover the API Gateway's own execute-api URL or Cognito's hosted login
-        // domain, which aren't served through CloudFront.
+        // Europe only: EU, EEA, UK, Switzerland, Crown Dependencies and Gibraltar. Covers
+        // /puckdrop/* too, but not the direct API Gateway URL or Cognito's login domain.
         config.PropsDistributionCallback = (_, props) =>
         {
             props.GeoRestriction = Amazon.CDK.AWS.CloudFront.GeoRestriction.Allowlist(
@@ -255,48 +172,15 @@ var web = builder.AddBlazorWasmProject<Projects.PuckDrop_Web>("web")
 var blazorGateway = builder.AddBlazorGateway("blazor-gateway")
     .WithExternalHttpEndpoints();
 
-// Both .WithOtlpExporter and .WithBrowserLogs (dashboard dev-tooling: tracks a browser tab and
-// reports its console diagnostics back via OTLP) require a real Aspire Dashboard supplying
-// ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL (set by `aspire start`/`aspire run`) - absent when
-// running under Aspire.Hosting.Testing (tests/PuckDrop.E2ETests boots the AppHost with no
-// dashboard, and drives its own separate Playwright browser - Aspire's tracked-browser-tab
-// tooling isn't wanted there anyway), where both fail resource startup hard instead of just
-// skipping. Guard both rather than break that test suite.
+// WithOtlpExporter and WithBrowserLogs need the dashboard, which the E2E tests don't run.
 var hasDashboard = !string.IsNullOrEmpty(builder.Configuration["ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL"]);
 if (hasDashboard)
     blazorGateway.WithOtlpExporter(OtlpProtocol.HttpProtobuf);
 
-// WithBlazorClientApp must run unconditionally, even in publish mode where blazor-gateway itself
-// serves no purpose (production hosting is S3+CloudFront via BlazorStaticSitePublishTarget
-// above) - it's what sets web.Resource.Parent (BlazorWasmAppResource implements
-// IResourceWithParent). Skipping this call in publish mode - the first fix attempted here -
-// left Parent null and crashed `aspire publish`'s process-parameters step with a
-// NullReferenceException: Aspire's own dependency-walking code (ResourceExtensions.
-// CollectAnnotationDependencies) dereferences IResourceWithParent.Parent unconditionally,
-// assuming it's never null once a resource implements that interface - confirmed via a real
-// `aspire deploy` attempt after making that (wrong) fix.
+// Needed in publish mode too: it sets web's Parent, and publishing throws if that's null.
 blazorGateway.WithBlazorClientApp(web);
 
 if (hasDashboard)
     blazorGateway.WithBrowserLogs();
-
-// What genuinely IS safe (and worth) skipping is the actual container BUILD work for
-// blazor-gateway and the "webpublish" companion resource WithBlazorClientApp auto-creates for
-// the wasm app - neither is needed for this app's S3-based production hosting, and the
-// companion's auto-generated Dockerfile is broken for this repo's layout regardless (confirmed
-// via a real `aspire deploy` attempt: MSB1009 "Project file does not exist", a relative-path
-// mismatch inside the generated container build). ExcludeFromManifest is enough for that -
-// unlike WithBlazorClientApp above, the container-build pipeline steps
-// (ContainerResourceBuilderExtensions.EnsureBuildAndPushPipelineAnnotations) check
-// IsExcludedFromPublish() lazily, when the pipeline is actually built, so excluding here (after
-// WithBlazorClientApp already created the companion resource) still works.
-if (builder.ExecutionContext.IsPublishMode)
-{
-    blazorGateway.ExcludeFromManifest();
-
-    var webPublishCompanionName = $"{web.Resource.Name}publish";
-    if (builder.Resources.FirstOrDefault(r => r.Name == webPublishCompanionName) is { } webPublishCompanion)
-        builder.CreateResourceBuilder(webPublishCompanion).ExcludeFromManifest();
-}
 
 builder.Build().Run();

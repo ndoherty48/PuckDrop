@@ -4,10 +4,7 @@ using Xunit;
 namespace PuckDrop.E2ETests;
 
 /// <summary>
-/// Confirms the whole mechanics work before any real coverage is built on top: the AppHost boots
-/// for real, and a real browser navigating to the real Blazor app gets all the way through the
-/// unauthenticated boot sequence (fetch /auth-config from the real API, then the real OIDC
-/// redirect) to a real Keycloak login page. Delete once other tests exercise the same path.
+/// Smoke test: the AppHost boots and an anonymous visit reaches the Keycloak login page.
 /// </summary>
 [Collection(E2ETestCollection.Name)]
 public class SanityTests(AppHostFixture fixture)
@@ -24,10 +21,7 @@ public class SanityTests(AppHostFixture fixture)
         try
         {
             await fixture.GotoWithBootstrapRetryAsync(page, fixture.BlazorBaseUri.ToString());
-            // Uses the context's generous default timeout (AppHostFixture.DefaultTimeoutMs) -
-            // this is the first-ever load of a freshly-built WASM app in a cold headless browser
-            // profile (download + JIT-warm the whole runtime), through a Lambda emulator that
-            // processes one invocation at a time, not a warm reload against an idle backend.
+            // The first cold WASM load can be slow; the context's long default timeout covers it.
             await page.WaitForURLAsync(url => url.Contains("realms/PuckDrop"));
         }
         catch

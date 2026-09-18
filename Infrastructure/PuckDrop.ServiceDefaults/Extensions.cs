@@ -46,13 +46,8 @@ public static class Extensions
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation());
 
-        // Only export when a collector is actually configured - same rule as
-        // AddOpenTelemetryExporters below. Aspire sets OTEL_EXPORTER_OTLP_ENDPOINT for the local
-        // Lambda (the dashboard), but not for the deployed one. Exporting unconditionally there
-        // made every invocation stall: AWSLambdaWrapper.TraceAsync force-flushes traces before
-        // returning each response, and with Aspire's OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY=in_memory
-        // each flush to the absent localhost:4317 collector retried for 1-10s (confirmed with a
-        // standalone repro on the same package versions, matching a real deployment's HAR).
+        // Only export when a collector is configured (locally, not when deployed). Otherwise each
+        // Lambda invocation's forced flush retries the missing collector for 1-10s.
         if (!string.IsNullOrWhiteSpace(configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
             openTelemetry.UseOtlpExporter();
 

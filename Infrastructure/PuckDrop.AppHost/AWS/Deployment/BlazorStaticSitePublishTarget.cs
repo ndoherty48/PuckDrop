@@ -20,38 +20,15 @@ using IResource = Aspire.Hosting.ApplicationModel.IResource;
 namespace PuckDrop.AppHost.AWS.Deployment;
 
 /// <summary>
-/// Publishes the Blazor WebAssembly UI (<see cref="BlazorWasmAppResource"/>) as an S3 bucket
-/// fronted by a CloudFront distribution: static assets from S3 with a CloudFront behavior
-/// routing <c>/puckdrop/*</c> to the real API Gateway, HTTPS via CloudFront, SPA-style
-/// 403/404 -&gt; <c>index.html</c> fallback for client-side routing.
+/// Publishes the Blazor WebAssembly UI to an S3 bucket behind CloudFront, with <c>/puckdrop/*</c>
+/// routed to the API Gateway and a SPA fallback to <c>index.html</c>.
 ///
-/// Adapted from AWS's own (unreleased) JavaScript-app equivalent
-/// (aws/integrations-on-dotnet-aspire-for-aws#203's <c>S3StaticWebsitePublishTarget</c>) - the
-/// CDK-construct-building logic (bucket + OAC, CloudFront distribution, SPA fallback, bucket
-/// deployment) is resource-type-agnostic and ported closely; three things are genuinely
-/// different for Blazor rather than a JavaScript app:
-///  1. The build step runs `dotnet publish -c Release` instead of `npm run build`.
-///  2. The `/puckdrop/*` backend behavior is baked in directly (reading the CDK-only
-///     <see cref="DeploymentStack.HttpApi"/> via <see cref="DeploymentStack"/>) rather than
-///     resolved generically through another Aspire-published resource - PuckDrop's API Gateway
-///     isn't wrapped by one.
-///  3. The Cognito user pool client's OAuth callback/logout URLs, created with a placeholder in
-///     <see cref="DeploymentStack"/> (before the CloudFront domain exists), are corrected here
-///     via the standard CDK "escape hatch" (<c>Node.DefaultChild</c>) once the distribution's
-///     domain is known.
-///
-/// <see cref="Aspire.Hosting.AWS.Deployment.AWSCDKEnvironmentResource"/>'s own CDK stack
-/// (<c>CDKStack</c>) is internal to <c>Aspire.Hosting.AWS</c>, so constructs here are scoped to
-/// PuckDrop's own <see cref="DeploymentStack"/> (reached via
-/// <see cref="AbstractAWSPublishTarget.CreatePublishTargetContext"/> /
-/// <see cref="CDKPublishTargetContext.GetDeploymentStack{T}"/> - the same mechanism the existing
-/// Lambda `ConstructFunctionCallback` in <c>AppHost.cs</c> already uses), which is itself the
-/// CDK stack construct, so it works equally well as a construct scope.
-///
-/// <see cref="CDKDefaultsProvider"/> in the currently-installed Aspire.Hosting.AWS package has
-/// no S3/CloudFront-specific defaults (that's PR #203-only, added there as a partial-class
-/// extension inside the same assembly, which can't be replicated from outside it) - the default
-/// values below are applied directly instead, matching the PR's own chosen defaults.
+/// Adapted from AWS's unreleased <c>S3StaticWebsitePublishTarget</c>
+/// (aws/integrations-on-dotnet-aspire-for-aws#203), so it can be swapped out if that ships. The
+/// differences: it runs <c>dotnet publish</c>, bakes in the API behavior from
+/// <see cref="DeploymentStack.HttpApi"/>, and fixes the Cognito callback URLs once the CloudFront
+/// domain is known. Constructs go in <see cref="DeploymentStack"/> because Aspire's own CDK stack
+/// is internal.
 /// </summary>
 internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarget> logger)
     : AbstractAWSPublishTarget(logger)
@@ -112,10 +89,7 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
         config.ConstructBucketCallback?.Invoke(context, bucket);
 
         // --- CloudFront distribution ---
-        // Built once and reused for both keys below - CloudFront's "/puckdrop/*" matches
-        // "/puckdrop/foo" but not the bare "/puckdrop", so PR #203's own rule for any
-        // trailing-"/*" backend pattern is to register the base path as a second, separate
-        // behavior pointed at the same origin rather than construct it twice.
+        // "/puckdrop/*" doesn't match the bare "/puckdrop", so both paths share one behavior.
         var apiBehavior = CreateApiBehavior(stack);
 
         var distributionProps = new DistributionProps
@@ -150,9 +124,7 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
             Value = $"https://{distribution.DomainName}",
         });
 
-        // Cognito's UserPoolClient was created in DeploymentStack's constructor with a
-        // placeholder callback/logout URL - the CloudFront domain didn't exist yet at that
-        // point. Fix it up now via the CDK escape hatch.
+        // The CloudFront domain didn't exist when DeploymentStack created the Cognito client.
         FixCognitoCallbackUrls(stack, distribution);
 
         // --- Bucket deployment ---
@@ -162,17 +134,8 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
             DestinationBucket = bucket,
             Distribution = distribution,
             DistributionPaths = ["/*"],
-            // CDK's default (128 MB) starves the sync Lambda's CPU/network for a Blazor WASM
-            // app's asset count (_framework/ alone commonly runs into the hundreds of files once
-            // .br/.gz variants are counted) - confirmed directly from a real deploy's Lambda
-            // logs, not just inferred: "Duration: 900000.00 ms ... Memory Size: 128 MB Max
-            // Memory Used: 126 MB Status: timeout" - it ran flat out for its full 900s (15 min)
-            // hard limit, pinned at 98% of its memory ceiling, with throughput visibly degrading
-            // near the end (400 KiB/s -> 152 KiB/s) as memory pressure built up, and still had
-            // ~192 of ~252+ files left when AWS killed it. CloudFormation's custom-resource
-            // Provider framework then retries the whole thing from scratch. More memory gives
-            // this Lambda proportionally more CPU/network, which should let a single invocation
-            // actually finish instead of repeatedly timing out.
+            // The 128 MB default timed out syncing Blazor's hundreds of files; more memory
+            // means more CPU and network.
             MemoryLimit = 1024,
         };
         config.PropsBucketDeploymentCallback?.Invoke(context, deploymentProps);
@@ -215,9 +178,7 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
     }
 
     /// <summary>
-    /// The CloudFront behavior that proxies <c>/puckdrop/*</c> (+ the bare <c>/puckdrop</c>)
-    /// through to the real, CDK-only API Gateway - baked in directly rather than resolved
-    /// generically, since nothing in PuckDrop's Aspire resource graph wraps that API Gateway.
+    /// Proxies <c>/puckdrop</c> to the API Gateway, which isn't an Aspire resource.
     /// </summary>
     private static BehaviorOptions CreateApiBehavior(DeploymentStack stack) => new()
     {
@@ -232,12 +193,8 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
     };
 
     /// <summary>
-    /// Sets the Cognito user pool client's real OAuth callback/logout URLs now that the
-    /// CloudFront distribution's domain is known, via the CDK "escape hatch"
-    /// (<c>Node.DefaultChild</c>) - the standard CDK pattern for mutating an L1 CloudFormation
-    /// resource's properties after its owning L2 construct was already built. Property names
-    /// (<c>CallbackUrLs</c>/<c>LogoutUrLs</c>) confirmed via reflection against the installed
-    /// Amazon.CDK.Lib 2.262.0 - an unusual JSII-codegen casing, not a typo.
+    /// Sets the Cognito client's real callback and logout URLs through the CDK escape hatch.
+    /// <c>CallbackUrLs</c>/<c>LogoutUrLs</c> is JSII's casing, not a typo.
     /// </summary>
     private static void FixCognitoCallbackUrls(DeploymentStack stack, Distribution distribution)
     {
@@ -248,8 +205,7 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
 
         cfnUserPoolClient.CallbackUrLs =
             [Fn.Join("", ["https://", distribution.DomainName, "/authentication/login-callback"])];
-        // Must include the exact logout_uri MainLayout.Logout sends - Cognito's /logout redirects
-        // to its /login page for any logout_uri not on this list (confirmed live).
+        // Must match the logout_uri MainLayout.Logout sends, or Cognito redirects to /login.
         cfnUserPoolClient.LogoutUrLs =
             [Fn.Join("", ["https://", distribution.DomainName, "/authentication/logged-out"])];
     }
@@ -263,37 +219,23 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
 
     private static void ApplyDistributionDefaults(DistributionProps props)
     {
-        // A harmless default for the bare-root case; the real SPA-fallback logic lives in the
-        // CloudFront Function below, not here - see its own comment for why.
+        // SPA routing is handled by the CloudFront Function below.
         props.DefaultRootObject ??= "index.html";
 
         if (props.DefaultBehavior is BehaviorOptions behavior)
         {
             behavior.ViewerProtocolPolicy ??= ViewerProtocolPolicy.REDIRECT_TO_HTTPS;
             behavior.CachePolicy ??= CachePolicy.CACHING_OPTIMIZED;
-            // Explicit rather than relying on CDK's own default: CloudFront compresses eligible
-            // file types (JS/CSS/wasm/etc.) on the fly for any client that sends Accept-Encoding,
-            // so the plain (uncompressed) files this target now uploads - see
-            // EnableDefaultCompressionFormats=false in PublishBlazorProjectAsync - still reach
-            // browsers compressed.
+            // The publish skips .br/.gz files, so CloudFront compresses on the fly instead.
             if (!behavior.Compress.HasValue)
                 behavior.Compress = true;
         }
     }
 
     /// <summary>
-    /// SPA fallback (serve index.html for any client-side route, so the Blazor router - not
-    /// S3/CloudFront - decides what to render) deliberately implemented as a viewer-request
-    /// CloudFront Function on the default behavior only, NOT as the distribution's
-    /// CustomErrorResponses (403/404 -&gt; 200 index.html). CustomErrorResponses is a
-    /// distribution-WIDE setting in CloudFront - it isn't scoped per-behavior - so it was also
-    /// silently rewriting genuine 403/404 responses from the API behavior (e.g. a real
-    /// [Authorize(Policy = "AdminPolicy")] 403) into a fake 200 response with index.html's HTML
-    /// body. The Blazor client's JSON deserialization then choked on that HTML ("Unexpected
-    /// token '<'" / ExpectedStartOfValueNotFound - confirmed live, via a real deployed
-    /// distribution). A CloudFront Function attached to just the default behavior only ever
-    /// touches requests actually routed to S3, leaving the API behavior's real status codes and
-    /// bodies untouched.
+    /// Serves index.html for client-side routes. A CloudFront Function on the default behavior
+    /// rather than CustomErrorResponses, which apply distribution-wide and turned the API's real
+    /// 403/404s into HTML.
     /// </summary>
     private static IFunction CreateSpaFallbackFunction(DeploymentStack stack, string resourceName) =>
         new Amazon.CDK.AWS.CloudFront.Function(stack, $"Project-{resourceName}-SpaFallback", new FunctionProps
@@ -303,9 +245,7 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
                 """
                 function handler(event) {
                     var request = event.request;
-                    // Any URI without a "." is treated as a client-side route (Blazor's own
-                    // router decides what to render) rather than a real static file - every
-                    // actual asset this app serves (js/css/wasm/png/etc.) has an extension.
+                    // Every real asset has an extension; anything else is a Blazor route.
                     if (!request.uri.includes('.')) {
                         request.uri = '/index.html';
                     }
@@ -315,14 +255,8 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
         });
 
     /// <summary>
-    /// PuckDrop.Web.csproj's checked-in wwwroot/index.html hardcodes &lt;base href="/web/" /&gt;
-    /// (matching its local-dev StaticWebAssetBasePath, for blazor-gateway) - that's a plain,
-    /// static HTML file, entirely independent of the -p:PublishForRootStaticWebAssets=true flag
-    /// passed above, which only affects the physical directory layout, not this tag's content
-    /// (confirmed directly: overriding StaticWebAssetBasePath alone left it unchanged). The
-    /// deployed site is served from its own CloudFront origin root with no sub-path convention
-    /// to match, so rewrite it here, post-publish, rather than touch the shared source file that
-    /// local dev still needs at "/web/".
+    /// index.html hardcodes <c>&lt;base href="/web/" /&gt;</c> for local dev under blazor-gateway;
+    /// the deployed site is served from the root.
     /// </summary>
     private static void FixIndexHtmlBaseHref(string buildOutputPath)
     {
@@ -336,42 +270,16 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
             File.WriteAllText(indexHtmlPath, fixedHtml);
     }
 
-    /// <summary>
-    /// Runs `dotnet publish -c Release` on the Blazor project - the equivalent of PR #203's
-    /// `IStaticSiteBuilder`/`DefaultStaticSiteBuilder` running `npm run build`, for the same
-    /// reason: don't assume implicit build ordering already produced the optimized output,
-    /// invoke the real publish step ourselves.
-    /// </summary>
     private async Task PublishBlazorProjectAsync(string resourceName, string projectDirectory, CancellationToken cancellationToken)
     {
         Logger.LogInformation(
             "Publishing Blazor WASM project '{ResourceName}' via 'dotnet publish -c Release' in '{ProjectDirectory}'",
             resourceName, projectDirectory);
 
-        // -p:PublishForRootStaticWebAssets=true opts PuckDrop.Web.csproj's StaticWebAssetBasePath
-        // out of its local-dev "web" value (matching the blazor-gateway resource name) - this
-        // deployment is served from its own CloudFront origin root, with no gateway sub-path
-        // convention to match. A plain assignment in the csproj would otherwise silently win over
-        // any command-line override regardless of value - confirmed directly, which is why that
-        // property carries its own Condition rather than defaulting unconditionally.
-        //
-        // -p:EnableDefaultCompressionFormats=false skips generating the .br/.gz sibling of every
-        // published file - dead weight for this target specifically, since nothing in the
-        // CloudFront config here serves them (no CloudFront Function/Lambda@Edge rewrite maps a
-        // request to its compressed sibling by suffix; CloudFront's own Compress=true, set in
-        // ApplyDistributionDefaults, already compresses the plain files on the fly). Skipping
-        // their generation shrinks both the local publish step and BucketDeployment's upload -
-        // the upload's size was itself a confirmed cause of slow deploys (see the MemoryLimit
-        // fix in GenerateConstructAsync).
-        //
-        // -p:WasmBuildNative=false keeps the publish identical whether or not the machine has the
-        // wasm-tools workload installed. With it installed, a Release+trimmed publish defaults to
-        // relinking the native runtime (WasmApp.Common.targets), which needs Emscripten - and
-        // Emscripten's clang wrapper script doesn't quote its own path, so it fails outright
-        // whenever the SDK lives under a path with a space (e.g. macOS's
-        // ~/Library/Application Support/dotnet) - confirmed live, it broke a real deploy. This
-        // project sets none of the properties that actually require wasm-tools, so skipping the
-        // relink only forgoes a somewhat smaller dotnet.native.wasm.
+        // PublishForRootStaticWebAssets: serve from the root, not the local-dev "web" base path.
+        // EnableDefaultCompressionFormats=false: skip unused .br/.gz files (CloudFront compresses).
+        // WasmBuildNative=false: skip the Emscripten relink, which breaks on SDK paths containing
+        // spaces (e.g. ~/Library/Application Support/dotnet) when wasm-tools is installed.
         var startInfo = new ProcessStartInfo("dotnet",
             "publish -c Release -p:PublishForRootStaticWebAssets=true -p:EnableDefaultCompressionFormats=false -p:WasmBuildNative=false")
         {

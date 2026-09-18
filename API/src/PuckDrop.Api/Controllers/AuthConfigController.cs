@@ -7,12 +7,8 @@ using PuckDrop.Api.Mappings;
 namespace PuckDrop.Api.Controllers;
 
 /// <summary>
-/// Serves the OIDC config the Blazor WASM app needs to log in - deliberately unauthenticated
-/// (chicken-and-egg: the app can't have a token yet when it's asking how to get one), and only
-/// returns values that are meant to be public anyway (an OIDC authority URL and a public client
-/// ID, no secret). In production this needs its own API Gateway route with no JWT authorizer -
-/// see DeploymentStack.cs - since the catch-all Lambda route otherwise requires a token for
-/// every path under /puckdrop/.
+/// Serves the UI's OIDC config. Unauthenticated because the app needs it before it has a token,
+/// and it holds nothing secret. Production gives it its own no-auth route in DeploymentStack.
 /// </summary>
 [AllowAnonymous]
 [ApiController]

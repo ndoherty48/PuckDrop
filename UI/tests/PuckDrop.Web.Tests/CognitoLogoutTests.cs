@@ -9,11 +9,8 @@ using Xunit;
 namespace PuckDrop.Web.Tests;
 
 /// <summary>
-/// NavigateToLogin serializes the request into the history entry state through Blazor's own
-/// source-generated InteractiveRequestOptionsSerializerContext, which only has metadata for a few
-/// types - an unsupported additional-parameter value throws NotSupportedException at click time
-/// (seen live: a Dictionary&lt;string, string&gt; did exactly that). Going through the real
-/// NavigateToLogin here exercises that same serialization path.
+/// Goes through the real NavigateToLogin, whose source-generated serializer throws
+/// NotSupportedException for unsupported parameter types such as a Dictionary.
 /// </summary>
 public class CognitoLogoutTests : BunitContext
 {

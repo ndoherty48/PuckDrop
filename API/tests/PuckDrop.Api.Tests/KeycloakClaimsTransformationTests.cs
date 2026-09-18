@@ -76,11 +76,7 @@ public class KeycloakClaimsTransformationTests
     [Fact]
     public async Task TransformAsync_MalformedRealmAccessJson_ThrowsJsonException()
     {
-        // Pinning down actual current behavior rather than leaving it undocumented: malformed
-        // JSON in a claim isn't caught anywhere in the transformation, so it propagates as an
-        // uncaught exception (JsonDocument.Parse throws the JsonReaderException subclass of
-        // JsonException for this input). Untrusted-token-shape hardening is a candidate
-        // follow-up, not assumed/fixed here.
+        // Documents current behaviour: malformed JSON isn't caught.
         var principal = PrincipalWith(new Claim("realm_access", "not valid json"));
 
         await Assert.ThrowsAnyAsync<JsonException>(() =>

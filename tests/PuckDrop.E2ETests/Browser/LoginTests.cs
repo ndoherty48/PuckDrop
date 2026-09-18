@@ -4,11 +4,7 @@ using Xunit;
 namespace PuckDrop.E2ETests.Browser;
 
 /// <summary>
-/// Drives the real login UI end to end for both roles this app cares about: real redirect to
-/// Keycloak's real login page, real credentials, real redirect back, real
-/// AuthorizeView/AuthorizeRouteView rendering - nothing here is mocked. Confirms the "Admin" nav
-/// link (gated on the "admin" realm role, normalized client-side by
-/// PuckDropClaimsPrincipalFactory) shows only for the admin user.
+/// Real Keycloak login for both roles; the "Admin" nav link shows only for the admin.
 /// </summary>
 [Collection(E2ETestCollection.Name)]
 public class LoginTests(AppHostFixture fixture)

@@ -11,10 +11,8 @@ public class UserAnswer
     public required string UserId { get; set; }
 
     /// <summary>
-    /// Denormalised display name, captured at submission time from the submitting user's own
-    /// claims (the only point where it can be resolved correctly - by the time a poll is
-    /// scored, the current user is the admin, not the answerer). Used to seed
-    /// <see cref="LeaderboardEntry.DisplayName"/> on first scoring.
+    /// Display name captured at submission, while the answerer is the current user (at scoring
+    /// it's the admin). Seeds <see cref="LeaderboardEntry.DisplayName"/>.
     /// </summary>
     public required string DisplayName { get; set; }
 

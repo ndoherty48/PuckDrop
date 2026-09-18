@@ -5,9 +5,8 @@ using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 namespace PuckDrop.Web.Auth;
 
 /// <summary>
-/// Builds the logout request for Cognito, whose <c>/logout</c> endpoint ignores the standard OIDC
-/// <c>id_token_hint</c>/<c>post_logout_redirect_uri</c> parameters and bounces to its <c>/login</c>
-/// page unless it also gets <c>client_id</c> and <c>logout_uri</c> (confirmed live).
+/// Builds the logout request for Cognito, whose <c>/logout</c> redirects to <c>/login</c> unless
+/// it gets <c>client_id</c> and <c>logout_uri</c>.
 /// </summary>
 public static class CognitoLogout
 {
@@ -21,14 +20,8 @@ public static class CognitoLogout
             Interaction = InteractionType.SignOut,
             ReturnUrl = baseUri
         };
-        // Blazor spreads additional request parameters onto the OIDC library's signoutRedirect
-        // arguments, and the library appends an "extraQueryParams" object to the end-session URL -
-        // so nesting both under that name puts them on the logout request only, never on authorize.
-        //
-        // The value has to be a JsonElement: NavigateToLogin serializes the request through Blazor's
-        // source-generated InteractiveRequestOptionsSerializerContext, which has metadata for
-        // JsonElement but not for a Dictionary<string, string> (that threw NotSupportedException
-        // on click - see CognitoLogoutTests).
+        // oidc-client appends "extraQueryParams" to the logout URL only. It must be a JsonElement:
+        // Blazor's source-generated serializer can't handle a Dictionary.
         request.TryAddAdditionalParameter("extraQueryParams", CreateExtraQueryParams(clientId, logoutUri));
         return request;
     }

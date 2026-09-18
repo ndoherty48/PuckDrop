@@ -8,17 +8,13 @@ using Aspire.Hosting.AWS.Deployment;
 namespace PuckDrop.AppHost.AWS.Deployment;
 
 /// <summary>
-/// Configuration for publishing the Blazor WebAssembly UI as an S3-backed static website
-/// fronted by a CloudFront distribution. Property-for-property mirrors the shape of AWS's own
-/// (unreleased, as of aws/integrations-on-dotnet-aspire-for-aws#203) JavaScript-app equivalent,
-/// so a future swap to an official implementation is close to a no-op.
+/// Configuration for publishing the Blazor UI to S3 + CloudFront. Mirrors AWS's unreleased
+/// JavaScript-app equivalent (aws/integrations-on-dotnet-aspire-for-aws#203).
 /// </summary>
 public class PublishS3WithCloudFrontConfig
 {
     /// <summary>
-    /// The relative path from the Blazor project's directory to the published static output -
-    /// the <c>wwwroot</c> folder <c>dotnet publish</c> produces. Defaults to the standard
-    /// MSBuild publish convention for this repo's target framework.
+    /// Path to the published <c>wwwroot</c>, relative to the Blazor project directory.
     /// </summary>
     public string OutputPath { get; set; } = Path.Combine("bin", "Release", "net10.0", "publish", "wwwroot");
 

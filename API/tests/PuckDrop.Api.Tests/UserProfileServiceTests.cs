@@ -13,10 +13,8 @@ using Xunit;
 namespace PuckDrop.Api.Tests;
 
 /// <summary>
-/// Cognito access tokens carry no name, username, or email claims, so every Cognito user's display
-/// name used to fall back to their "sub" UUID (seen live on the leaderboard). These cover the
-/// userInfo fallback that fixes that, without the network: a stub discovery document supplies the
-/// userInfo URL and a fake handler plays Cognito's userInfo endpoint.
+/// Covers the userInfo fallback for Cognito tokens, which have no name claims. A stub discovery
+/// document and a fake handler stand in for Cognito.
 /// </summary>
 public class UserProfileServiceTests
 {

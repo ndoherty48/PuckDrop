@@ -4,10 +4,8 @@ using Xunit;
 namespace PuckDrop.E2ETests.Browser;
 
 /// <summary>
-/// Logs in fresh through the real UI rather than reusing AppHostFixture's cached-session helpers
-/// - this test logs the user out for real, which ends their actual Keycloak SSO session, and a
-/// cached session's own silent-renewal (see AppHostFixture.NewAuthenticatedBrowserContextAsync's
-/// remarks) depends on that session still being alive if another test reuses it later in the run.
+/// Logs in fresh rather than using a cached session, because logging out ends the Keycloak session
+/// other tests' cached sessions rely on.
 /// </summary>
 [Collection(E2ETestCollection.Name)]
 public class LogoutTests(AppHostFixture fixture)
@@ -28,30 +26,26 @@ public class LogoutTests(AppHostFixture fixture)
         var logoutButton = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Log out" });
         await Assertions.Expect(logoutButton).ToBeVisibleAsync();
 
-        // wwwroot/js/persist-login.js revokes the refresh token (best-effort) before the logout
-        // redirect, so a copy that outlived the browser session can't be reused afterwards.
+        // persist-login.js revokes the refresh token before the logout redirect.
         var revokeRequest = page.WaitForRequestAsync(request => request.Url.Contains("/protocol/openid-connect/revoke"));
 
         await logoutButton.ClickAsync();
 
         await revokeRequest;
 
-        // NavigateToLogout makes a real cross-origin round trip to Keycloak's own logout
-        // endpoint and back, re-running Program.cs's bootstrap fetch on return - which can hit
-        // the same transient emulator-load failure a fresh page load can (confirmed live).
+        // Returning from Keycloak's logout reruns the bootstrap fetch, which can fail transiently.
         try
         {
             await page.WaitForSelectorAsync("text=Couldn't reach the server", new PageWaitForSelectorOptions
             {
                 Timeout = AppHostFixture.BootstrapFailureWindowMs
             });
-            // The actual logout already happened server-side by this point - reload and retry
-            // rather than re-click Log out.
+            // Logout already happened; just reload.
             await fixture.ReloadOnBootstrapFailureAsync(page, maxAttempts: 3);
         }
         catch (TimeoutException)
         {
-            // No failure page ever appeared - the round trip back succeeded on the first try.
+            // No failure page appeared.
         }
 
         await Assertions.Expect(page.GetByText("You've been logged out.")).ToBeVisibleAsync();
@@ -60,10 +54,7 @@ public class LogoutTests(AppHostFixture fixture)
             "() => Object.keys(localStorage).filter(key => key.startsWith('puckdrop.oidc.'))");
         Assert.Empty(persistedUserKeys);
 
-        // In-SPA navigation (a nav-link click, not a fresh page load) is enough to prove the
-        // session is really gone - AuthorizeRouteView re-checks auth state on every navigation
-        // regardless of hard vs soft nav - and avoids the cost/risk of another cold bootstrap
-        // fetch against the emulator for coverage a soft nav already gives just as faithfully.
+        // In-app navigation re-checks auth without another cold bootstrap.
         await page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Leaderboard" }).ClickAsync();
 
         await page.WaitForURLAsync(url => url.Contains("realms/PuckDrop"));

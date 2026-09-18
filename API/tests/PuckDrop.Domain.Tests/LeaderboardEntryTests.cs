@@ -63,12 +63,7 @@ public class LeaderboardEntryTests
     [Fact]
     public void AddPollResults_CorrectExceedsTotal_ThrowsArgumentException()
     {
-        // Distinct from the ArgumentOutOfRangeException cases above at the exact-type level -
-        // both actually map to 400/VALIDATION_ERROR via PuckDrop.Api's DomainExceptionFilter,
-        // since its type-pattern switch matches subclasses too (confirmed in
-        // PuckDrop.Api.Tests.DomainExceptionFilterTests), but the exact thrown type is still
-        // worth pinning down here at the Domain layer regardless of how the API happens to map
-        // it today.
+        // Plain ArgumentException, unlike the ArgumentOutOfRangeException cases above.
         var entry = CreateEntry();
 
         var ex = Assert.Throws<ArgumentException>(() => entry.AddPollResults(3, 2));

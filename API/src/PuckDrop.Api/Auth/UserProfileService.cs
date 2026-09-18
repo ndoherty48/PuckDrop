@@ -7,12 +7,8 @@ using PuckDrop.Application.Services.Abstractions;
 namespace PuckDrop.Api.Auth;
 
 /// <summary>
-/// Resolves the current user's display name - provider-agnostic. Keycloak access tokens carry
-/// <c>preferred_username</c>, so the claims are enough there. Cognito access tokens (all the API
-/// ever receives) carry no name, username, or email claims, so without a fallback every Cognito
-/// user's display name was their <c>sub</c> UUID (seen live on the leaderboard). The fallback asks
-/// the provider's OIDC userInfo endpoint, using the caller's own access token - the app client
-/// requests <c>openid email profile</c>, so Cognito returns the user's attributes.
+/// Resolves the current user's display name. Keycloak access tokens include one; Cognito's don't,
+/// so it falls back to the provider's userInfo endpoint with the caller's own access token.
 /// </summary>
 public class UserProfileService(
     IHttpContextAccessor httpContextAccessor,
@@ -46,8 +42,7 @@ public class UserProfileService(
 
         try
         {
-            // The discovery document the JWT bearer handler already fetched (and caches) to
-            // validate this request's token - no separate config for the userInfo URL.
+            // Reuse the JWT handler's cached discovery document for the userInfo URL.
             var configurationManager = jwtBearerOptions.Get(JwtBearerDefaults.AuthenticationScheme).ConfigurationManager;
             if (configurationManager is null)
                 return null;

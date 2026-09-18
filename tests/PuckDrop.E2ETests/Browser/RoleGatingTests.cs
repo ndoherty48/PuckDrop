@@ -4,11 +4,8 @@ using Xunit;
 namespace PuckDrop.E2ETests.Browser;
 
 /// <summary>
-/// Exercises App.razor's real AuthorizeRouteView.NotAuthorized branching by navigating straight
-/// to an admin-only URL under each of the three states it distinguishes: authenticated+authorized,
-/// authenticated-but-not-authorized (renders Pages/Unauthorized.razor), and unauthenticated
-/// (redirects to login). Also the first real use of AppHostFixture's storage-state reuse helper,
-/// so a login here starts an already-authenticated context instead of repeating the login UI.
+/// Navigates straight to an admin-only page as an admin, as a friend (not authorized page) and
+/// anonymously (redirect to login).
 /// </summary>
 [Collection(E2ETestCollection.Name)]
 public class RoleGatingTests(AppHostFixture fixture)

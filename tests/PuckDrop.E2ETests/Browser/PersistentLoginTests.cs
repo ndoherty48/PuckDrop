@@ -4,18 +4,13 @@ using Xunit;
 namespace PuckDrop.E2ETests.Browser;
 
 /// <summary>
-/// Reopening the site must not send the user back through the identity provider. Blazor's OIDC
-/// support defaults to keeping the signed-in user in per-tab sessionStorage, which closing the site
-/// clears - wwwroot/js/persist-login.js moves it to localStorage so the stored refresh token
-/// renews the session silently instead.
+/// Reopening the site must not go back through the identity provider - see
+/// wwwroot/js/persist-login.js.
 /// </summary>
 /// <remarks>
-/// A new page in the same browser context stands in for reopening the site: it starts with empty
-/// sessionStorage but shares localStorage and cookies. Keycloak's own SSO cookie survives in the
-/// context too, so "the user ends up logged in" alone would pass even without the fix (Blazor's
-/// silent sign-in, or a redirect, would quietly reuse that SSO session). The test therefore asserts
-/// the reopened page never hits Keycloak's authorize endpoint at all - a refresh-token renewal only
-/// calls the token endpoint.
+/// A new page in the same context stands in for reopening: fresh sessionStorage, shared
+/// localStorage and cookies. Keycloak's SSO cookie would log the user back in anyway, so the test
+/// asserts no authorize request at all; a refresh-token renewal only calls the token endpoint.
 /// </remarks>
 [Collection(E2ETestCollection.Name)]
 public class PersistentLoginTests(AppHostFixture fixture)

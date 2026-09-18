@@ -7,25 +7,18 @@ using Xunit;
 namespace PuckDrop.E2ETests;
 
 /// <summary>
-/// Boots the real PuckDrop AppHost (real DynamoDB Local, real Keycloak, the real Lambda-hosted
-/// API, and the real Blazor WASM app via blazor-gateway) via Aspire.Hosting.Testing, plus one
-/// shared real browser, for the whole test run. Built once (not per test) - shared collection
-/// fixture, matching Aspire's own documented pattern for expensive-to-build AppHost instances.
+/// Boots the real AppHost and one shared headless browser, once for the whole run.
 /// </summary>
 public class AppHostFixture : IAsyncLifetime
 {
     private static readonly TimeSpan ResourceWaitTimeout = TimeSpan.FromMinutes(3);
 
-    // Playwright's own defaults (30s navigation, 5s everything else, incl. Assertions.Expect)
-    // assume a normal app under normal load. Here, every page load talks to a real, cold-booting
-    // WASM app behind a real AWS Lambda Service Emulator that processes one invocation at a time
-    // - under this suite's own sequential real traffic that can genuinely take a while longer than
-    // that, not because anything is actually stuck. Set high enough to absorb realistic delay
-    // rather than fail on it; a test that's truly stuck will still fail, just slower.
+    // Well above Playwright's defaults: cold WASM loads against the single-threaded Lambda
+    // emulator can be slow without anything being stuck.
     public const float DefaultTimeoutMs = 120_000;
 
-    // How long to watch for Program.cs's "Couldn't reach the server" page after a navigation
-    // before treating the bootstrap as having succeeded - see RetryOnBootstrapFailureAsync.
+    // How long to watch for the "Couldn't reach the server" page after a navigation. It has to
+    // cover WASM boot plus the 10s auth-config timeout; 12s wasn't enough.
     public const float BootstrapFailureWindowMs = 25_000;
 
     private DistributedApplication _app = null!;
@@ -33,36 +26,20 @@ public class AppHostFixture : IAsyncLifetime
     private IBrowser _browser = null!;
 
     /// <summary>
-    /// Base URL for the running Blazor app - note the "/web/" suffix: the app is served under
-    /// that path (StaticWebAssetBasePath = "web" in PuckDrop.Web.csproj), not the gateway root.
+    /// Base URL for the Blazor app, which blazor-gateway serves under "/web/".
     /// </summary>
     public Uri BlazorBaseUri { get; private set; } = null!;
 
-    // Program.cs's API base URL resolution falls back to a hardcoded literal
-    // ("http://api-gateway-puckdrop.dev.localhost:8080") when Aspire's dynamic service-discovery
-    // config isn't readable - which it never is in the browser (confirmed elsewhere this
-    // session: Blazor WASM can't read AppHost-injected env vars at runtime). That literal only
-    // resolves under `aspire start`/`aspire run`, whose CLI/dashboard process provides the
-    // ".dev.localhost" DNS convention and (separately) pins api-gateway's port - neither exists
-    // under DistributedApplicationTestingBuilder, which has no CLI process and allocates a real
-    // random port instead. Rather than touch that shared Program.cs/AppHost.cs behavior,
-    // intercept and redirect requests to the hardcoded literal to the real resolved endpoint,
-    // entirely on the test side.
+    // Program.cs falls back to this dev URL, which only resolves under `aspire start`. The test
+    // host uses a random port, so requests to it are rerouted to the real endpoint.
     private const string HardcodedApiGatewayFallback = "http://api-gateway-puckdrop.dev.localhost:8080";
     private Uri _apiGatewayEndpoint = null!;
 
-    // Login flow is exercised for real by Browser/LoginTests.cs; everything else that just needs
-    // an authenticated session reuses a cached session instead of repeating the login UI. Tests
-    // share this collection fixture and run sequentially within it (default xUnit
-    // collection-fixture behavior), so no locking is needed around this cache.
+    // One login per user per run. Tests in the collection run sequentially, so no locking.
     private readonly Dictionary<string, CapturedSession> _sessionCache = new();
 
     public async ValueTask InitializeAsync()
     {
-        // create-table used to fire before DynamoDB Local's HTTP listener was actually ready
-        // (AddAWSDynamoDBLocal registered no health check, so its WaitFor only meant "container
-        // process running") - fixed at the source in AppHost.cs by giving the dynamodb resource
-        // a real "is it accepting connections" health check, so no retry loop is needed here.
         var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.PuckDrop_AppHost>();
         var app = await appHost.BuildAsync();
 
@@ -72,9 +49,7 @@ public class AppHostFixture : IAsyncLifetime
         await app.ResourceNotifications.WaitForResourceHealthyAsync("api", cts.Token);
         await app.ResourceNotifications.WaitForResourceHealthyAsync("keycloak", cts.Token);
         await app.ResourceNotifications.WaitForResourceHealthyAsync("blazor-gateway", cts.Token);
-        // api-gateway now has a real health check (AppHost.cs) proving it's actually routing to
-        // the "api" Lambda function, not just that its process is running - wait on it too, since
-        // every test's first real HTTP call (the /auth-config bootstrap fetch) goes through it.
+        // Its health check proves it's routing to the Lambda, which every page load needs.
         await app.ResourceNotifications.WaitForResourceHealthyAsync("api-gateway", cts.Token);
 
         _app = app;
@@ -86,9 +61,7 @@ public class AppHostFixture : IAsyncLifetime
         _playwright = await Playwright.CreateAsync();
         _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
 
-        // Process-wide, not per-context - Assertions.Expect (used by every ToBeVisibleAsync()
-        // call across this suite) has its own separate default timeout, independent of any
-        // IBrowserContext/IPage setting.
+        // Assertions.Expect has its own process-wide timeout, separate from the context's.
         Assertions.SetDefaultExpectTimeout(DefaultTimeoutMs);
     }
 
@@ -102,9 +75,7 @@ public class AppHostFixture : IAsyncLifetime
         var options = new BrowserNewContextOptions
         {
             BaseURL = BlazorBaseUri.ToString(),
-            // The real OIDC redirect lands on Keycloak's HTTPS endpoint
-            // (https://localhost:8543/realms/PuckDrop/...), which uses a self-signed local-dev
-            // certificate - Chromium blocks navigation to it by default.
+            // Keycloak's HTTPS endpoint uses a self-signed dev certificate.
             IgnoreHTTPSErrors = true
         };
         if (storageState is not null)
@@ -125,22 +96,13 @@ public class AppHostFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Like <see cref="NewBrowserContextAsync()"/>, but pre-seeded with a previously captured
-    /// session (see <see cref="LoginAndCaptureSessionAsync"/>), so navigating straight to any
-    /// page in it starts already authenticated - without repeating the login UI.
+    /// Like <see cref="NewBrowserContextAsync()"/>, but already signed in with a session from
+    /// <see cref="LoginAndCaptureSessionAsync"/>.
     /// </summary>
     /// <remarks>
-    /// The signed-in user (including its refresh token) lives in <c>localStorage</c> - moved there
-    /// from Blazor's default <c>sessionStorage</c> by <c>wwwroot/js/persist-login.js</c> - and
-    /// <see cref="IBrowserContext.StorageStateAsync"/>/<see cref="BrowserNewContextOptions.StorageState"/>
-    /// cover localStorage and cookies, so the captured storageState carries the session over.
-    /// It also carries Keycloak's own session cookie, which matters when this suite's own slowness
-    /// means the access token (5-minute lifespan in the imported realm) has expired by the time a
-    /// test uses it: the app then renews silently instead of falling back to a real interactive
-    /// login page (confirmed live: an intermittent RoleGatingTests failure showed exactly that
-    /// before cookies were carried over). sessionStorage is still seeded too, via a context-level
-    /// init script that Playwright runs before any page script on every navigation - Blazor keeps
-    /// its cached auth settings there, and it costs nothing to restore.
+    /// StorageState restores localStorage (the OIDC user, via persist-login.js) and Keycloak's
+    /// session cookie, which lets the app renew silently once the 5-minute access token expires.
+    /// sessionStorage, where Blazor caches its auth settings, is seeded by an init script.
     /// </remarks>
     public async Task<IBrowserContext> NewAuthenticatedBrowserContextAsync(CapturedSession session)
     {
@@ -159,34 +121,23 @@ public class AppHostFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Navigates to <paramref name="url"/>, working around one specific known-transient failure
-    /// mode - see <see cref="RetryOnBootstrapFailureAsync"/>.
+    /// Navigates to <paramref name="url"/>, retrying a failed bootstrap - see
+    /// <see cref="RetryOnBootstrapFailureAsync"/>.
     /// </summary>
     public Task GotoWithBootstrapRetryAsync(IPage page, string url, int maxAttempts = 4) =>
         RetryOnBootstrapFailureAsync(page, () => page.GotoAsync(url), $"at {url}", maxAttempts);
 
     /// <summary>
-    /// Reloads the current page, working around the same failure mode as
-    /// <see cref="GotoWithBootstrapRetryAsync"/> - for a navigation that isn't a plain
-    /// <c>GotoAsync</c> call, such as the real cross-origin round trip
-    /// NavigationManager.NavigateToLogout makes to Keycloak's own logout endpoint and back
-    /// (confirmed live: that round trip re-runs Program.cs's bootstrap fetch on return, so it can
-    /// hit the same transient failure a fresh page load can). The browser is already on the
-    /// correct post-round-trip URL by the time this is needed, so a plain reload - not repeating
-    /// whatever action got here - is enough.
+    /// Reloads the current page, retrying a failed bootstrap - for navigations that aren't a
+    /// plain <c>GotoAsync</c>, such as the round trip through Keycloak's logout.
     /// </summary>
     public Task ReloadOnBootstrapFailureAsync(IPage page, int maxAttempts = 4) =>
         RetryOnBootstrapFailureAsync(page, () => page.ReloadAsync(), $"after reload at {page.Url}", maxAttempts);
 
     /// <summary>
-    /// Program.cs's OIDC bootstrap fetch (<c>GET /auth-config</c>) has a deliberate, documented
-    /// 10-second timeout, so the app doesn't hang on a blank page if the API is genuinely
-    /// unreachable in production. This suite's own concurrent traffic against a Lambda emulator
-    /// that only processes one invocation at a time occasionally makes even a valid response take
-    /// longer than that, which - correctly, from the app's perspective - trips the same fail-fast
-    /// path and lands on its permanent "Couldn't reach the server" error page. Retry
-    /// <paramref name="attempt"/> a few times rather than touch that production behavior for this
-    /// test-environment-specific slowness.
+    /// The auth-config fetch at boot times out after 10s, and the busy Lambda emulator sometimes
+    /// exceeds that, leaving the app on "Couldn't reach the server". Retry rather than change
+    /// production behaviour for test-only slowness.
     /// </summary>
     private static async Task RetryOnBootstrapFailureAsync(
         IPage page, Func<Task> attempt, string attemptDescription, int maxAttempts)
@@ -197,13 +148,7 @@ public class AppHostFixture : IAsyncLifetime
 
             try
             {
-                // Give the bootstrap fetch's own 10s timeout room to fail visibly before deciding
-                // whether to retry - if this throws (times out), no failure page ever appeared,
-                // meaning the bootstrap fetch succeeded and normal navigation/assertions can
-                // proceed as usual. The window starts at the page's load event, before the WASM
-                // runtime has booted and made that fetch, so it has to cover boot time plus the
-                // 10s timeout: 12s wasn't enough (confirmed live - a slow boot put the failure page
-                // just past it, and the test then waited out its full timeout on that page).
+                // A timeout here means no failure page appeared, so the bootstrap succeeded.
                 await page.WaitForSelectorAsync("text=Couldn't reach the server", new PageWaitForSelectorOptions
                 {
                     Timeout = BootstrapFailureWindowMs
@@ -221,8 +166,7 @@ public class AppHostFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Drives the real Keycloak login UI once for the given user (cached thereafter for this
-    /// run) and returns the resulting session, for <see cref="NewAuthenticatedBrowserContextAsync"/>.
+    /// Logs in through Keycloak once per user per run and returns the session.
     /// </summary>
     public async Task<CapturedSession> LoginAndCaptureSessionAsync(string username, string password)
     {
@@ -239,9 +183,7 @@ public class AppHostFixture : IAsyncLifetime
         await page.FillAsync("#password", password);
         await page.ClickAsync("#kc-login");
 
-        // "Logout" only renders in MainLayout's <Authorized> branch - a display-name-agnostic
-        // signal that the round trip back from Keycloak completed and the app considers the user
-        // authenticated.
+        // "Logout" only renders once the user is authenticated.
         await page.WaitForSelectorAsync("text=Logout");
 
         var sessionStorage = await page.EvaluateAsync<Dictionary<string, string>>("() => ({ ...sessionStorage })");
@@ -268,8 +210,6 @@ public class E2ETestCollection : ICollectionFixture<AppHostFixture>
 }
 
 /// <summary>
-/// A logged-in browser session captured by <see cref="AppHostFixture.LoginAndCaptureSessionAsync"/>,
-/// for <see cref="AppHostFixture.NewAuthenticatedBrowserContextAsync"/> - see that method's remarks
-/// for why both parts are needed.
+/// A signed-in browser session - see <see cref="AppHostFixture.NewAuthenticatedBrowserContextAsync"/>.
 /// </summary>
 public sealed record CapturedSession(string StorageState, IReadOnlyDictionary<string, string> SessionStorage);

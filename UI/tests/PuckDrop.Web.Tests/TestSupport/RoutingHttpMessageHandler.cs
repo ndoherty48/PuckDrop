@@ -5,11 +5,7 @@ using PuckDrop.Web.Services;
 namespace PuckDrop.Web.Tests.TestSupport;
 
 /// <summary>
-/// Routes fake HTTP responses by method + path/query, for building a <see cref="PuckDropApiClient"/>
-/// backed by canned data instead of a real server. A single rendered component often calls
-/// several endpoints in one lifecycle (e.g. Poll.razor calls both GetPollAsync and
-/// GetAnswersAsync), which the simpler single-fixed-response fake in PuckDropApiClientTests
-/// doesn't need to support but this one does.
+/// Returns canned responses by method and path, for components that call several endpoints.
 /// </summary>
 public class RoutingHttpMessageHandler : HttpMessageHandler
 {

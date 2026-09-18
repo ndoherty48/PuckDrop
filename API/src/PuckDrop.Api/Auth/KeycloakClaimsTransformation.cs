@@ -5,17 +5,12 @@ using Microsoft.AspNetCore.Authentication;
 namespace PuckDrop.Api.Auth;
 
 /// <summary>
-/// Normalizes Keycloak's <c>realm_access</c> claim into a standard <see cref="ClaimTypes.Role"/>
-/// claim, so downstream authorization (the shared <c>AdminPolicy</c> in
-/// <see cref="ApiServiceCollectionExtensions"/>, controllers) never needs to know which identity
-/// provider issued the token - see <see cref="CognitoClaimsTransformation"/> for the Cognito
-/// equivalent.
+/// Maps Keycloak's <c>realm_access</c> admin role to the standard "admin" role claim - see
+/// <see cref="CognitoClaimsTransformation"/> for Cognito.
 /// </summary>
 /// <remarks>
-/// Keycloak puts realm roles in a "realm_access" claim shaped as
-/// <c>{"roles":["admin", ...]}</c> rather than as individual role claims, and - unlike a JSON
-/// array claim - the JWT bearer handler does not expand a JSON object claim into multiple
-/// claims, so this has to parse it explicitly.
+/// <c>realm_access</c> is a JSON object (<c>{"roles":[...]}</c>), which the JWT handler doesn't
+/// split, so it's parsed here.
 /// </remarks>
 public class KeycloakClaimsTransformation(KeycloakSettings settings) : IClaimsTransformation
 {

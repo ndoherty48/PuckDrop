@@ -6,18 +6,12 @@ using Microsoft.AspNetCore.Components.WebAssembly.Authentication.Internal;
 namespace PuckDrop.Web.Auth;
 
 /// <summary>
-/// Normalizes whichever identity provider is configured (Cognito or Keycloak - config fetched
-/// from the API's <c>auth-config</c> endpoint at boot, see Program.cs) into standard
-/// <see cref="ClaimTypes.Role"/> claims, so role-based authorization
-/// (<c>[Authorize(Roles = "...")]</c>, <c>&lt;AuthorizeView Roles="..."&gt;</c>) works the same
-/// way regardless of provider - the same normalization PuckDrop.Api does server-side via
-/// <c>CognitoClaimsTransformation</c>/<c>KeycloakClaimsTransformation</c>. Switching providers
-/// is then purely a server-side config change, not a code change.
+/// Maps Keycloak and Cognito admin claims to standard role claims, like the API's claims
+/// transformations, and falls back to a username or email for the display name.
 /// </summary>
 /// <remarks>
-/// The Blazor OIDC pipeline merges claims from both the ID token and the userinfo endpoint
-/// response, so a claim present in both arrives as a JSON array of duplicate values rather than
-/// a single value - the extractors below tolerate that by flattening/deduplicating.
+/// Blazor merges ID token and userinfo claims, so a claim in both arrives as an array of
+/// duplicates; the extractors below flatten and deduplicate.
 /// </remarks>
 public class PuckDropClaimsPrincipalFactory(IAccessTokenProviderAccessor accessor)
     : AccountClaimsPrincipalFactory<RemoteUserAccount>(accessor)
@@ -36,9 +30,7 @@ public class PuckDropClaimsPrincipalFactory(IAccessTokenProviderAccessor accesso
             foreach (var roleName in roleNames)
                 identity.AddClaim(new Claim(identity.RoleClaimType, roleName));
 
-            // Blazor names the user from the "name" claim by default, but Cognito users often have
-            // no name attribute set - fall back to the pool's required preferred_username, then
-            // email. Same precedence as the API's display-name resolution (UserProfileService).
+            // Cognito users often have no "name"; same precedence as the API's UserProfileService.
             if (string.IsNullOrEmpty(identity.Name))
             {
                 var fallbackName = ExtractFirstString(account, "preferred_username")
@@ -79,8 +71,7 @@ public class PuckDropClaimsPrincipalFactory(IAccessTokenProviderAccessor accesso
     }
 
     /// <summary>
-    /// Cognito puts group membership in a "cognito:groups" claim shaped as a (possibly
-    /// nested/duplicated - see class remarks) JSON array of group name strings.
+    /// Cognito puts groups in a "cognito:groups" array of names (possibly nested - see remarks).
     /// </summary>
     private static IEnumerable<string> ExtractCognitoGroups(RemoteUserAccount account)
     {
@@ -94,8 +85,7 @@ public class PuckDropClaimsPrincipalFactory(IAccessTokenProviderAccessor accesso
     }
 
     /// <summary>
-    /// The first non-empty string value of a claim, whether it arrived as a plain string or as a
-    /// (possibly nested/duplicated - see class remarks) JSON array.
+    /// The first non-empty string of a claim, whether a plain string or a (nested) array.
     /// </summary>
     private static string? ExtractFirstString(RemoteUserAccount account, string claimName)
     {

@@ -10,9 +10,7 @@ namespace PuckDrop.Web.Tests;
 public class PuckDropClaimsPrincipalFactoryTests
 {
     /// <summary>
-    /// AccountClaimsPrincipalFactory's base CreateUserAsync doesn't touch the token provider
-    /// while building claims from RemoteUserAccount.AdditionalProperties (that's only needed for
-    /// token refresh flows), so a throwing fake is enough to prove that at test time.
+    /// Building claims never touches the token provider, so a throwing fake is enough.
     /// </summary>
     private sealed class ThrowingAccessTokenProviderAccessor : IAccessTokenProviderAccessor
     {
@@ -23,10 +21,7 @@ public class PuckDropClaimsPrincipalFactoryTests
 
     private static RemoteUserAccount AccountWith(string propertyName, JsonElement value)
     {
-        // RemoteUserAccount.AdditionalProperties isn't auto-initialized by the parameterless
-        // constructor (it's only populated by the real OIDC deserialization path) - both this
-        // helper and the base factory itself NullReferenceException without an explicit
-        // dictionary, as building an empty-account test below confirmed.
+        // AdditionalProperties is null unless set explicitly.
         var account = new RemoteUserAccount { AdditionalProperties = new Dictionary<string, object>() };
         account.AdditionalProperties[propertyName] = value;
         return account;
