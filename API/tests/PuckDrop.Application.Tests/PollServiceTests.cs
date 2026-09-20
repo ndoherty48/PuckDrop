@@ -34,11 +34,20 @@ public class PollServiceTests
         return poll;
     }
 
+    /// <param name="questionCount">
+    /// How many questions the poll has. PublishPollAsync reads them to reject an empty poll.
+    /// </param>
     private static (PollService Service, IPollRepository PollRepository, ISeasonRepository SeasonRepository) CreateService(
-        GameDayPoll? poll)
+        GameDayPoll? poll, int questionCount = 1)
     {
         var pollRepository = Substitute.For<IPollRepository>();
         pollRepository.GetByIdAsync(PollId, Arg.Any<CancellationToken>()).Returns(poll);
+
+        var questions = Enumerable.Range(1, questionCount)
+            .Select(i => new Question { QuestionId = $"q-{i}", PollId = PollId, Text = $"Question {i}", SortOrder = i })
+            .ToList();
+        pollRepository.GetWithQuestionsAsync(PollId, Arg.Any<CancellationToken>())
+            .Returns(poll is null ? null : new PollWithQuestions(poll, questions, []));
 
         var seasonRepository = Substitute.For<ISeasonRepository>();
         var seasonService = new SeasonService(seasonRepository);
@@ -112,6 +121,29 @@ public class PollServiceTests
         var (service, _, _) = CreateService(BuildPoll(PollStatus.Open));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.PublishPollAsync(PollId, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task PublishPollAsync_Draft_OpensItForPicks()
+    {
+        var (service, pollRepository, _) = CreateService(BuildPoll(PollStatus.Draft));
+
+        var result = await service.PublishPollAsync(PollId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(PollStatus.Open, result.Status);
+        await pollRepository.Received(1).SavePollAsync(result, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PublishPollAsync_WithNoQuestions_ThrowsAndLeavesItInDraft()
+    {
+        var poll = BuildPoll(PollStatus.Draft);
+        var (service, pollRepository, _) = CreateService(poll, questionCount: 0);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PublishPollAsync(PollId, TestContext.Current.CancellationToken));
+
+        Assert.Equal(PollStatus.Draft, poll.Status);
+        await pollRepository.DidNotReceive().SavePollAsync(Arg.Any<GameDayPoll>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

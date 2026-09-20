@@ -103,8 +103,17 @@
   - Add question button
   - Per question: text input + options list (add/remove/reorder)
   - Delete question button
-- **Publish button** — moves Draft → Open
-- **Only editable** while Draft or Open
+- **Next step panel** — the poll's next action, by status, so a poll is managed from here rather
+  than back on Manage polls:
+  - Draft → **Publish poll** (Draft → Open). Stays enabled with no questions and says what's
+    missing; the API rejects an empty poll too
+  - Open → **Close voting** (Open → Closed) + a link to the live poll
+  - Closed → link to **Score poll**
+  - Scored → link to the results
+- Publishing and closing keep the admin on the page: the status badge changes and the change is
+  announced, rather than navigating away
+- **Only editable** while Draft or Open — the question editor and Delete buttons go once voting
+  has closed
 
 ### Admin: Score Poll (`/admin/polls/{pollId}/score`)
 

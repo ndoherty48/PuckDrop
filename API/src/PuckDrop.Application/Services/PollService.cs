@@ -61,12 +61,22 @@ public class PollService(IPollRepository pollRepository, SeasonService seasonSer
     /// <summary>
     /// Publishes a poll (Draft → Open).
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if the poll has no questions to answer.</exception>
     public async Task<GameDayPoll> PublishPollAsync(string pollId, CancellationToken cancellationToken = default)
     {
-        var poll = await GetPollOrThrowAsync(pollId, cancellationToken);
-        poll.Publish();
-        await pollRepository.SavePollAsync(poll, cancellationToken);
-        return poll;
+        // Loaded with its questions, because a poll with nothing to answer isn't publishable.
+        // GameDayPoll doesn't hold its own questions, so the rule lives here with the other
+        // cross-entity rules rather than in Publish() - which DynamoDbMapper replays on every read.
+        var pollData = await pollRepository.GetWithQuestionsAsync(pollId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Poll '{pollId}' not found.");
+
+        if (pollData.Questions.Count == 0)
+            throw new InvalidOperationException(
+                "Cannot publish a poll with no questions. Add at least one question first.");
+
+        pollData.Poll.Publish();
+        await pollRepository.SavePollAsync(pollData.Poll, cancellationToken);
+        return pollData.Poll;
     }
 
     /// <summary>

@@ -132,4 +132,7 @@ public class ApiException(HttpStatusCode statusCode, string body)
     : Exception($"API returned {(int)statusCode}: {body}")
 {
     public HttpStatusCode StatusCode => statusCode;
+
+    /// <summary>The raw error response, for callers that need to tell one 400 from another.</summary>
+    public string Body => body;
 }
