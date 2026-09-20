@@ -1,6 +1,8 @@
 @page "/admin/polls/{PollId}/edit"
 @attribute [Authorize(Roles = "admin")]
+@using System.Net
 @inject PuckDropApiClient Api
+@inject IJSRuntime JS
 
 <nav class="pd-crumbs" aria-label="Breadcrumb">
     <a href="admin/polls">Manage polls</a>
@@ -75,73 +77,124 @@ else
                                     }
                                 </ul>
                             </div>
-                            <button type="button" class="pd-btn pd-btn-danger pd-btn-sm" disabled="@Busy"
-                                    @onclick="() => DeleteQuestionAsync(question)"><Icon Name="trash" Size="18" />Delete<span class="pd-sr-only"> question @(index + 1)</span></button>
+                            @if (CanEditQuestions)
+                            {
+                                <button type="button" class="pd-btn pd-btn-danger pd-btn-sm" disabled="@Busy"
+                                        @onclick="() => DeleteQuestionAsync(question)"><Icon Name="trash" Size="18" />Delete<span class="pd-sr-only"> question @(index + 1)</span></button>
+                            }
                         </li>
                     }
                 </ol>
             }
         </section>
 
-        <section class="pd-card edit-add" aria-labelledby="add-question-title">
-            <h2 id="add-question-title" class="pd-h2 edit-section-title">Add a question</h2>
+        <div class="edit-side">
+            @* Whatever state the poll is in, this is its next step - publishing, closing voting or
+               scoring - so the poll is managed from here rather than back on Manage polls. *@
+            <section class="pd-card edit-next" aria-labelledby="next-step-title">
+                <h2 id="next-step-title" class="pd-h2 edit-section-title" tabindex="-1" @ref="_nextStepHeading">@NextStepTitle</h2>
 
-            <div class="edit-add-fields">
-                <div class="pd-field">
-                    <label for="new-question" class="pd-label">Question</label>
-                    @if (_questionError is not null)
-                    {
-                        <p id="new-question-error" class="pd-error-msg"><Icon Name="alert" Size="18" />@_questionError</p>
-                    }
-                    <input id="new-question" type="text" class="pd-input" @bind="_newQuestionText" @ref="_questionInput"
-                           aria-invalid="@(_questionError is null ? null : "true")"
-                           aria-describedby="@(_questionError is null ? null : "new-question-error")" />
-                </div>
-
-                <fieldset class="edit-options-fieldset"
-                          aria-describedby="@(_optionsError is null ? "options-hint" : "options-hint options-error")">
-                    <legend class="pd-label">Options</legend>
-                    <p id="options-hint" class="pd-hint">At least 2. Friends pick one.</p>
-                    @if (_optionsError is not null)
-                    {
-                        <p id="options-error" class="pd-error-msg"><Icon Name="alert" Size="18" />@_optionsError</p>
-                    }
-
-                    @for (var i = 0; i < _newOptions.Count; i++)
-                    {
-                        var index = i;
-                        <div class="edit-option-row">
-                            <label for="new-option-@index" class="pd-sr-only">Option @(index + 1)</label>
-                            <span class="pd-muted pd-strong pd-tnum edit-option-num" aria-hidden="true">@(index + 1)</span>
-                            <input id="new-option-@index" type="text" class="pd-input"
-                                   value="@_newOptions[index]"
-                                   @onchange="e => _newOptions[index] = e.Value?.ToString() ?? string.Empty"
-                                   @ref="_optionInputs[index]"
-                                   aria-invalid="@(_optionsError is not null && string.IsNullOrWhiteSpace(_newOptions[index]) ? "true" : null)" />
-                            @if (index >= 2)
-                            {
-                                <button type="button" class="pd-btn pd-btn-quiet pd-btn-icon" aria-label="Remove option @(index + 1)"
-                                        @onclick="() => _newOptions.RemoveAt(index)"><Icon Name="x" /></button>
-                            }
-                            else
-                            {
-                                <span class="edit-option-spacer" aria-hidden="true"></span>
-                            }
-                        </div>
-                    }
-
-                    <div>
-                        <button type="button" class="pd-btn pd-btn-quiet pd-btn-sm edit-add-option" @onclick="() => _newOptions.Add(string.Empty)">
-                            <Icon Name="plus" Size="18" />Add option
+                @if (_poll.Status == "Draft")
+                {
+                    <div class="edit-next-actions">
+                        <button type="button" class="pd-btn pd-btn-primary pd-btn-lg pd-btn-block" disabled="@Busy"
+                                @onclick="PublishAsync">
+                            @(_publishing ? "Publishing…" : "Publish poll")
                         </button>
                     </div>
-                </fieldset>
+                    <p class="pd-hint edit-next-hint">You'll be asked to confirm first. Picks open straight away and close @_poll.Deadline.ToString("ddd d MMM, HH:mm").</p>
+                }
+                else if (_poll.Status == "Open")
+                {
+                    <div class="edit-next-actions">
+                        <button type="button" class="pd-btn pd-btn-secondary pd-btn-lg pd-btn-block" disabled="@Busy"
+                                @onclick="CloseVotingAsync">
+                            <Icon Name="lock" />@(_closing ? "Closing…" : "Close voting")
+                        </button>
+                        <a href="poll/@PollId" class="pd-btn pd-btn-quiet pd-btn-block">View the live poll</a>
+                    </div>
+                    <p class="pd-hint edit-next-hint">Friends can pick until @_poll.Deadline.ToString("ddd d MMM, HH:mm"). Closing stops new picks and locks the questions — it can't be undone.</p>
+                }
+                else if (_poll.Status == "Closed")
+                {
+                    <div class="edit-next-actions">
+                        <a href="admin/polls/@PollId/score" class="pd-btn pd-btn-primary pd-btn-lg pd-btn-block">Score poll</a>
+                    </div>
+                    <p class="pd-hint edit-next-hint">Set the correct answer for each question to mark everyone's picks and update the leaderboard.</p>
+                }
+                else
+                {
+                    <div class="edit-next-actions">
+                        <a href="results/@PollId" class="pd-btn pd-btn-secondary pd-btn-lg pd-btn-block">View results</a>
+                    </div>
+                    <p class="pd-hint edit-next-hint">This poll is scored. Its questions can't be changed.</p>
+                }
+            </section>
 
-                <button type="button" class="pd-btn pd-btn-primary edit-add-submit" disabled="@Busy" @onclick="AddQuestionAsync">
-                    @(_addingQuestion ? "Adding…" : "Add question")
-                </button>
-            </div>
-        </section>
+            @* Questions are only editable while Draft or Open - the API rejects the rest. *@
+            @if (CanEditQuestions)
+            {
+                <section class="pd-card edit-add" aria-labelledby="add-question-title">
+                    <h2 id="add-question-title" class="pd-h2 edit-section-title">Add a question</h2>
+
+                    <div class="edit-add-fields">
+                        <div class="pd-field">
+                            <label for="new-question" class="pd-label">Question</label>
+                            @if (_questionError is not null)
+                            {
+                                <p id="new-question-error" class="pd-error-msg"><Icon Name="alert" Size="18" />@_questionError</p>
+                            }
+                            <input id="new-question" type="text" class="pd-input" @bind="_newQuestionText" @ref="_questionInput"
+                                   aria-invalid="@(_questionError is null ? null : "true")"
+                                   aria-describedby="@(_questionError is null ? null : "new-question-error")" />
+                        </div>
+
+                        <fieldset class="edit-options-fieldset"
+                                  aria-describedby="@(_optionsError is null ? "options-hint" : "options-hint options-error")">
+                            <legend class="pd-label">Options</legend>
+                            <p id="options-hint" class="pd-hint">At least 2. Friends pick one.</p>
+                            @if (_optionsError is not null)
+                            {
+                                <p id="options-error" class="pd-error-msg"><Icon Name="alert" Size="18" />@_optionsError</p>
+                            }
+
+                            @for (var i = 0; i < _newOptions.Count; i++)
+                            {
+                                var index = i;
+                                <div class="edit-option-row">
+                                    <label for="new-option-@index" class="pd-sr-only">Option @(index + 1)</label>
+                                    <span class="pd-muted pd-strong pd-tnum edit-option-num" aria-hidden="true">@(index + 1)</span>
+                                    <input id="new-option-@index" type="text" class="pd-input"
+                                           value="@_newOptions[index]"
+                                           @onchange="e => _newOptions[index] = e.Value?.ToString() ?? string.Empty"
+                                           @ref="_optionInputs[index]"
+                                           aria-invalid="@(_optionsError is not null && string.IsNullOrWhiteSpace(_newOptions[index]) ? "true" : null)" />
+                                    @if (index >= 2)
+                                    {
+                                        <button type="button" class="pd-btn pd-btn-quiet pd-btn-icon" aria-label="Remove option @(index + 1)"
+                                                @onclick="() => _newOptions.RemoveAt(index)"><Icon Name="x" /></button>
+                                    }
+                                    else
+                                    {
+                                        <span class="edit-option-spacer" aria-hidden="true"></span>
+                                    }
+                                </div>
+                            }
+
+                            <div>
+                                <button type="button" class="pd-btn pd-btn-quiet pd-btn-sm edit-add-option" @onclick="() => _newOptions.Add(string.Empty)">
+                                    <Icon Name="plus" Size="18" />Add option
+                                </button>
+                            </div>
+                        </fieldset>
+
+                        <button type="button" class="pd-btn pd-btn-primary edit-add-submit" disabled="@Busy" @onclick="AddQuestionAsync">
+                            @(_addingQuestion ? "Adding…" : "Add question")
+                        </button>
+                    </div>
+                </section>
+            }
+        </div>
     </div>
 }
 
@@ -152,6 +205,8 @@ else
     private bool _loading = true;
     private bool _addingQuestion;
     private bool _deleting;
+    private bool _publishing;
+    private bool _closing;
     private string? _loadError;
     private string? _error;
     private string? _statusMessage;
@@ -162,10 +217,22 @@ else
     private List<string> _newOptions = ["", ""];
 
     private ElementReference _questionsHeading;
+    private ElementReference _nextStepHeading;
     private ElementReference _questionInput;
     private readonly Dictionary<int, ElementReference> _optionInputs = new();
 
-    private bool Busy => _addingQuestion || _deleting;
+    private bool Busy => _addingQuestion || _deleting || _publishing || _closing;
+
+    // The API rejects question edits once voting has closed
+    private bool CanEditQuestions => _poll?.Status is "Draft" or "Open";
+
+    private string NextStepTitle => _poll?.Status switch
+    {
+        "Draft" => "Ready to publish?",
+        "Open" => "Open for picks",
+        "Closed" => "Voting closed",
+        _ => "Poll scored"
+    };
 
     private List<QuestionModel> Questions =>
         _poll?.Questions.OrderBy(q => q.SortOrder).ToList() ?? [];
@@ -249,6 +316,86 @@ else
         finally
         {
             _addingQuestion = false;
+        }
+    }
+
+    private async Task PublishAsync()
+    {
+        if (Busy || _poll is null) return;
+
+        _statusMessage = null;
+        _error = null;
+
+        // Publish stays enabled with nothing to answer yet, and says what's missing instead - a
+        // disabled button leaves the tab order and announces nothing. The API enforces it too.
+        if (Questions.Count == 0)
+        {
+            _error = "Add a question before publishing.";
+            await _questionInput.FocusAsync();
+            return;
+        }
+
+        // Same confirmation as Manage polls, so publishing reads the same wherever you do it from
+        if (!await JS.InvokeAsync<bool>("confirm", $"Publish \"{_poll.Title}\"? It will open for voting immediately."))
+            return;
+
+        _publishing = true;
+
+        try
+        {
+            var updated = await Api.PublishPollAsync(PollId);
+
+            // Publishing doesn't touch the questions, so patch the status rather than reloading:
+            // a failed refresh would show an error over a publish that worked.
+            _poll = _poll with { Status = updated?.Status ?? "Open" };
+            _statusMessage = $"“{_poll.Title}” is now open for picks.";
+
+            // The Publish button is gone - the panel heading names the state that replaced it
+            await _nextStepHeading.FocusAsync();
+        }
+        catch (ApiException ex) when (ex.StatusCode == HttpStatusCode.BadRequest)
+        {
+            _error = ex.Body.Contains("no questions", StringComparison.OrdinalIgnoreCase)
+                ? "Add a question before publishing."
+                : "This poll can no longer be published. Reload the page to see its current status.";
+        }
+        catch (Exception)
+        {
+            _error = "Failed to publish poll. Please try again.";
+        }
+        finally
+        {
+            _publishing = false;
+        }
+    }
+
+    private async Task CloseVotingAsync()
+    {
+        if (Busy || _poll is null) return;
+
+        _statusMessage = null;
+        _error = null;
+
+        if (!await JS.InvokeAsync<bool>("confirm", $"Close voting for \"{_poll.Title}\"? This cannot be undone."))
+            return;
+
+        _closing = true;
+
+        try
+        {
+            var updated = await Api.ClosePollAsync(PollId);
+            _poll = _poll with { Status = updated?.Status ?? "Closed" };
+            _statusMessage = $"Voting is closed for “{_poll.Title}”.";
+
+            await _nextStepHeading.FocusAsync();
+        }
+        catch (Exception)
+        {
+            _error = "Failed to close poll. Please try again.";
+        }
+        finally
+        {
+            _closing = false;
         }
     }
 

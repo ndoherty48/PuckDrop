@@ -100,9 +100,12 @@ public class PollLifecycleTests(AppHostFixture fixture)
         await AdminPollActions.CreatePollAsync(admin, poll2Title);
         await AdminPollActions.AddQuestionAsync(admin, "Will there be overtime?", "Yes", "No");
 
+        // Published from the edit page this time - poll 1 covered publishing from the Manage polls row.
+        await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Publish poll" }).ClickAsync();
+        await Assertions.Expect(admin.GetByText("is now open for picks")).ToBeVisibleAsync();
+
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
         var poll2Row = admin.Locator("tr", new PageLocatorOptions { HasText = poll2Title });
-        await poll2Row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Publish" }).ClickAsync();
         await Assertions.Expect(poll2Row.GetByText("Open")).ToBeVisibleAsync();
 
         await friend.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Home", Exact = true }).ClickAsync();

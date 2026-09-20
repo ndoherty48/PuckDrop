@@ -147,11 +147,38 @@
         padding: 1rem 1.25rem;
     }
 
-    .edit-add {
+    .edit-add,
+    .edit-next {
         padding: 1.25rem;
     }
 
     .edit-add-submit {
         align-self: stretch;
     }
+}
+
+/* ─── Next step ─────────────────────────────────────────────────────── */
+.edit-side {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+    min-width: 0;
+}
+
+.edit-next {
+    padding: 1.75rem;
+}
+
+.edit-next .edit-section-title {
+    margin-bottom: 1.25rem;
+}
+
+.edit-next-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.edit-next-hint {
+    margin-top: 0.75rem;
 }

@@ -17,9 +17,11 @@ public class EditPollTests : BunitContext
     private static QuestionModel Question(string questionId, string text, int sortOrder, params string[] options) =>
         new(questionId, text, sortOrder, null, options.Select((o, i) => new OptionModel($"{questionId}-o{i}", o, i)).ToList());
 
-    private static PollDetailModel BuildPoll(params QuestionModel[] questions) => new(
+    private static PollDetailModel BuildPoll(params QuestionModel[] questions) => BuildPoll("Draft", questions);
+
+    private static PollDetailModel BuildPoll(string status, params QuestionModel[] questions) => new(
         PollId, "2026-27", new DateOnly(2026, 9, 23), "Belfast Giants vs Guildford Flames",
-        new DateTime(2026, 9, 23, 19, 15, 0), "Draft", "admin", DateTime.UtcNow, questions.ToList());
+        new DateTime(2026, 9, 23, 19, 15, 0), status, "admin", DateTime.UtcNow, questions.ToList());
 
     // What the fake API currently returns for the poll - tests replace it to simulate the reload
     // that follows an add or delete.
@@ -145,6 +147,171 @@ public class EditPollTests : BunitContext
             Assert.Contains("No questions yet", cut.Markup);
         });
         JSInterop.VerifyFocusAsyncInvoke();
+    }
+
+    // ─── The next-step panel ────────────────────────────────────────────────
+
+    [Fact]
+    public void Publish_UserConfirms_OpensThePoll_WithoutLeavingThePage()
+    {
+        var publishCalled = false;
+        var handler = new RoutingHttpMessageHandler()
+            .Map(HttpMethod.Post, $"polls/{PollId}/publish", _ =>
+            {
+                publishCalled = true;
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = JsonContent.Create(_currentPoll with { Status = "Open" })
+                };
+            });
+        var cut = RenderEditPoll(handler);
+        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
+        cut.WaitForAssertion(() => Button(cut, "Publish"));
+
+        Button(cut, "Publish").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.True(publishCalled);
+            Assert.Contains("“Belfast Giants vs Guildford Flames” is now open for picks.", cut.Find("[role=status]").TextContent);
+            // Still on the edit page, now showing what comes next for an Open poll
+            Assert.Equal("Belfast Giants vs Guildford Flames", cut.Find("h1").TextContent.Trim());
+            Assert.Equal("Open for picks", cut.Find("#next-step-title").TextContent.Trim());
+            Assert.Equal("Close voting", Button(cut, "Close voting").TextContent.Trim());
+            Assert.NotNull(cut.Find($"a[href='poll/{PollId}']"));
+        });
+        JSInterop.VerifyFocusAsyncInvoke();
+    }
+
+    [Fact]
+    public void Publish_UserCancelsConfirm_DoesNotCallTheApi()
+    {
+        var publishCalled = false;
+        var handler = new RoutingHttpMessageHandler()
+            .Map(HttpMethod.Post, $"polls/{PollId}/publish", _ => { publishCalled = true; return new HttpResponseMessage(HttpStatusCode.OK); });
+        var cut = RenderEditPoll(handler);
+        JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
+        cut.WaitForAssertion(() => Button(cut, "Publish"));
+
+        Button(cut, "Publish").Click();
+
+        cut.WaitForAssertion(() => JSInterop.VerifyInvoke("confirm"));
+        Assert.False(publishCalled);
+        Assert.Equal("Ready to publish?", cut.Find("#next-step-title").TextContent.Trim());
+    }
+
+    [Fact]
+    public void Publish_WithNoQuestions_SaysWhatsMissing_WithoutCallingTheApi()
+    {
+        // Publish stays enabled with nothing to answer; it points at the empty form instead.
+        _currentPoll = BuildPoll();
+        var cut = RenderEditPoll();
+        cut.WaitForAssertion(() => Button(cut, "Publish"));
+
+        Button(cut, "Publish").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Add a question before publishing.", cut.Find("[role=alert]").TextContent);
+            Assert.DoesNotContain("Failed to publish poll", cut.Markup);
+        });
+        Assert.DoesNotContain("confirm", JSInterop.Invocations.Select(i => i.Identifier));
+        JSInterop.VerifyFocusAsyncInvoke();
+    }
+
+    [Fact]
+    public void Publish_RejectedByTheApiAsEmpty_ShowsThatReason_NotTheGenericError()
+    {
+        // The poll has a question here but not on the server - another admin deleted the last one.
+        var handler = new RoutingHttpMessageHandler()
+            .Map(HttpMethod.Post, $"polls/{PollId}/publish", _ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = JsonContent.Create(new { error = "INVALID_OPERATION", message = "Cannot publish a poll with no questions. Add at least one question first." })
+            });
+        var cut = RenderEditPoll(handler);
+        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
+        cut.WaitForAssertion(() => Button(cut, "Publish"));
+
+        Button(cut, "Publish").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Add a question before publishing.", cut.Find("[role=alert]").TextContent);
+            Assert.DoesNotContain("Failed to publish poll", cut.Markup);
+            Assert.Equal("Ready to publish?", cut.Find("#next-step-title").TextContent.Trim());
+        });
+    }
+
+    [Fact]
+    public void Publish_Fails_ShowsAnError_AndLeavesItInDraft()
+    {
+        var handler = new RoutingHttpMessageHandler()
+            .Map(HttpMethod.Post, $"polls/{PollId}/publish", _ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        var cut = RenderEditPoll(handler);
+        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
+        cut.WaitForAssertion(() => Button(cut, "Publish"));
+
+        Button(cut, "Publish").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Failed to publish poll. Please try again.", cut.Find("[role=alert]").TextContent);
+            Assert.Equal("Ready to publish?", cut.Find("#next-step-title").TextContent.Trim());
+        });
+    }
+
+    [Fact]
+    public void CloseVoting_OnAnOpenPoll_AnnouncesIt_AndOffersScoring()
+    {
+        _currentPoll = BuildPoll("Open", Question("q1", "Who wins?", 1, "Belfast Giants", "Guildford Flames"));
+        var handler = new RoutingHttpMessageHandler()
+            .Map(HttpMethod.Post, $"polls/{PollId}/close", _ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(_currentPoll with { Status = "Closed" })
+            });
+        var cut = RenderEditPoll(handler);
+        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
+        cut.WaitForAssertion(() => Button(cut, "Close voting"));
+
+        Button(cut, "Close voting").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Voting is closed for “Belfast Giants vs Guildford Flames”.", cut.Find("[role=status]").TextContent);
+            Assert.Equal("Voting closed", cut.Find("#next-step-title").TextContent.Trim());
+            Assert.NotNull(cut.Find($"a[href='admin/polls/{PollId}/score']"));
+        });
+    }
+
+    [Fact]
+    public void ClosedPoll_OffersScoring_AndDropsTheQuestionEditor()
+    {
+        // The API rejects question edits once voting has closed, so the controls go too.
+        _currentPoll = BuildPoll("Closed", Question("q1", "Who wins?", 1, "Belfast Giants", "Guildford Flames"));
+
+        var cut = RenderEditPoll();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Voting closed", cut.Find("#next-step-title").TextContent.Trim());
+            Assert.NotNull(cut.Find($"a[href='admin/polls/{PollId}/score']"));
+            Assert.Empty(cut.FindAll("#add-question-title"));
+            Assert.Empty(cut.FindAll("button").Where(b => b.TextContent.Trim().StartsWith("Delete")));
+        });
+    }
+
+    [Fact]
+    public void ScoredPoll_PointsAtTheResults()
+    {
+        _currentPoll = BuildPoll("Scored", Question("q1", "Who wins?", 1, "Belfast Giants", "Guildford Flames"));
+
+        var cut = RenderEditPoll();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Poll scored", cut.Find("#next-step-title").TextContent.Trim());
+            Assert.NotNull(cut.Find($"a[href='results/{PollId}']"));
+        });
     }
 
     [Fact]
