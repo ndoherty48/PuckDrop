@@ -29,9 +29,9 @@ public class PollLifecycleTests(AppHostFixture fixture)
 
         // ── Poll 1: two questions, friend gets one right and one wrong ─────────────────────
         var poll1Title = $"E2E Poll {Guid.NewGuid():N}";
-        await CreatePollAsync(admin, poll1Title);
-        await AddQuestionAsync(admin, "Will the home team win?", "Yes", "No");
-        await AddQuestionAsync(admin, "Total goals over 5.5?", "Over", "Under");
+        await AdminPollActions.CreatePollAsync(admin, poll1Title);
+        await AdminPollActions.AddQuestionAsync(admin, "Will the home team win?", "Yes", "No");
+        await AdminPollActions.AddQuestionAsync(admin, "Total goals over 5.5?", "Over", "Under");
 
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
         var poll1Row = admin.Locator("tr", new PageLocatorOptions { HasText = poll1Title });
@@ -97,8 +97,8 @@ public class PollLifecycleTests(AppHostFixture fixture)
         // ── Poll 2: single question, friend gets it right - points should accumulate ───────
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
         var poll2Title = $"E2E Poll 2 {Guid.NewGuid():N}";
-        await CreatePollAsync(admin, poll2Title);
-        await AddQuestionAsync(admin, "Will there be overtime?", "Yes", "No");
+        await AdminPollActions.CreatePollAsync(admin, poll2Title);
+        await AdminPollActions.AddQuestionAsync(admin, "Will there be overtime?", "Yes", "No");
 
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
         var poll2Row = admin.Locator("tr", new PageLocatorOptions { HasText = poll2Title });
@@ -127,41 +127,5 @@ public class PollLifecycleTests(AppHostFixture fixture)
         // ── Leaderboard again: 1 + 1 = 2, not reset to 1 ────────────────────────────────────
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Leaderboard" }).ClickAsync();
         await Assertions.Expect(leaderboardRow).ToContainTextAsync("2");
-    }
-
-    private static async Task CreatePollAsync(IPage admin, string title)
-    {
-        await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Create Poll" }).ClickAsync();
-
-        var gameDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        // Far enough ahead that voting is still open after a slow run.
-        var deadline = DateTime.UtcNow.AddHours(6);
-
-        await admin.FillAsync("#title", title);
-        await admin.FillAsync("#gameDate", gameDate.ToString("yyyy-MM-dd"));
-        await admin.FillAsync("#deadline", deadline.ToString("yyyy-MM-ddTHH:mm"));
-        await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Create Poll" }).ClickAsync();
-
-        // The edit page's h1 is the poll's own title
-        await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = title, Level = 1 }))
-            .ToBeVisibleAsync();
-    }
-
-    /// <summary>
-    /// Fills EditPoll's "Add a question" form by its labels: the question field, then the first
-    /// two option fields.
-    /// </summary>
-    private static async Task AddQuestionAsync(IPage admin, string questionText, string option1, string option2)
-    {
-        var addQuestion = admin.GetByRole(AriaRole.Region, new PageGetByRoleOptions { Name = "Add a question" });
-
-        await addQuestion.GetByLabel("Question", new LocatorGetByLabelOptions { Exact = true }).FillAsync(questionText);
-        await addQuestion.GetByLabel("Option 1", new LocatorGetByLabelOptions { Exact = true }).FillAsync(option1);
-        await addQuestion.GetByLabel("Option 2", new LocatorGetByLabelOptions { Exact = true }).FillAsync(option2);
-        await addQuestion.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Add question" })
-            .ClickAsync();
-
-        await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = questionText }))
-            .ToBeVisibleAsync();
     }
 }

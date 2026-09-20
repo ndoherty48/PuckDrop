@@ -146,17 +146,17 @@ public class DynamoDbPollRepository(IAmazonDynamoDB dynamoDb) : IPollRepository
 
     public async Task DeleteQuestionAsync(string pollId, string questionId, CancellationToken cancellationToken = default)
     {
-        // First, find the question and its options to delete them
+        // Read the poll's whole item collection (poll + questions + options) and pick out the
+        // target question below. The question's SK carries its sort order before its id
+        // (Q#{sortOrder}#{questionId}), so there's no begins_with that selects one question by
+        // id, and SK is a key attribute so it can't go in a FilterExpression either.
         var response = await dynamoDb.QueryAsync(new QueryRequest
         {
             TableName = DynamoDbKeys.TableName,
             KeyConditionExpression = "PK = :pk",
-            FilterExpression = "begins_with(SK, :qPrefix) OR begins_with(SK, :optPrefix)",
             ExpressionAttributeValues = new Dictionary<string, AttributeValue>
             {
-                [":pk"] = new(DynamoDbKeys.PollPK(pollId)),
-                [":qPrefix"] = new($"Q#"),
-                [":optPrefix"] = new($"OPT#{questionId}#")
+                [":pk"] = new(DynamoDbKeys.PollPK(pollId))
             }
         }, cancellationToken);
 
@@ -167,8 +167,8 @@ public class DynamoDbPollRepository(IAmazonDynamoDB dynamoDb) : IPollRepository
             var sk = item["SK"].S;
 
             // Match the specific question or its options
-            bool isTargetQuestion = sk.StartsWith("Q#") && item.ContainsKey("questionId") && item["questionId"].S == questionId;
-            bool isTargetOption = sk.StartsWith($"OPT#{questionId}#");
+            bool isTargetQuestion = sk.StartsWith(DynamoDbKeys.QuestionSKPrefix) && item.ContainsKey("questionId") && item["questionId"].S == questionId;
+            bool isTargetOption = sk.StartsWith($"{DynamoDbKeys.OptionSKPrefix}{questionId}#");
 
             if (isTargetQuestion || isTargetOption)
             {
