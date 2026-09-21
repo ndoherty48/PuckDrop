@@ -35,6 +35,6 @@ jobs:
       # Playwright ships no browser with the NuGet package. --with-deps also pulls the system
       # libraries headless Chromium needs, which a bare runner doesn't have.
       - name: Install Playwright browsers
-        run: pwsh tests/PuckDrop.E2ETests/bin/Release/net10.0/playwright.ps1 install chromium --with-deps
+        run: pwsh tests/PuckDrop.E2ETests/bin/Debug/net10.0/playwright.ps1 install chromium --with-deps
       - name: E2E Tests
         run: dotnet test --no-build --verbosity normal --project tests/PuckDrop.E2ETests/PuckDrop.E2ETests.csproj --retry-failed-tests 1 --retry-failed-tests-delay 5s
