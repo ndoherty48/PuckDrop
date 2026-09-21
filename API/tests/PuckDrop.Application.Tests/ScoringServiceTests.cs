@@ -60,8 +60,7 @@ public class ScoringServiceTests
 
     private static Fixture CreateFixture(
         PollWithQuestions? pollData,
-        IReadOnlyList<UserAnswer>? allAnswers = null,
-        Func<string, LeaderboardEntry?>? existingEntryFor = null)
+        IReadOnlyList<UserAnswer>? allAnswers = null)
     {
         var pollRepository = Substitute.For<IPollRepository>();
         pollRepository.GetWithQuestionsAsync(PollId, Arg.Any<CancellationToken>()).Returns(pollData);
@@ -71,12 +70,6 @@ public class ScoringServiceTests
             .Returns(allAnswers ?? []);
 
         var leaderboardRepository = Substitute.For<ILeaderboardRepository>();
-        if (existingEntryFor is not null)
-        {
-            leaderboardRepository
-                .GetEntryAsync(SeasonId, Arg.Any<string>(), Arg.Any<CancellationToken>())
-                .Returns(call => existingEntryFor(call.ArgAt<string>(1)));
-        }
 
         return new Fixture
         {
@@ -85,6 +78,20 @@ public class ScoringServiceTests
             AnswerRepository = answerRepository,
             LeaderboardRepository = leaderboardRepository
         };
+    }
+
+    /// <summary>
+    /// The poll score facts the service recorded, keyed by user.
+    /// </summary>
+    private static async Task<IReadOnlyDictionary<string, PollScore>> RecordedScoresAsync(Fixture fixture)
+    {
+        var calls = await Task.FromResult(fixture.LeaderboardRepository.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(ILeaderboardRepository.SavePollScoresAsync))
+            .ToList());
+
+        var saved = Assert.Single(calls);
+        var scores = (IReadOnlyList<PollScore>)saved.GetArguments()[0]!;
+        return scores.ToDictionary(s => s.UserId);
     }
 
     [Fact]
@@ -152,66 +159,96 @@ public class ScoringServiceTests
     }
 
     [Fact]
-    public async Task ScorePollAsync_ExistingLeaderboardEntry_SelfHealsDisplayNameAndAccumulatesPoints()
+    public async Task ScorePollAsync_RecordsWhatEachPlayerEarnedInThisPollAlone()
     {
-        var questions = BuildTwoQuestions();
-        var pollData = new PollWithQuestions(BuildClosedPoll(), questions, []);
-        var answers = BuildAnswersForTwoUsers();
-        var existing = new LeaderboardEntry
-        {
-            UserId = "user-1",
-            SeasonId = SeasonId,
-            DisplayName = "Stale Old Name",
-            TotalPoints = 5,
-            TotalAnswered = 10
-        };
-        var fixture = CreateFixture(pollData, answers, userId => userId == "user-1" ? existing : null);
+        // Facts are per-poll, never a running total: the season is folded from them on read.
+        var pollData = new PollWithQuestions(BuildClosedPoll(), BuildTwoQuestions(), []);
+        var fixture = CreateFixture(pollData, BuildAnswersForTwoUsers());
 
         await fixture.Service.ScorePollAsync(PollId, [
             new QuestionScore(Question1Id, Q1CorrectOptionId),
             new QuestionScore(Question2Id, Q2OptionAId)
         ], TestContext.Current.CancellationToken);
 
-        // user-1 got Question1 right (Q1CorrectOptionId) and Question2 wrong (picked Q2OptionB,
-        // correct is Q2OptionA) -> 1 correct out of 2 answered this poll.
-        await fixture.LeaderboardRepository.Received(1).SaveEntryAsync(
-            Arg.Is<LeaderboardEntry>(e =>
-                e.UserId == "user-1" &&
-                e.DisplayName == "Nathan" && // self-healed from the current pass's UserAnswer.DisplayName
-                e.TotalPoints == 6 &&        // 5 existing + 1 from this poll
-                e.TotalAnswered == 12),      // 10 existing + 2 from this poll
-            previousPoints: 5,
-            Arg.Any<CancellationToken>());
+        var scores = await RecordedScoresAsync(fixture);
+
+        // user-1 got Question1 right and Question2 wrong; user-2 the other way round.
+        Assert.Equal(1, scores["user-1"].Points);
+        Assert.Equal(2, scores["user-1"].Answered);
+        Assert.Equal("Nathan", scores["user-1"].DisplayName);
+        Assert.Equal(1, scores["user-2"].Points);
+        Assert.Equal(2, scores["user-2"].Answered);
+        Assert.All(scores.Values, s => Assert.Equal(PollId, s.PollId));
+        Assert.All(scores.Values, s => Assert.Equal(SeasonId, s.SeasonId));
     }
 
     [Fact]
-    public async Task ScorePollAsync_NoExistingLeaderboardEntry_CreatesNewOneWithNullPreviousPoints()
+    public async Task ScorePollAsync_RescoringAPoll_OverwritesItsFactsRatherThanDoubleCounting()
     {
-        var questions = BuildTwoQuestions();
-        var pollData = new PollWithQuestions(BuildClosedPoll(), questions, []);
-        var answers = BuildAnswersForTwoUsers();
-        var fixture = CreateFixture(pollData, answers, existingEntryFor: _ => null);
+        // The whole point of folding totals from facts: scoring the same poll twice - to fix a
+        // wrong correct option - leaves one fact per player, carrying the corrected points.
+        var poll = BuildClosedPoll();
+        poll.MarkScored(DateTime.UtcNow);
+        var pollData = new PollWithQuestions(poll, BuildTwoQuestions(), []);
+        var fixture = CreateFixture(pollData, BuildAnswersForTwoUsers());
 
+        // Question 2's correct option is now Q2OptionB, so user-1 gets both right.
         await fixture.Service.ScorePollAsync(PollId, [
             new QuestionScore(Question1Id, Q1CorrectOptionId),
-            new QuestionScore(Question2Id, Q2OptionAId)
+            new QuestionScore(Question2Id, Q2OptionBId)
         ], TestContext.Current.CancellationToken);
 
-        await fixture.LeaderboardRepository.Received(1).SaveEntryAsync(
-            Arg.Is<LeaderboardEntry>(e => e.UserId == "user-1" && e.TotalPoints == 1 && e.TotalAnswered == 2),
-            previousPoints: null,
-            Arg.Any<CancellationToken>());
-        await fixture.LeaderboardRepository.Received(1).SaveEntryAsync(
-            Arg.Is<LeaderboardEntry>(e => e.UserId == "user-2" && e.TotalPoints == 1 && e.TotalAnswered == 2),
-            previousPoints: null,
-            Arg.Any<CancellationToken>());
+        var scores = await RecordedScoresAsync(fixture);
+
+        Assert.Equal(2, scores["user-1"].Points);
+        Assert.Equal(0, scores["user-2"].Points);
+    }
+
+    [Fact]
+    public async Task ScorePollAsync_UngradedAnswers_AreNotCountedAsAnswered()
+    {
+        // A question the admin never set a correct option for is not one the player got wrong.
+        // Counting it would quietly tank everyone's accuracy on a partially scored poll.
+        var pollData = new PollWithQuestions(BuildClosedPoll(), BuildTwoQuestions(), []);
+        var fixture = CreateFixture(pollData, BuildAnswersForTwoUsers());
+
+        await fixture.Service.ScorePollAsync(
+            PollId, [new QuestionScore(Question1Id, Q1CorrectOptionId)], TestContext.Current.CancellationToken);
+
+        var scores = await RecordedScoresAsync(fixture);
+
+        Assert.Equal(1, scores["user-1"].Answered);
+        Assert.Equal(1, scores["user-1"].Points);
+        Assert.Equal(1, scores["user-2"].Answered);
+        Assert.Equal(0, scores["user-2"].Points);
+    }
+
+    [Fact]
+    public async Task ScorePollAsync_AnswerPersistenceFails_DoesNotSaveThePollAsScored()
+    {
+        // The status change is the last write precisely so a pass that dies partway leaves the poll
+        // Closed and re-runnable, rather than Scored with only some of its answers graded.
+        var pollData = new PollWithQuestions(BuildClosedPoll(), BuildTwoQuestions(), []);
+        var fixture = CreateFixture(pollData, BuildAnswersForTwoUsers());
+        fixture.AnswerRepository
+            .UpdateScoresAsync(Arg.Any<IReadOnlyList<UserAnswer>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromException(new InvalidOperationException("Unprocessed items remained.")));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Service.ScorePollAsync(PollId, [
+                new QuestionScore(Question1Id, Q1CorrectOptionId),
+                new QuestionScore(Question2Id, Q2OptionAId)
+            ], TestContext.Current.CancellationToken));
+
+        await fixture.PollRepository.DidNotReceive().SavePollAsync(Arg.Any<GameDayPoll>(), Arg.Any<CancellationToken>());
+        Assert.Equal(Domain.Enums.PollStatus.Closed, pollData.Poll.Status);
     }
 
     [Fact]
     public async Task ScorePollAsync_HappyPath_SavesPollAsScored()
     {
         var pollData = new PollWithQuestions(BuildClosedPoll(), BuildTwoQuestions(), []);
-        var fixture = CreateFixture(pollData, BuildAnswersForTwoUsers(), existingEntryFor: _ => null);
+        var fixture = CreateFixture(pollData, BuildAnswersForTwoUsers());
 
         await fixture.Service.ScorePollAsync(PollId, [
             new QuestionScore(Question1Id, Q1CorrectOptionId),

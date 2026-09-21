@@ -79,7 +79,51 @@ RESTful API served via AWS Lambda behind API Gateway (HTTP API v2). All endpoint
 }
 ```
 
-This triggers scoring: evaluates all UserAnswers, sets IsCorrect, updates leaderboard.
+This triggers scoring: evaluates all UserAnswers, sets IsCorrect, and records what each player
+earned for this poll.
+
+**Re-scoring is the same call.** A poll already `Scored` can be scored again — to fix a wrong correct
+option, finish a partly scored poll, or retry a pass that failed halfway. Every write uses a
+deterministic key, so it overwrites rather than double-counting. Only questions included in the
+request are graded; omitted ones are left ungraded and don't count towards anyone's answered total.
+
+### Voided picks
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/polls/{pollId}/voids` | Admin | Void one player's picks for this game day |
+| DELETE | `/polls/{pollId}/voids/{userId}` | Admin | Restore previously voided picks |
+
+**Request body (POST):**
+```json
+{ "userId": "...", "reason": "Picked after puck drop" }
+```
+
+A void takes that game day's points *and* answered count off the player's season total. The reason is
+required and shown to every player on the leaderboard. Voting must be closed first (`Closed` or
+`Scored`), and the player must actually have made picks — otherwise `400`. Restoring is a conditional
+delete: undoing a void that doesn't exist is `404`, not a silent success. A void survives re-scoring,
+so restoring after a re-score reveals the *new* score.
+
+### Point adjustments
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/leaderboard/adjustments` | Admin | Apply a signed points change |
+| DELETE | `/leaderboard/adjustments/{adjustmentId}?userId={id}&seasonId={id}` | Admin | Remove an adjustment |
+
+**Request body (POST):**
+```json
+{ "userId": "...", "points": -5, "reason": "Picked after puck drop", "seasonId": null }
+```
+
+`points` is signed and non-zero (max ±1000); negative deducts. `seasonId` defaults to the current
+season. The player must already have a leaderboard standing — names are only ever captured from a
+player's own answers, so there is nobody to name an adjustment after otherwise (`404`). A deduction
+may take a total below zero.
+
+`userId` and `seasonId` are required on DELETE as well as the id: the adjustment is keyed on all
+three and there is no index on the id alone. Removing one restores the total exactly.
 
 ### User Answers
 
@@ -146,11 +190,29 @@ This triggers scoring: evaluates all UserAnswers, sets IsCorrect, updates leader
 {
   "seasonId": "2025-26",
   "entries": [
-    { "userId": "...", "displayName": "Nick", "totalPoints": 12, "totalAnswered": 15, "rank": 1 },
-    { "userId": "...", "displayName": "Dave", "totalPoints": 10, "totalAnswered": 14, "rank": 2 }
+    {
+      "userId": "...", "displayName": "Nick", "rank": 1,
+      "totalPoints": 12, "totalAnswered": 15,
+      "earnedPoints": 12, "adjustmentPoints": 0,
+      "adjustments": [], "voids": []
+    },
+    {
+      "userId": "...", "displayName": "Dave", "rank": 2,
+      "totalPoints": 5, "totalAnswered": 11,
+      "earnedPoints": 10, "adjustmentPoints": -5,
+      "adjustments": [{ "adjustmentId": "...", "points": -5, "reason": "Picked after puck drop" }],
+      "voids": [{ "pollId": "...", "pollTitle": "Giants vs Steelers", "reason": "No-show" }]
+    }
   ]
 }
 ```
+
+`totalPoints` is `earnedPoints + adjustmentPoints` and **may be negative**. `adjustments` and `voids`
+are public: every player sees why a penalty was applied. Who applied it stays internal. Accuracy is
+computed from `earnedPoints`, not `totalPoints` — a sanction is not a wrong answer.
+
+There is no stored total: the whole season is folded from its scoring facts in one query on each
+read. See `docs/dynamodb-design.md`.
 
 ## Error Responses
 

@@ -1,0 +1,276 @@
+@page "/admin/leaderboard"
+@attribute [Authorize(Roles = "admin")]
+@inject PuckDropApiClient Api
+@inject IJSRuntime JS
+
+<div class="pd-page-head">
+    <div>
+        <p class="pd-eyebrow">Admin@(_leaderboard is not null ? $" · {_leaderboard.SeasonId}" : "")</p>
+        <h1 class="pd-page-title" tabindex="-1" @ref="_pageHeading">Point adjustments</h1>
+    </div>
+    <a href="leaderboard" class="pd-btn pd-btn-quiet">View leaderboard</a>
+</div>
+
+@if (_loading)
+{
+    <p class="pd-muted" role="status">Loading standings…</p>
+}
+else if (_loadError is not null)
+{
+    <div class="pd-alert pd-alert-danger" role="alert">
+        <Icon Name="alert" />
+        <p>@_loadError</p>
+    </div>
+}
+else if (_leaderboard is null || _leaderboard.Entries.Count == 0)
+{
+    <p class="pd-card pd-muted">
+        Nobody has a standing yet. Points can only be adjusted once a player has answered a scored
+        poll — their name comes from their own picks, so there is nothing to adjust before that.
+    </p>
+}
+else
+{
+    <div role="status" aria-live="polite">
+        @if (_status is not null)
+        {
+            <div class="pd-alert pd-alert-success">
+                <Icon Name="check" />
+                <p>@_status</p>
+            </div>
+        }
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="pd-alert pd-alert-danger" role="alert">
+            <Icon Name="alert" />
+            <p>@_error</p>
+        </div>
+    }
+
+    <section class="pd-card" aria-labelledby="adjust-add-title">
+        <div class="pd-card-head">
+            <h2 id="adjust-add-title" class="pd-h2">Adjust a player's points</h2>
+        </div>
+
+        <p class="pd-muted lba-intro">
+            Use a negative number to deduct, positive to award. The reason is shown to everyone on the
+            leaderboard, and a deduction can take a total below zero.
+        </p>
+
+        <div class="lba-form">
+            <div class="pd-field">
+                <label class="pd-label" for="adjust-player">Player</label>
+                <select id="adjust-player" class="pd-input" @bind="_userId">
+                    <option value="">Choose a player…</option>
+                    @foreach (var entry in _leaderboard.Entries)
+                    {
+                        <option value="@entry.UserId">@entry.DisplayName</option>
+                    }
+                </select>
+                @if (_playerMissing)
+                {
+                    <p id="adjust-player-error" class="pd-error-msg" role="alert">Choose which player to adjust.</p>
+                }
+            </div>
+
+            <div class="pd-field lba-points-field">
+                <label class="pd-label" for="adjust-points">Points</label>
+                <input id="adjust-points" class="pd-input" type="number" inputmode="numeric"
+                       @bind="_points" @bind:event="oninput"
+                       aria-invalid="@(_pointsInvalid ? "true" : null)"
+                       aria-describedby="@(_pointsInvalid ? "adjust-points-error" : null)" />
+                @if (_pointsInvalid)
+                {
+                    <p id="adjust-points-error" class="pd-error-msg" role="alert">
+                        Enter a points change other than zero.
+                    </p>
+                }
+            </div>
+
+            <div class="pd-field lba-reason-field">
+                <label class="pd-label" for="adjust-reason">Reason</label>
+                <input id="adjust-reason" class="pd-input" @bind="_reason" @bind:event="oninput"
+                       aria-invalid="@(_reasonMissing ? "true" : null)"
+                       aria-describedby="@(_reasonMissing ? "adjust-reason-error" : null)" />
+                @if (_reasonMissing)
+                {
+                    <p id="adjust-reason-error" class="pd-error-msg" role="alert">
+                        Give a reason — everyone sees it on the leaderboard.
+                    </p>
+                }
+            </div>
+        </div>
+
+        <button type="button" class="pd-btn pd-btn-primary" disabled="@Busy" @onclick="AddAdjustmentAsync">
+            @(_adding ? "Applying…" : "Apply adjustment")
+        </button>
+    </section>
+
+    <section class="pd-card" aria-labelledby="adjust-standings-title">
+        <div class="pd-card-head">
+            <h2 id="adjust-standings-title" class="pd-h2">Standings</h2>
+        </div>
+
+        <div class="pd-table-wrap">
+            <table class="pd-table">
+                <caption class="pd-sr-only">Each player's earned points, adjustments and effective total</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Player</th>
+                        <th scope="col" class="pd-num">Earned</th>
+                        <th scope="col" class="pd-num">Adjustments</th>
+                        <th scope="col" class="pd-num">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in _leaderboard.Entries)
+                    {
+                        <tr>
+                            <th scope="row">
+                                @entry.DisplayName
+                                @foreach (var adjustment in entry.Adjustments)
+                                {
+                                    <span class="lba-adjustment">
+                                        <span class="pd-muted">@FormatDelta(adjustment.Points) · @adjustment.Reason</span>
+                                        <button type="button" class="pd-btn pd-btn-quiet pd-btn-sm" disabled="@Busy"
+                                                @onclick="() => RemoveAdjustmentAsync(entry, adjustment)">
+                                            Remove<span class="pd-sr-only"> @FormatDelta(adjustment.Points) adjustment for @entry.DisplayName</span>
+                                        </button>
+                                    </span>
+                                }
+                                @foreach (var pollVoid in entry.Voids)
+                                {
+                                    <span class="pd-muted lba-adjustment">Voided: @pollVoid.PollTitle · @pollVoid.Reason</span>
+                                }
+                            </th>
+                            <td class="pd-num">@entry.EarnedPoints</td>
+                            <td class="pd-num">@(entry.AdjustmentPoints == 0 ? "—" : FormatDelta(entry.AdjustmentPoints))</td>
+                            <td class="pd-num pd-strong">@FormatTotal(entry.TotalPoints)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="pd-hint">
+            To void a whole game day for a player, open that poll's results and use “Void picks”.
+        </p>
+    </section>
+}
+
+@code {
+    private LeaderboardModel? _leaderboard;
+    private bool _loading = true;
+    private string? _loadError;
+    private string? _error;
+    private string? _status;
+    private ElementReference _pageHeading;
+
+    private string _userId = string.Empty;
+    private int? _points;
+    private string _reason = string.Empty;
+    private bool _playerMissing;
+    private bool _pointsInvalid;
+    private bool _reasonMissing;
+    private bool _adding;
+    private bool _removing;
+
+    private bool Busy => _adding || _removing;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _leaderboard = await Api.GetLeaderboardAsync();
+        }
+        catch (Exception)
+        {
+            _loadError = "Unable to load standings. Please try again later.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task AddAdjustmentAsync()
+    {
+        if (Busy) return;
+
+        // Say what's missing rather than disabling the button, as the other admin pages do.
+        _playerMissing = string.IsNullOrWhiteSpace(_userId);
+        _pointsInvalid = _points is null or 0;
+        _reasonMissing = string.IsNullOrWhiteSpace(_reason);
+        if (_playerMissing || _pointsInvalid || _reasonMissing) return;
+
+        _adding = true;
+        _error = null;
+        _status = null;
+
+        var playerName = _leaderboard?.Entries.FirstOrDefault(e => e.UserId == _userId)?.DisplayName ?? "Player";
+
+        try
+        {
+            await Api.AddAdjustmentAsync(new CreateAdjustmentRequest(_userId, _points!.Value, _reason.Trim()));
+            await LoadAsync();
+            _status = $"{FormatDelta(_points!.Value)} applied to {playerName}.";
+            _userId = string.Empty;
+            _points = null;
+            _reason = string.Empty;
+        }
+        catch (Exception)
+        {
+            _error = "Failed to apply the adjustment. Please try again.";
+        }
+        finally
+        {
+            _adding = false;
+        }
+
+        await _pageHeading.FocusAsync();
+    }
+
+    private async Task RemoveAdjustmentAsync(LeaderboardEntryModel entry, LeaderboardAdjustmentModel adjustment)
+    {
+        if (Busy) return;
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            $"Remove the {FormatDelta(adjustment.Points)} adjustment for {entry.DisplayName}? "
+            + "Their total goes back to what it was.");
+        if (!confirmed) return;
+
+        _removing = true;
+        _error = null;
+        _status = null;
+
+        try
+        {
+            await Api.RemoveAdjustmentAsync(adjustment.AdjustmentId, entry.UserId, _leaderboard?.SeasonId);
+            await LoadAsync();
+            _status = $"Adjustment removed for {entry.DisplayName}.";
+        }
+        catch (Exception)
+        {
+            _error = "Failed to remove the adjustment. Please try again.";
+        }
+        finally
+        {
+            _removing = false;
+        }
+
+        await _pageHeading.FocusAsync();
+    }
+
+    /// <summary>A points change, always signed so an award can't read as a deduction.</summary>
+    private static string FormatDelta(int points) => points < 0
+        ? $"−{Math.Abs(points)}"
+        : $"+{points}";
+
+    /// <summary>A season total: real minus sign for negatives, bare for positives.</summary>
+    private static string FormatTotal(int points) => points < 0
+        ? $"−{Math.Abs(points)}"
+        : points.ToString();
+}

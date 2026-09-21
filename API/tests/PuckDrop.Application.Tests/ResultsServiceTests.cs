@@ -31,7 +31,7 @@ public class ResultsServiceTests
     }
 
     private static (ResultsService Service, IPollRepository PollRepository, IUserAnswerRepository AnswerRepository) CreateService(
-        GameDayPoll poll, IReadOnlyList<UserAnswer> answers)
+        GameDayPoll poll, IReadOnlyList<UserAnswer> answers, IReadOnlyList<PollVoid>? voids = null)
     {
         var pollRepository = Substitute.For<IPollRepository>();
         pollRepository.GetWithQuestionsAsync(PollId, Arg.Any<CancellationToken>())
@@ -40,7 +40,11 @@ public class ResultsServiceTests
         var answerRepository = Substitute.For<IUserAnswerRepository>();
         answerRepository.GetAllAnswersForPollAsync(PollId, Arg.Any<CancellationToken>()).Returns(answers);
 
-        return (new ResultsService(pollRepository, answerRepository), pollRepository, answerRepository);
+        var leaderboardRepository = Substitute.For<ILeaderboardRepository>();
+        leaderboardRepository.GetSeasonFactsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new SeasonFacts([], voids ?? [], []));
+
+        return (new ResultsService(pollRepository, answerRepository, leaderboardRepository), pollRepository, answerRepository);
     }
 
     [Fact]
@@ -48,7 +52,8 @@ public class ResultsServiceTests
     {
         var pollRepository = Substitute.For<IPollRepository>();
         pollRepository.GetWithQuestionsAsync(PollId, Arg.Any<CancellationToken>()).Returns((PollWithQuestions?)null);
-        var service = new ResultsService(pollRepository, Substitute.For<IUserAnswerRepository>());
+        var service = new ResultsService(
+            pollRepository, Substitute.For<IUserAnswerRepository>(), Substitute.For<ILeaderboardRepository>());
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() => service.GetPollResultsAsync(PollId, TestContext.Current.CancellationToken));
     }

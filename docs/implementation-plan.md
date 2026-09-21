@@ -46,7 +46,7 @@ Dependencies only flow inward. Domain is pure entities and business rules with z
 | `Entities/Question.cs` | Question with `SetCorrectOption()` and private setter enforcement |
 | `Entities/Option.cs` | Simple value entity (OptionId, QuestionId, Text, SortOrder) |
 | `Entities/UserAnswer.cs` | User's pick with `Evaluate()` scoring method |
-| `Entities/LeaderboardEntry.cs` | Aggregated score with `AddPollResults()` and computed `Accuracy` |
+| `Entities/LeaderboardEntry.cs` | A player's standing, folded from scoring facts by `SeasonStandings.Build()`; computed `TotalPoints` and `Accuracy` |
 
 ### Design decisions
 

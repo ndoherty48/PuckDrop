@@ -36,6 +36,15 @@
     font-weight: 700;
 }
 
+/* Penalties and voided game days. Unlike .lb-sub these show at EVERY width: no column holds them,
+   and a deduction nobody can see the reason for is exactly what starts the argument. */
+.lb-sanction {
+    display: block;
+    font-size: 0.9375rem;
+    font-weight: 400;
+    color: var(--pd-slate);
+}
+
 @media (max-width: 767.98px) {
     .lb-rule {
         margin: 0;

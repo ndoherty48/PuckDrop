@@ -25,8 +25,9 @@ Single-table design. One table (`PuckDrop`) holds all entities. Access patterns 
 | 6 | Get options for a question | `POLL#{pollId}` | `OPT#{questionId}#{sortOrder}` | Grouped under poll |
 | 7 | Get user's answers for a poll | `USERANSWER#{userId}#{pollId}` | `Q#{questionId}` | |
 | 8 | Get all answers for a poll (results) | GSI1 | | See GSI1 below |
-| 9 | Get leaderboard for a season | `LEADERBOARD#{seasonId}` | `SCORE#{totalPoints (zero-padded inverted)}#{userId}` | Sorted by points desc |
+| 9 | Get a season's scoring facts (leaderboard) | `LEADERBOARD#{seasonId}` | `U#` prefix | One query; folded into standings in memory |
 | 10 | Get active/open polls | GSI2 | | See GSI2 below |
+| 11 | Get one player's facts | `LEADERBOARD#{seasonId}` | `U#{userId}#` prefix | Shared prefix, so one query covers all three fact types |
 
 ## Item Schemas
 
@@ -94,15 +95,48 @@ GSI1SK: ANSWER#{userId}#{questionId}
 ```
 Attributes: `userId`, `displayName`, `pollId`, `questionId`, `selectedOptionId`, `submittedAt`, `isCorrect`
 
-### LeaderboardEntry Item
+### Scoring fact items
+
+There is **no stored leaderboard total**. A season's standings are folded on read from three kinds of
+fact, all in the season's `LEADERBOARD#{seasonId}` partition under a shared `U#{userId}#` prefix so
+one `begins_with` query returns everything for a player (or, unprefixed, the whole season):
 
 ```
-PK: LEADERBOARD#{seasonId}
-SK: SCORE#{invertedPoints}#{userId}
+PK: LEADERBOARD#{seasonId}   SK: U#{userId}#POLL#{pollId}
 ```
-Attributes: `userId`, `seasonId`, `displayName`, `totalPoints`, `totalAnswered`, `lastUpdated`
+Attributes: `userId`, `seasonId`, `pollId`, `displayName`, `points`, `answered`, `scoredAt`
 
-`invertedPoints` = zero-padded `999999 - totalPoints` so that DynamoDB's ascending sort order gives descending points.
+What one player earned in one scored poll. Rewritten on every re-score, so it is always the current
+truth for that pair. `answered` counts only *graded* answers, so a partly scored poll doesn't tank
+anyone's accuracy.
+
+```
+PK: LEADERBOARD#{seasonId}   SK: U#{userId}#VOID#{pollId}
+```
+Attributes: `userId`, `seasonId`, `pollId`, `pollTitle`, `reason`, `voidedBy`, `voidedAt`
+
+An admin voiding one player's picks for one game day. Kept **separate from the score fact** on
+purpose: re-scoring rewrites that, and must not be able to wipe out a void. It also means a void can
+be recorded before the poll is scored.
+
+```
+PK: LEADERBOARD#{seasonId}   SK: U#{userId}#ADJ#{adjustmentId}
+```
+Attributes: `userId`, `seasonId`, `adjustmentId`, `displayName`, `points`, `reason`, `createdBy`, `createdAt`
+
+A manual points adjustment. `points` is signed; a deduction may take a total below zero, which is
+displayed and ranked as-is rather than clamped. `displayName` is denormalised because names are only
+ever captured from a player's own answers and there is no user directory.
+
+The fold lives in `PuckDrop.Domain/Standings/SeasonStandings.cs`:
+`total = Σ points (non-voided polls) + Σ adjustments`, `answered = Σ answered (non-voided polls)`,
+and accuracy is measured on earned points only. Because every total is derived, removing a void or an
+adjustment restores it exactly — there is no delta to reverse.
+
+> An earlier design stored a running total at `SK: SCORE#{invertedPoints}#{userId}`, with
+> `invertedPoints = 999999 - totalPoints` so ascending sort order gave descending points. That is
+> gone: it could not express a subtraction, and a negative total produced a 7-character key that
+> sorted *first* rather than last.
 
 ## Global Secondary Indexes
 
@@ -138,9 +172,16 @@ When admin calls `POST /polls/{pollId}/score`:
 2. Update each question's `correctOptionId`
 3. Query all user answers (GSI1PK = `POLL#{pollId}`, GSI1SK begins_with `ANSWER#`)
 4. For each answer, set `isCorrect = (selectedOptionId == correctOptionId)`
-5. Aggregate points per user
-6. Update each user's LeaderboardEntry (read current → add new points → write with new inverted sort key)
-7. Update poll status to `Scored`, which moves it out of the GSI2 "Open" partition
+5. Aggregate graded points per user
+6. Write one `U#{userId}#POLL#{pollId}` fact per player (a `Put`, so a re-score overwrites)
+7. Update poll status to `Scored` — **last**, so a pass that fails partway leaves the poll `Closed`
+   and simply re-runnable. This also moves it out of the GSI2 "Open" partition.
+
+Every write uses a deterministic key, so the whole call is idempotent: re-scoring a poll — to fix a
+wrong correct option, finish a partly scored one, or retry a failed pass — overwrites rather than
+double-counting. Voiding and adjusting are single writes on the same model, and undoing either is a
+single conditional delete (conditional, so undoing something absent is a 404 rather than a silent
+success).
 
 ## Capacity Considerations
 

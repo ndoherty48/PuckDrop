@@ -84,6 +84,20 @@ public class PuckDropApiClient(HttpClient httpClient)
         await EnsureSuccessAsync(response);
     }
 
+    // ─── Voids ────────────────────────────────────────────────────────────────
+
+    public async Task VoidPicksAsync(string pollId, VoidPicksRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync($"polls/{pollId}/voids", request);
+        await EnsureSuccessAsync(response);
+    }
+
+    public async Task RestorePicksAsync(string pollId, string userId)
+    {
+        var response = await httpClient.DeleteAsync($"polls/{pollId}/voids/{userId}");
+        await EnsureSuccessAsync(response);
+    }
+
     // ─── Results ──────────────────────────────────────────────────────────────
 
     public Task<PollResultsModel?> GetResultsAsync(string pollId) =>
@@ -94,6 +108,27 @@ public class PuckDropApiClient(HttpClient httpClient)
     public Task<LeaderboardModel?> GetLeaderboardAsync(string? seasonId = null) =>
         GetAsync<LeaderboardModel>(
             seasonId is not null ? $"leaderboard?seasonId={seasonId}" : "leaderboard");
+
+    // ─── Adjustments ──────────────────────────────────────────────────────────
+
+    public async Task AddAdjustmentAsync(CreateAdjustmentRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync("leaderboard/adjustments", request);
+        await EnsureSuccessAsync(response);
+    }
+
+    /// <summary>
+    /// Removes an adjustment. The user is part of the key, not just the id.
+    /// </summary>
+    public async Task RemoveAdjustmentAsync(string adjustmentId, string userId, string? seasonId = null)
+    {
+        var url = $"leaderboard/adjustments/{adjustmentId}?userId={Uri.EscapeDataString(userId)}";
+        if (seasonId is not null)
+            url += $"&seasonId={Uri.EscapeDataString(seasonId)}";
+
+        var response = await httpClient.DeleteAsync(url);
+        await EnsureSuccessAsync(response);
+    }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 

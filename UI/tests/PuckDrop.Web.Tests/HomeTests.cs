@@ -19,12 +19,12 @@ public class HomeTests : BunitContext
 
     private static LeaderboardModel BuildLeaderboard() => new(Season.SeasonId,
     [
-        new LeaderboardEntryModel("user-6", "Rory N.", 6, 12, 6),
-        new LeaderboardEntryModel("user-1", "Ciara D.", 10, 12, 1),
-        new LeaderboardEntryModel("user-3", "Sam R.", 8, 12, 3),
-        new LeaderboardEntryModel("user-2", "Jonny M.", 9, 12, 2),
-        new LeaderboardEntryModel("user-5", "Mark K.", 7, 12, 5),
-        new LeaderboardEntryModel("user-4", "Aoife B.", 7, 9, 4)
+        LeaderboardEntries.Entry("user-6", "Rory N.", 6, 12, 6),
+        LeaderboardEntries.Entry("user-1", "Ciara D.", 10, 12, 1),
+        LeaderboardEntries.Entry("user-3", "Sam R.", 8, 12, 3),
+        LeaderboardEntries.Entry("user-2", "Jonny M.", 9, 12, 2),
+        LeaderboardEntries.Entry("user-5", "Mark K.", 7, 12, 5),
+        LeaderboardEntries.Entry("user-4", "Aoife B.", 7, 9, 4)
     ]);
 
     private static RoutingHttpMessageHandler Routes(PollModel? activePoll, List<UserAnswerModel> existingAnswers)

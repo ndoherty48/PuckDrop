@@ -75,17 +75,7 @@ public class DynamoDbUserAnswerRepository(IAmazonDynamoDB dynamoDb) : IUserAnswe
             PutRequest = new PutRequest { Item = ToAttributes(answer) }
         }).ToList();
 
-        // BatchWriteItem supports max 25 items per request
-        foreach (var batch in writeRequests.Chunk(25))
-        {
-            await dynamoDb.BatchWriteItemAsync(new BatchWriteItemRequest
-            {
-                RequestItems = new Dictionary<string, List<WriteRequest>>
-                {
-                    [DynamoDbKeys.TableName] = batch.ToList()
-                }
-            }, cancellationToken);
-        }
+        await DynamoDbBatchWriter.WriteAllAsync(dynamoDb, writeRequests, cancellationToken);
     }
 
     // ─── Attribute Helpers ────────────────────────────────────────────────────

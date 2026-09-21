@@ -187,26 +187,80 @@ public static class DynamoDbMapper
 
     // ─── Leaderboard ──────────────────────────────────────────────────────────
 
-    public static LeaderboardItem ToItem(LeaderboardEntry entry) => new()
+    // ─── Scoring facts ────────────────────────────────────────────────────────
+
+    public static PollScoreItem ToItem(PollScore score) => new()
     {
-        PK = DynamoDbKeys.LeaderboardPK(entry.SeasonId),
-        SK = DynamoDbKeys.LeaderboardSK(entry.TotalPoints, entry.UserId),
-        UserId = entry.UserId,
-        SeasonId = entry.SeasonId,
-        DisplayName = entry.DisplayName,
-        TotalPoints = entry.TotalPoints,
-        TotalAnswered = entry.TotalAnswered,
-        LastUpdated = entry.LastUpdated
+        PK = DynamoDbKeys.LeaderboardPK(score.SeasonId),
+        SK = DynamoDbKeys.PollScoreSK(score.UserId, score.PollId),
+        UserId = score.UserId,
+        SeasonId = score.SeasonId,
+        PollId = score.PollId,
+        DisplayName = score.DisplayName,
+        Points = score.Points,
+        Answered = score.Answered,
+        ScoredAt = score.ScoredAt
     };
 
-    public static LeaderboardEntry ToDomain(LeaderboardItem item) => new()
+    public static PollScore ToDomain(PollScoreItem item) => new()
     {
-        UserId = item.UserId,
         SeasonId = item.SeasonId,
+        PollId = item.PollId,
+        UserId = item.UserId,
         DisplayName = item.DisplayName,
-        TotalPoints = item.TotalPoints,
-        TotalAnswered = item.TotalAnswered,
-        LastUpdated = item.LastUpdated
+        Points = item.Points,
+        Answered = item.Answered,
+        ScoredAt = item.ScoredAt
+    };
+
+    public static PollVoidItem ToItem(PollVoid pollVoid) => new()
+    {
+        PK = DynamoDbKeys.LeaderboardPK(pollVoid.SeasonId),
+        SK = DynamoDbKeys.PollVoidSK(pollVoid.UserId, pollVoid.PollId),
+        UserId = pollVoid.UserId,
+        SeasonId = pollVoid.SeasonId,
+        PollId = pollVoid.PollId,
+        PollTitle = pollVoid.PollTitle,
+        Reason = pollVoid.Reason,
+        VoidedBy = pollVoid.VoidedBy,
+        VoidedAt = pollVoid.VoidedAt
+    };
+
+    public static PollVoid ToDomain(PollVoidItem item) => new()
+    {
+        SeasonId = item.SeasonId,
+        PollId = item.PollId,
+        UserId = item.UserId,
+        PollTitle = item.PollTitle,
+        Reason = item.Reason,
+        VoidedBy = item.VoidedBy,
+        VoidedAt = item.VoidedAt
+    };
+
+    public static PointAdjustmentItem ToItem(PointAdjustment adjustment) => new()
+    {
+        PK = DynamoDbKeys.LeaderboardPK(adjustment.SeasonId),
+        SK = DynamoDbKeys.PointAdjustmentSK(adjustment.UserId, adjustment.AdjustmentId),
+        UserId = adjustment.UserId,
+        SeasonId = adjustment.SeasonId,
+        AdjustmentId = adjustment.AdjustmentId,
+        DisplayName = adjustment.DisplayName,
+        Points = adjustment.Points,
+        Reason = adjustment.Reason,
+        CreatedBy = adjustment.CreatedBy,
+        CreatedAt = adjustment.CreatedAt
+    };
+
+    public static PointAdjustment ToDomain(PointAdjustmentItem item) => new()
+    {
+        SeasonId = item.SeasonId,
+        AdjustmentId = item.AdjustmentId,
+        UserId = item.UserId,
+        DisplayName = item.DisplayName,
+        Points = item.Points,
+        Reason = item.Reason,
+        CreatedBy = item.CreatedBy,
+        CreatedAt = item.CreatedAt
     };
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

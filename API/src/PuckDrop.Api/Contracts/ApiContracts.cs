@@ -71,6 +71,11 @@ public record UserAnswerResponse(string QuestionId, string SelectedOptionId, str
 
 public record ScorePollRequest(IReadOnlyList<ScoreItem> Answers);
 
+/// <summary>
+/// Voids one player's picks for one game day. The reason is shown publicly on the leaderboard.
+/// </summary>
+public record VoidPicksRequest(string UserId, string Reason);
+
 public record ScoreItem(string QuestionId, string CorrectOptionId);
 
 // ─── Results ──────────────────────────────────────────────────────────────────
@@ -85,7 +90,9 @@ public record UserResultResponse(
     string UserId,
     string DisplayName,
     IReadOnlyList<UserAnswerResponse> Answers,
-    int Points);
+    int Points,
+    bool IsVoided,
+    string? VoidReason);
 
 // ─── Leaderboard ──────────────────────────────────────────────────────────────
 
@@ -96,4 +103,23 @@ public record LeaderboardEntryResponse(
     string DisplayName,
     int TotalPoints,
     int TotalAnswered,
-    int Rank);
+    int Rank,
+    int EarnedPoints,
+    int AdjustmentPoints,
+    IReadOnlyList<LeaderboardAdjustmentResponse> Adjustments,
+    IReadOnlyList<LeaderboardVoidResponse> Voids);
+
+/// <summary>
+/// Applies a signed points adjustment. Negative deducts, positive awards; the reason is public.
+/// </summary>
+public record CreateAdjustmentRequest(string UserId, int Points, string Reason, string? SeasonId = null);
+
+/// <summary>
+/// A point adjustment shown publicly beside a player's total, so a penalty is always explained.
+/// </summary>
+public record LeaderboardAdjustmentResponse(string AdjustmentId, int Points, string Reason);
+
+/// <summary>
+/// A game day whose picks were voided for this player, shown publicly with its reason.
+/// </summary>
+public record LeaderboardVoidResponse(string PollId, string PollTitle, string Reason);

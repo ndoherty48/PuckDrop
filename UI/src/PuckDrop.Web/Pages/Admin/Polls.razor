@@ -11,7 +11,10 @@
         }
         <h1 class="pd-page-title">Manage polls</h1>
     </div>
-    <a href="admin/polls/create" class="pd-btn pd-btn-primary"><Icon Name="plus" />Create poll</a>
+    <div class="pd-btn-row">
+        <a href="admin/leaderboard" class="pd-btn pd-btn-quiet">Point adjustments</a>
+        <a href="admin/polls/create" class="pd-btn pd-btn-primary"><Icon Name="plus" />Create poll</a>
+    </div>
 </div>
 
 @* Always rendered, so screen readers announce a publish/close confirmation when it appears *@
@@ -205,6 +208,9 @@ else
             @if (poll.Status == "Scored")
             {
                 <a href="results/@poll.PollId" class="pd-btn pd-btn-secondary pd-btn-sm">View results<span class="pd-sr-only"> for @poll.Title</span></a>
+                @* Re-scoring fixes a wrong correct option, or finishes a partly scored poll. Safe to
+                   repeat: totals are folded from each poll's facts, so it overwrites rather than adding. *@
+                <a href="admin/polls/@poll.PollId/score" class="pd-btn pd-btn-quiet pd-btn-sm">Re-score<span class="pd-sr-only"> @poll.Title</span></a>
             }
         </text>;
 }

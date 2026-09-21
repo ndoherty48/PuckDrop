@@ -53,9 +53,17 @@ else
                                     <span class="pd-badge pd-badge-you">You</span>
                                 }
                             </span>
-                            <span class="pd-muted pd-tnum lb-sub">@entry.TotalPoints of @entry.TotalAnswered correct · @CalculateAccuracy(entry)</span>
+                            <span class="pd-muted pd-tnum lb-sub">@entry.EarnedPoints of @entry.TotalAnswered correct · @CalculateAccuracy(entry)</span>
+                            @foreach (var pollVoid in entry.Voids)
+                            {
+                                <span class="lb-sanction">Voided: @pollVoid.PollTitle · @pollVoid.Reason</span>
+                            }
+                            @foreach (var adjustment in entry.Adjustments)
+                            {
+                                <span class="lb-sanction">@FormatDelta(adjustment.Points) · @adjustment.Reason</span>
+                            }
                         </th>
-                        <td class="pd-num lb-points">@entry.TotalPoints</td>
+                        <td class="pd-num lb-points">@FormatTotal(entry.TotalPoints)</td>
                         <td class="pd-num lb-wide">@entry.TotalAnswered</td>
                         <td class="pd-num lb-wide">@CalculateAccuracy(entry)</td>
                     </tr>
@@ -95,6 +103,23 @@ else
 
     private static string CalculateAccuracy(LeaderboardEntryModel entry) =>
         entry.TotalAnswered > 0
-            ? $"{(double)entry.TotalPoints / entry.TotalAnswered * 100:F1}%"
+            // Earned points, not the effective total: an adjustment is a sanction, not a wrong
+            // answer, and a deduction must never be able to show a negative hit rate.
+            ? $"{(double)entry.EarnedPoints / entry.TotalAnswered * 100:F1}%"
             : "0.0%";
+
+    /// <summary>
+    /// A season total. Negatives get a real minus sign (U+2212) rather than a hyphen; positives are
+    /// left bare, because "+12" would read like a change rather than a score.
+    /// </summary>
+    private static string FormatTotal(int points) => points < 0
+        ? $"\u2212{Math.Abs(points)}"
+        : points.ToString();
+
+    /// <summary>
+    /// A points change. Always signed, so an awarded bonus can't be mistaken for a deduction.
+    /// </summary>
+    private static string FormatDelta(int points) => points < 0
+        ? $"\u2212{Math.Abs(points)}"
+        : $"+{points}";
 }

@@ -159,13 +159,74 @@ public class GameDayPollTests
     }
 
     [Fact]
-    public void MarkScored_FromScored_Throws()
+    public void MarkScored_FromScored_StaysScored_BecauseThatIsARescore()
+    {
+        // This used to throw, purely to stop the old running-sum leaderboard double-counting.
+        // Totals are folded from facts now, so re-scoring overwrites and the guard is gone -
+        // which is what lets an admin fix a wrong correct option after the fact.
+        var poll = CreatePoll(PastDeadline);
+        poll.Publish();
+        poll.MarkScored(DateTime.UtcNow);
+
+        poll.MarkScored(DateTime.UtcNow);
+
+        Assert.Equal(PollStatus.Scored, poll.Status);
+    }
+
+    [Fact]
+    public void EnsureCanBeScored_FromScored_DoesNotThrow()
     {
         var poll = CreatePoll(PastDeadline);
         poll.Publish();
         poll.MarkScored(DateTime.UtcNow);
 
-        Assert.Throws<InvalidOperationException>(() => poll.MarkScored(DateTime.UtcNow));
+        poll.EnsureCanBeScored(DateTime.UtcNow);
+
+        Assert.Equal(PollStatus.Scored, poll.Status);
+    }
+
+    // ─── EnsureCanBeScored ──────────────────────────────────────────────────
+
+    [Fact]
+    public void EnsureCanBeScored_FromClosed_LeavesStatusUnchanged()
+    {
+        // The whole point of splitting this out of MarkScored: validating must not transition the
+        // poll, so scoring can check up front and apply the status only once every write has landed.
+        var poll = CreatePoll(FutureDeadline);
+        poll.Publish();
+        poll.Close();
+
+        poll.EnsureCanBeScored(DateTime.UtcNow);
+
+        Assert.Equal(PollStatus.Closed, poll.Status);
+    }
+
+    [Fact]
+    public void EnsureCanBeScored_FromOpenWithDeadlinePassed_LeavesStatusUnchanged()
+    {
+        var poll = CreatePoll(PastDeadline);
+        poll.Publish();
+
+        poll.EnsureCanBeScored(DateTime.UtcNow);
+
+        Assert.Equal(PollStatus.Open, poll.Status);
+    }
+
+    [Fact]
+    public void EnsureCanBeScored_FromDraft_Throws()
+    {
+        var poll = CreatePoll(PastDeadline);
+
+        Assert.Throws<InvalidOperationException>(() => poll.EnsureCanBeScored(DateTime.UtcNow));
+    }
+
+    [Fact]
+    public void EnsureCanBeScored_FromOpenWithDeadlineNotPassed_Throws()
+    {
+        var poll = CreatePoll(FutureDeadline);
+        poll.Publish();
+
+        Assert.Throws<InvalidOperationException>(() => poll.EnsureCanBeScored(DateTime.UtcNow));
     }
 
     // ─── IsAcceptingAnswers ─────────────────────────────────────────────────

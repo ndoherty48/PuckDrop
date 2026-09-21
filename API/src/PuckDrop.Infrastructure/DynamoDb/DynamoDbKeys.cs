@@ -8,7 +8,6 @@ public static class DynamoDbKeys
     public const string TableName = "PuckDrop";
     public const string GSI1IndexName = "GSI1";
     public const string GSI2IndexName = "GSI2";
-    public const int InvertedScoreMax = 999999;
 
     // Key prefixes
     public static string SeasonPK(string seasonId) => $"SEASON#{seasonId}";
@@ -32,8 +31,14 @@ public static class DynamoDbKeys
     public const string AnswerGSI1SKPrefix = "ANSWER#";
 
     public static string LeaderboardPK(string seasonId) => $"LEADERBOARD#{seasonId}";
-    public static string LeaderboardSK(int totalPoints, string userId) =>
-        $"SCORE#{(InvertedScoreMax - totalPoints):D6}#{userId}";
+    // Scoring facts all live in the season's leaderboard partition under a shared U#{userId}#
+    // prefix, so one begins_with query returns everything needed to fold one player's total -
+    // or, unprefixed, the whole season in a single query.
+    public const string UserFactSKPrefix = "U#";
+    public static string UserFactSKPrefixFor(string userId) => $"U#{userId}#";
+    public static string PollScoreSK(string userId, string pollId) => $"U#{userId}#POLL#{pollId}";
+    public static string PollVoidSK(string userId, string pollId) => $"U#{userId}#VOID#{pollId}";
+    public static string PointAdjustmentSK(string userId, string adjustmentId) => $"U#{userId}#ADJ#{adjustmentId}";
 
     public static string GSI2PK_PollStatus(string seasonId, string status) => $"SEASON#{seasonId}#STATUS#{status}";
     public static string GSI2SK_Deadline(DateTime deadline) => $"DEADLINE#{deadline:O}";
