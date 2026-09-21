@@ -25,7 +25,7 @@ dotnet test PuckDrop.slnx         # Run all tests (xUnit v3 on Microsoft.Testing
 
 `API/tests/` and `UI/tests/` hold four xUnit v3 test projects — `PuckDrop.Domain.Tests`,
 `PuckDrop.Application.Tests`, `PuckDrop.Api.Tests` (all pure/fast, no external dependencies), and
-`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 313 tests total, covered in
+`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 317 tests total, covered in
 `docs/implementation-plan.md`'s Phase 7.
 
 A fifth project, `tests/PuckDrop.E2ETests/` (repo-root `tests/`, not under `API/`/`UI/` — it's
@@ -39,7 +39,14 @@ projects above (real container boots, real cold WASM loads, real AWS Lambda Serv
 trips) — for routine local iteration, run the fast subset (`dotnet test` against each of the four
 projects above individually — `dotnet test PuckDrop.slnx` runs everything, this project included,
 so reach for that before a PR or whenever DynamoDB/API-contract/auth/UI logic actually changed, not
-for every edit). One known, accepted source of flakiness: the AWS Lambda Service Emulator processes
+for every edit). `Browser/ScoringCorrectionsTests` is the one that covers re-scoring, voiding/restoring a game day
+and point deductions. It matters at this layer specifically: season totals are folded from facts
+sharing a `U#{userId}#` sort-key prefix, so a wrong key or a missing attribute only shows up against
+DynamoDB itself, and the undo paths rely on conditional deletes, which is DynamoDB-side behaviour.
+Its assertions are relative to the friend's total when it starts, because the leaderboard is per
+season and other tests in the same run add to it.
+
+One known, accepted source of flakiness: the AWS Lambda Service Emulator processes
 one invocation at a time, so a slow run can occasionally time out a step even with the retry
 helpers this suite already has in code — no further fix available (checked: no concurrency option
 on `lambda-test-tool` or in `Aspire.Hosting.AWS`).
