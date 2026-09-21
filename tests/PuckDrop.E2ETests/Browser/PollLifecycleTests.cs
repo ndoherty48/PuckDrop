@@ -27,6 +27,11 @@ public class PollLifecycleTests(AppHostFixture fixture)
 
         await fixture.GotoWithBootstrapRetryAsync(admin, new Uri(fixture.BlazorBaseUri, "admin/polls").ToString());
 
+        // What the friend already has. Other tests in this run score polls for them in the same
+        // season, so the totals below are deltas rather than absolutes.
+        var baseline = await LeaderboardAssertions.PointsAsync(admin, TestData.FriendDisplayName);
+        await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
+
         // ── Poll 1: two questions, friend gets one right and one wrong ─────────────────────
         var poll1Title = $"E2E Poll {Guid.NewGuid():N}";
         await AdminPollActions.CreatePollAsync(admin, poll1Title);
@@ -87,14 +92,8 @@ public class PollLifecycleTests(AppHostFixture fixture)
         await Assertions.Expect(resultsRow.Locator("td", new LocatorLocatorOptions { HasText = ", correct" })).ToHaveCountAsync(1);
         await Assertions.Expect(resultsRow.Locator("td", new LocatorLocatorOptions { HasText = ", wrong" })).ToHaveCountAsync(1);
 
-        // ── Leaderboard: 1 point so far ─────────────────────────────────────────────────────
-        await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Leaderboard" }).ClickAsync();
-        var leaderboardRow = admin.Locator("tr", new PageLocatorOptions { HasText = TestData.FriendDisplayName });
-        await Assertions.Expect(leaderboardRow).ToBeVisibleAsync();
-        // Assert the points cell, not the row: the row also carries the rank, the answered count and
-        // the "1 of 2 correct · 50.0%" sub-line, so ToContainText("1") passes on almost any score.
-        var friendPoints = leaderboardRow.Locator("td.lb-points");
-        await Assertions.Expect(friendPoints).ToHaveTextAsync("1");
+        // ── Leaderboard: one point from this poll ───────────────────────────────────────────
+        await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, baseline + 1);
 
         // ── Poll 2: single question, friend gets it right - points should accumulate ───────
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
@@ -128,9 +127,8 @@ public class PollLifecycleTests(AppHostFixture fixture)
         // Wait for scoring's redirect to Results, or it can land after the next navigation.
         await WaitForResultsAsync(admin, poll2Title);
 
-        // ── Leaderboard again: 1 + 1 = 2, not reset to 1 ────────────────────────────────────
-        await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Leaderboard" }).ClickAsync();
-        await Assertions.Expect(friendPoints).ToHaveTextAsync("2");
+        // ── Leaderboard again: the second poll adds to the first, it doesn't replace it ─────
+        await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, baseline + 2);
     }
 
     /// <summary>

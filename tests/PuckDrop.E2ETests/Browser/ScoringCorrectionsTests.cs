@@ -32,7 +32,7 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
         admin.Dialog += async (_, dialog) => await dialog.AcceptAsync();
 
         await fixture.GotoWithBootstrapRetryAsync(admin, new Uri(fixture.BlazorBaseUri, "leaderboard").ToString());
-        var baseline = await FriendPointsAsync(admin);
+        var baseline = await LeaderboardAssertions.PointsAsync(admin, TestData.FriendDisplayName);
 
         // ── A two-question poll the friend gets entirely right ─────────────────────────────
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
@@ -68,7 +68,7 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Submit Scores" }).ClickAsync();
         await admin.WaitForURLAsync(url => url.Contains("/results/"));
 
-        await ExpectFriendPointsAsync(admin, baseline + 2);
+        await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, baseline + 2);
 
         // ── Re-score with question 2 corrected: 1 point, not 3 and not doubled ─────────────
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
@@ -80,7 +80,7 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Update scores" }).ClickAsync();
         await admin.WaitForURLAsync(url => url.Contains("/results/"));
 
-        await ExpectFriendPointsAsync(admin, baseline + 1);
+        await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, baseline + 1);
 
         // ── Void the friend's picks for this game day ──────────────────────────────────────
         await GoToResultsAsync(admin, title);
@@ -91,8 +91,8 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
             .ClickAsync();
         await Assertions.Expect(admin.GetByText("picks for this game day are voided")).ToBeVisibleAsync();
 
-        await ExpectFriendPointsAsync(admin, baseline);
-        await Assertions.Expect(FriendRow(admin).GetByText("Picked after puck drop")).ToBeVisibleAsync();
+        await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, baseline);
+        await Assertions.Expect(LeaderboardAssertions.RowFor(admin, TestData.FriendDisplayName).GetByText("Picked after puck drop")).ToBeVisibleAsync();
 
         // ── Restore: the total comes back to exactly what it was ───────────────────────────
         await GoToResultsAsync(admin, title);
@@ -100,8 +100,8 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
             new PageGetByRoleOptions { Name = $"Restore picks for {TestData.FriendDisplayName}" }).ClickAsync();
         await Assertions.Expect(admin.GetByText("picks count again")).ToBeVisibleAsync();
 
-        await ExpectFriendPointsAsync(admin, baseline + 1);
-        await Assertions.Expect(FriendRow(admin).GetByText("Picked after puck drop")).Not.ToBeVisibleAsync();
+        await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, baseline + 1);
+        await Assertions.Expect(LeaderboardAssertions.RowFor(admin, TestData.FriendDisplayName).GetByText("Picked after puck drop")).Not.ToBeVisibleAsync();
 
         // ── Deduct enough to land on exactly -5, whatever the baseline was ─────────────────
         var deduction = -(baseline + 6);
@@ -118,53 +118,29 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Apply adjustment" }).ClickAsync();
         await Assertions.Expect(admin.GetByText($"applied to {TestData.FriendDisplayName}")).ToBeVisibleAsync();
 
-        await ExpectFriendPointsAsync(admin, -5);
-        await Assertions.Expect(FriendRow(admin).GetByText("Cause i can")).ToBeVisibleAsync();
+        await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, -5);
+        await Assertions.Expect(LeaderboardAssertions.RowFor(admin, TestData.FriendDisplayName).GetByText("Cause i can")).ToBeVisibleAsync();
 
         // Accuracy is measured on points earned, so a deduction must not touch it: 1 of 2 correct.
-        await Assertions.Expect(FriendRow(admin)).ToContainTextAsync("50.0%");
+        await Assertions.Expect(LeaderboardAssertions.RowFor(admin, TestData.FriendDisplayName)).ToContainTextAsync("50.0%");
 
         // ── Re-read everything from the API: the facts are really in DynamoDB ──────────────
         await fixture.ReloadOnBootstrapFailureAsync(admin);
 
-        await ExpectFriendPointsAsync(admin, -5);
-        await Assertions.Expect(FriendRow(admin).GetByText("Cause i can")).ToBeVisibleAsync();
-    }
+        await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, -5);
+        await Assertions.Expect(
+            LeaderboardAssertions.RowFor(admin, TestData.FriendDisplayName).GetByText("Cause i can"))
+            .ToBeVisibleAsync();
 
-    private static ILocator FriendRow(IPage admin) =>
-        admin.Locator("tr", new PageLocatorOptions { HasText = TestData.FriendDisplayName });
+        // ── Remove the adjustment: the total comes back exactly, and the run is left tidier ─
+        await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
+        await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Point adjustments" }).ClickAsync();
+        await admin.GetByRole(AriaRole.Button,
+            new PageGetByRoleOptions { Name = $"adjustment for {TestData.FriendDisplayName}" }).ClickAsync();
+        await Assertions.Expect(admin.GetByText($"Adjustment removed for {TestData.FriendDisplayName}"))
+            .ToBeVisibleAsync();
 
-    /// <summary>
-    /// Goes to the leaderboard and waits for the friend's points cell to read <paramref name="expected"/>.
-    /// </summary>
-    private static async Task ExpectFriendPointsAsync(IPage admin, int expected)
-    {
-        // Exact, because the admin adjustments page also has a "View leaderboard" link and
-        // getByRole matches the accessible name as a substring by default.
-        await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Leaderboard", Exact = true })
-            .ClickAsync();
-
-        // Negatives render with a real minus sign (U+2212), not a hyphen.
-        var text = expected < 0 ? $"−{Math.Abs(expected)}" : expected.ToString();
-        await Assertions.Expect(FriendRow(admin).Locator("td.lb-points")).ToHaveTextAsync(text);
-    }
-
-    /// <summary>
-    /// The friend's current points, or 0 when they aren't on the leaderboard yet.
-    /// </summary>
-    private static async Task<int> FriendPointsAsync(IPage admin)
-    {
-        // Wait for the page to settle on a table or its empty state first: CountAsync doesn't
-        // auto-wait, so on a still-loading page it would report 0 and silently skew every
-        // assertion that follows.
-        await admin.Locator(".lb-table, .lb-empty").First.WaitForAsync();
-
-        var cell = FriendRow(admin).Locator("td.lb-points");
-        if (await cell.CountAsync() == 0)
-            return 0;
-
-        var text = (await cell.InnerTextAsync()).Trim().Replace('−', '-');
-        return int.Parse(text);
+        await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, baseline + 1);
     }
 
     private static async Task GoToResultsAsync(IPage admin, string title)
