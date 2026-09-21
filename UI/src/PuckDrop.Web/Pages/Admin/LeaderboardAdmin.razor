@@ -136,7 +136,7 @@ else
                                 @foreach (var adjustment in entry.Adjustments)
                                 {
                                     <span class="lba-adjustment">
-                                        <span class="pd-muted">@FormatDelta(adjustment.Points) · @adjustment.Reason</span>
+                                        <span class="pd-muted lba-adjustment-reason">@FormatDelta(adjustment.Points) · @adjustment.Reason</span>
                                         <button type="button" class="pd-btn pd-btn-quiet pd-btn-sm" disabled="@Busy"
                                                 @onclick="() => RemoveAdjustmentAsync(entry, adjustment)">
                                             Remove<span class="pd-sr-only"> @FormatDelta(adjustment.Points) adjustment for @entry.DisplayName</span>
