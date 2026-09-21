@@ -53,10 +53,13 @@ on `lambda-test-tool` or in `Aspire.Hosting.AWS`).
 
 Carries `Microsoft.Testing.Extensions.Retry` for exactly that residual flakiness — it reruns a
 failed test in a whole fresh process (a full AppHost reboot for this project, so keep the retry
-count low). Confirmed for real: a deliberately-broken assertion genuinely got retried and still
-correctly failed at the end (proving the mechanism itself works), but two separate live runs with
-it enabled both happened to pass outright with no retry triggered — the flakiness is real but
-infrequent enough that it wasn't caught in the act. Run the suite as:
+count low). Confirmed for real, twice over: a deliberately-broken assertion got retried and still
+correctly failed at the end (proving the mechanism works), and a full-suite run has since been
+caught in the act — `PollLifecycleTests` and `ScoringCorrectionsTests` both failed on try 1 with
+`App still showing "Couldn't reach the server" after 4 attempts` and passed on try 2, for a green
+`12 (+2 retried)`. So the retry is load-bearing on a full run, not just insurance: expect the two
+poll-scoring tests to be the ones that need it, and treat a run that needs *no* retry as luck
+rather than the norm. Run the suite as:
 `dotnet test tests/PuckDrop.E2ETests/PuckDrop.E2ETests.csproj --retry-failed-tests 1
 --retry-failed-tests-delay 5s`.
 
