@@ -123,6 +123,53 @@ public class LeaderboardAdminTests : BunitContext
     // ─── Removing ───────────────────────────────────────────────────────────
 
     [Fact]
+    public void AFourOhFour_SaysTheBuildMayBeStale_RatherThanSuggestingARetry()
+    {
+        // What sent us chasing the wrong cause once: a 404 from a route the running build doesn't
+        // have, reported as "please try again" - advice that could never work.
+        var handler = Routes().Map(HttpMethod.Post, "leaderboard/adjustments",
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        var cut = RenderPage(handler);
+
+        cut.WaitForAssertion(() => cut.Find("#adjust-player"));
+        cut.Find("#adjust-player").Change("u2");
+        cut.Find("#adjust-points").Input("-5");
+        cut.Find("#adjust-reason").Input("Picked after puck drop");
+        Button(cut, "Apply adjustment").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var error = cut.Find("[role=alert]").TextContent;
+            Assert.Contains("older build", error);
+            Assert.DoesNotContain("try again", error);
+        });
+    }
+
+    [Fact]
+    public void TheApisOwnErrorMessage_IsShownWhenItSendsOne()
+    {
+        var handler = Routes().Map(HttpMethod.Post, "leaderboard/adjustments",
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+            {
+                Content = JsonContent.Create(new
+                {
+                    error = "NOT_FOUND",
+                    message = "User 'u2' has no standing in season '2025-26' to adjust."
+                })
+            });
+        var cut = RenderPage(handler);
+
+        cut.WaitForAssertion(() => cut.Find("#adjust-player"));
+        cut.Find("#adjust-player").Change("u2");
+        cut.Find("#adjust-points").Input("-5");
+        cut.Find("#adjust-reason").Input("Picked after puck drop");
+        Button(cut, "Apply adjustment").Click();
+
+        cut.WaitForAssertion(() =>
+            Assert.Contains("has no standing", cut.Find("[role=alert]").TextContent));
+    }
+
+    [Fact]
     public void Removing_AsksToConfirm_AndDoesNothingIfCancelled()
     {
         var called = false;

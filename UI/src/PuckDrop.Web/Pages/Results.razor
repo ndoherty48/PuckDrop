@@ -3,6 +3,7 @@
 @inject PuckDropApiClient Api
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
+@using System.Net
 
 @if (_loading)
 {
@@ -407,6 +408,13 @@ else
             _voidingUserId = null;
             _voidReason = string.Empty;
         }
+        catch (ApiException ex)
+        {
+            _adminError = ex.ApiMessage
+                ?? (ex.StatusCode == HttpStatusCode.NotFound
+                    ? "That endpoint isn't available. The app may be running an older build - restart it to pick up the latest."
+                    : $"The server rejected the void ({(int)ex.StatusCode}).");
+        }
         catch (Exception)
         {
             _adminError = "Failed to void picks. Please try again.";
@@ -437,6 +445,13 @@ else
             await Api.RestorePicksAsync(PollId, user.UserId);
             await ReloadResultsAsync();
             _adminStatus = $"{user.DisplayName}'s picks count again.";
+        }
+        catch (ApiException ex)
+        {
+            _adminError = ex.ApiMessage
+                ?? (ex.StatusCode == HttpStatusCode.NotFound
+                    ? "Those picks aren't voided any more. Reload the page."
+                    : $"The server rejected the restore ({(int)ex.StatusCode}).");
         }
         catch (Exception)
         {

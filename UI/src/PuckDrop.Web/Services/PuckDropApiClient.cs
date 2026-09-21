@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace PuckDrop.Web.Services;
 
@@ -170,4 +171,33 @@ public class ApiException(HttpStatusCode statusCode, string body)
 
     /// <summary>The raw error response, for callers that need to tell one 400 from another.</summary>
     public string Body => body;
+
+    /// <summary>
+    /// The API's own error message, when the body is the standard error shape.
+    /// </summary>
+    /// <remarks>
+    /// Null when the body isn't ours - notably a 404 from a route that doesn't exist at all, which
+    /// is worth telling apart from a 404 the API deliberately returned.
+    /// </remarks>
+    public string? ApiMessage
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(body)) return null;
+
+            try
+            {
+                var error = JsonSerializer.Deserialize<ErrorResponse>(
+                    body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                return string.IsNullOrWhiteSpace(error?.Message) ? null : error.Message;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+    }
 }
+
+/// <summary>Matches the API's ErrorResponse contract.</summary>
+public record ErrorResponse(string? Error, string? Message);
