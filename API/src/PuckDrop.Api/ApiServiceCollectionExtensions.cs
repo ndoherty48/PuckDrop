@@ -66,6 +66,12 @@ public static class ApiServiceCollectionExtensions
                 {
                     options.Authority = $"{keycloakSettings.ServerUrl}/realms/{keycloakSettings.Realm}";
                     options.Audience = keycloakSettings.ClientId;
+                    // Local Keycloak is served over plain HTTP, which JwtBearer rejects outright
+                    // unless told not to - "The MetadataAddress or Authority must use HTTPS". That
+                    // only bites when the host isn't Development, which is why it shows up in CI
+                    // and not on a dev machine. Safe to relax here because this whole branch is
+                    // local-dev only: production runs on Cognito, over HTTPS, above.
+                    options.RequireHttpsMetadata = false;
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
                         ValidateIssuer = true,
