@@ -3,13 +3,15 @@
 }
 
 .lb-empty {
-    max-width: 62.5rem;
     margin: 0;
     padding: 1.25rem 1.75rem;
 }
 
+/* No max-width: the card fills .pd-main's content box, so its edges line up with the top bar's
+   inner content (both are max-width 80rem with 2.5rem padding) - the table ends level with the
+   Log out button rather than stopping short. Matches the results page, whose table card never
+   had a cap. */
 .lb-card {
-    max-width: 62.5rem;
     overflow: hidden;
 }
 
@@ -19,6 +21,22 @@
 
 .lb-rank {
     font-size: 1.875rem;
+}
+
+/* The numeric columns hold a handful of characters at most. Left to the browser's auto layout they
+   took well over half the table, squeezing the player column - which carries the name, the "You"
+   badge and any penalty lines - into a third of it, with a wide empty gutter after the name.
+   Pinning them lets the player column take all the slack. */
+.lb-points-col {
+    width: 7rem;
+}
+
+.lb-count-col {
+    width: 7rem;
+}
+
+.lb-accuracy-col {
+    width: 8rem;
 }
 
 .lb-name {
