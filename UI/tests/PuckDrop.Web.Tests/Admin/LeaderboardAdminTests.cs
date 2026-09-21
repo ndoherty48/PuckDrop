@@ -66,6 +66,20 @@ public class LeaderboardAdminTests : BunitContext
         });
     }
 
+    [Fact]
+    public void TheAdjustmentForm_SitsInACardBody()
+    {
+        // .pd-card supplies no padding, so the form would otherwise render flush to the edge.
+        var cut = RenderPage(Routes());
+
+        cut.WaitForAssertion(() =>
+        {
+            var body = cut.Find(".pd-card-body");
+            Assert.NotNull(body.QuerySelector("#adjust-player"));
+            Assert.NotNull(body.QuerySelector("#adjust-reason"));
+        });
+    }
+
     // ─── Applying ───────────────────────────────────────────────────────────
 
     [Fact]
