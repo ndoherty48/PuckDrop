@@ -813,7 +813,8 @@ html {
   color: var(--pd-blue-text);
 }
 
-.pd-badge-error {
+.pd-badge-error,
+.pd-badge-voided {
   background: var(--pd-miss-tint);
   color: var(--pd-miss);
 }

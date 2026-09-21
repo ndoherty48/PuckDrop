@@ -14,6 +14,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<ScoringService>();
         services.AddScoped<LeaderboardService>();
         services.AddScoped<ResultsService>();
+        services.AddScoped<PollVoidService>();
+        services.AddScoped<PointAdjustmentService>();
 
         return services;
     }

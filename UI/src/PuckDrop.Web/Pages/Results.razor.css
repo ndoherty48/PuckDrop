@@ -158,3 +158,43 @@
         font-weight: 400;
     }
 }
+
+/* ─── Admin: void picks ──────────────────────────────────────────────────── */
+
+.results-admin-intro {
+    margin: 0 0 1rem;
+    font-size: 0.9375rem;
+}
+
+.results-void-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.results-void-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0;
+    border-top: 1px solid var(--pd-line);
+}
+
+.results-void-row:first-child {
+    border-top: 0;
+}
+
+/* Pushes the action to the trailing edge, with the reason sitting alongside the name. */
+.results-void-row .results-player {
+    flex: 1 1 auto;
+}
+
+.results-void-reason {
+    font-size: 0.9375rem;
+}
+
+.results-void-form {
+    flex: 1 1 18rem;
+    margin: 0;
+}

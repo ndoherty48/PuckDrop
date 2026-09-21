@@ -80,8 +80,7 @@ public class PollLifecycleTests(AppHostFixture fixture)
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Submit Scores" }).ClickAsync();
 
         // ── Results: friend's real display name, one correct + one incorrect mark ──────────
-        await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = poll1Title, Level = 1 }))
-            .ToBeVisibleAsync();
+        await WaitForResultsAsync(admin, poll1Title);
         var resultsRow = admin.Locator("tr", new PageLocatorOptions { HasText = TestData.FriendDisplayName });
         await Assertions.Expect(resultsRow).ToBeVisibleAsync();
         // Each pick cell carries hidden ", correct" / ", wrong" text alongside its tick or cross.
@@ -92,7 +91,10 @@ public class PollLifecycleTests(AppHostFixture fixture)
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Leaderboard" }).ClickAsync();
         var leaderboardRow = admin.Locator("tr", new PageLocatorOptions { HasText = TestData.FriendDisplayName });
         await Assertions.Expect(leaderboardRow).ToBeVisibleAsync();
-        await Assertions.Expect(leaderboardRow).ToContainTextAsync("1");
+        // Assert the points cell, not the row: the row also carries the rank, the answered count and
+        // the "1 of 2 correct · 50.0%" sub-line, so ToContainText("1") passes on almost any score.
+        var friendPoints = leaderboardRow.Locator("td.lb-points");
+        await Assertions.Expect(friendPoints).ToHaveTextAsync("1");
 
         // ── Poll 2: single question, friend gets it right - points should accumulate ───────
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
@@ -124,11 +126,21 @@ public class PollLifecycleTests(AppHostFixture fixture)
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Submit Scores" }).ClickAsync();
 
         // Wait for scoring's redirect to Results, or it can land after the next navigation.
-        await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = poll2Title, Level = 1 }))
-            .ToBeVisibleAsync();
+        await WaitForResultsAsync(admin, poll2Title);
 
         // ── Leaderboard again: 1 + 1 = 2, not reset to 1 ────────────────────────────────────
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Leaderboard" }).ClickAsync();
-        await Assertions.Expect(leaderboardRow).ToContainTextAsync("2");
+        await Assertions.Expect(friendPoints).ToHaveTextAsync("2");
+    }
+
+    /// <summary>
+    /// Waits for Submit Scores to redirect to the poll's Results page. Checks the URL, because the
+    /// Score page's heading is also the poll title.
+    /// </summary>
+    private static async Task WaitForResultsAsync(IPage admin, string title)
+    {
+        await admin.WaitForURLAsync(url => url.Contains("/results/"));
+        await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = title, Level = 1 }))
+            .ToBeVisibleAsync();
     }
 }

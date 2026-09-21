@@ -17,7 +17,9 @@ public static class PollResultsMappingExtensions
             u.UserId,
             u.DisplayName,
             u.Answers.Select(a => a.ToResponse()).ToList(),
-            u.Points
+            u.Points,
+            u.IsVoided,
+            u.VoidReason
         )).ToList();
 
         return new PollResultsResponse(results.Poll.PollId, results.Poll.Status.ToString(), questionResponses, userResults);

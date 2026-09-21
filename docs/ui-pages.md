@@ -12,7 +12,8 @@
 | Admin: Polls | `/admin/polls` | User | Admin | List/manage all polls |
 | Admin: Create Poll | `/admin/polls/create` | User | Admin | Create a new game day poll |
 | Admin: Edit Poll | `/admin/polls/{pollId}` | User | Admin | Edit poll, add/edit questions |
-| Admin: Score Poll | `/admin/polls/{pollId}/score` | User | Admin | Mark correct answers post-game |
+| Admin: Score Poll | `/admin/polls/{pollId}/score` | User | Admin | Mark correct answers post-game, or re-score |
+| Admin: Point Adjustments | `/admin/leaderboard` | User | Admin | Deduct or award points, with a public reason |
 | Login Redirect | `/authentication/login` | None | — | Triggers Cognito OIDC flow |
 | Logout | `/authentication/logout` | None | — | Clears session |
 | Not Authorized | `/unauthorized` | None | — | Shown when user lacks permission |
@@ -62,10 +63,17 @@
 
 **Layout:** Table/list, mobile-friendly.
 
-- **Season selector** — Dropdown (defaults to current season)
-- **Table columns:** Rank, Name, Points, Games Played, Accuracy %
-- **Current user's row** highlighted/pinned
-- **Sorting:** By points descending (default)
+- **Season selector** — Dropdown (defaults to current season). *Not built — the page always shows the
+  current season.*
+- **Table columns:** Rank, Player, Points, Answered, Accuracy %. Answered and Accuracy fold into a
+  line under the player's name below 768px.
+- **Current user's row** highlighted (not pinned)
+- **Sorting:** By effective points descending; ties share a rank
+- **Sanctions** — any point adjustments and voided game days are listed under the player's name with
+  their reasons, at every width. Public on purpose: a penalty nobody can see the reason for is what
+  starts the argument.
+- **Negative totals** are shown as-is with a real minus sign (U+2212), and rank below zero. Accuracy
+  is computed from earned points, so a deduction can never show a negative hit rate.
 
 ### History (`/history`)
 
@@ -124,7 +132,36 @@
   - Options shown as selectable buttons/radio
   - Admin picks the correct answer
 - **Submit scores** — triggers scoring flow, updates leaderboard
-- **Only accessible** when poll status is `Closed`
+- **Re-scoring** — reachable from the Manage polls row of a `Scored` poll. The screen pre-selects the
+  answers the poll already has, so correcting one question doesn't blank the rest, and a partly
+  scored poll shows exactly which questions are still unset. Wording switches to "Ready to
+  re-score?" / "Update scores", and the confirm warns the leaderboard is recalculated.
+- **Reachable** when poll status is `Closed` (score) or `Scored` (re-score)
+
+### Admin: Point Adjustments (`/admin/leaderboard`)
+
+**Layout:** An adjustment form above a standings table. Linked from Manage polls.
+
+- **Adjust a player** — player picker, signed points, required reason. Negative deducts, positive
+  awards; the reason is shown to everyone.
+- **Player picker** offers only players who already have a standing. Names are only ever captured from
+  a player's own answers and there is no user directory, so there is nobody else to adjust.
+- **Standings table:** Player, Earned, Adjustments, Total — split out so it's clear where a total came
+  from before changing it.
+- **Each adjustment** is listed under the player's name with a Remove control (confirmed first).
+  Removing restores the total exactly.
+- **Voided game days** are shown here too, read-only, with a pointer to the poll's results page where
+  voiding is done.
+
+### Admin controls on Results (`/results/{pollId}`)
+
+Voiding a player's picks for a game day happens on that poll's results page, where the picks
+themselves are visible.
+
+- **Void picks / Restore picks** toggle per player, admin-only, below the normal results
+- Voiding opens an inline reason field; the reason is required and shown publicly
+- A voided player gets a "Voided" badge beside their name everywhere the page names them
+- Restoring is confirmed first, and puts the game day back towards the season total
 
 ## User Flows
 

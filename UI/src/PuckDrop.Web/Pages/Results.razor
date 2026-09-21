@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @inject PuckDropApiClient Api
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
 
 @if (_loading)
 {
@@ -182,6 +183,92 @@ else
             }
         </div>
     </div>
+
+    @* ─── Admin: void or restore a player's picks ────────────────────────────
+       A void takes this game day off the player's season total. It is reversible: restoring
+       puts the points back exactly, because season totals are folded from facts rather than
+       accumulated. *@
+    <AuthorizeView Roles="admin">
+        <section class="pd-card results-admin" aria-labelledby="results-admin-title">
+            <div class="pd-card-head">
+                <h2 id="results-admin-title" class="pd-h2" tabindex="-1" @ref="_adminHeading">Void picks</h2>
+            </div>
+
+            <p class="pd-muted results-admin-intro">
+                Voiding takes this game day's points and answered count off a player's season total.
+                The reason is shown to everyone on the leaderboard, and you can restore the picks at
+                any time.
+            </p>
+
+            <div role="status" aria-live="polite">
+                @if (_adminStatus is not null)
+                {
+                    <div class="pd-alert pd-alert-success">
+                        <Icon Name="check" />
+                        <p>@_adminStatus</p>
+                    </div>
+                }
+            </div>
+
+            @if (_adminError is not null)
+            {
+                <div class="pd-alert pd-alert-danger" role="alert">
+                    <Icon Name="alert" />
+                    <p>@_adminError</p>
+                </div>
+            }
+
+            <ul class="pd-list-reset results-void-list">
+                @foreach (var user in RankedUsers)
+                {
+                    <li class="results-void-row">
+                        <span class="results-player">@user.DisplayName</span>
+
+                        @if (user.IsVoided)
+                        {
+                            <span class="pd-muted results-void-reason">Voided · @user.VoidReason</span>
+                            <button type="button" class="pd-btn pd-btn-secondary pd-btn-sm" disabled="@Busy"
+                                    @onclick="() => RestorePicksAsync(user)">
+                                Restore picks<span class="pd-sr-only"> for @user.DisplayName</span>
+                            </button>
+                        }
+                        else if (_voidingUserId == user.UserId)
+                        {
+                            <div class="pd-field results-void-form">
+                                <label class="pd-label" for="void-reason">Reason</label>
+                                <input id="void-reason" class="pd-input" @bind="_voidReason" @bind:event="oninput"
+                                       aria-invalid="@(_reasonMissing ? "true" : null)"
+                                       aria-describedby="@(_reasonMissing ? "void-reason-error" : null)" />
+                                @if (_reasonMissing)
+                                {
+                                    <p id="void-reason-error" class="pd-error-msg" role="alert">
+                                        Give a reason - everyone sees it on the leaderboard.
+                                    </p>
+                                }
+                                <div class="pd-btn-row">
+                                    <button type="button" class="pd-btn pd-btn-danger pd-btn-sm" disabled="@Busy"
+                                            @onclick="() => ConfirmVoidAsync(user)">
+                                        @(_voiding ? "Voiding…" : "Void picks")
+                                    </button>
+                                    <button type="button" class="pd-btn pd-btn-quiet pd-btn-sm" disabled="@Busy"
+                                            @onclick="CancelVoid">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <button type="button" class="pd-btn pd-btn-secondary pd-btn-sm" disabled="@Busy"
+                                    @onclick="() => StartVoid(user)">
+                                Void picks<span class="pd-sr-only"> for @user.DisplayName</span>
+                            </button>
+                        }
+                    </li>
+                }
+            </ul>
+        </section>
+    </AuthorizeView>
 }
 
 @code {
@@ -194,6 +281,18 @@ else
     private bool _loading = true;
     private string? _error;
     private string? _currentUserId;
+
+    // Admin void/restore
+    private ElementReference _adminHeading;
+    private string? _adminStatus;
+    private string? _adminError;
+    private string? _voidingUserId;
+    private string _voidReason = string.Empty;
+    private bool _reasonMissing;
+    private bool _voiding;
+    private bool _restoring;
+
+    private bool Busy => _voiding || _restoring;
 
     private IEnumerable<UserResultModel> RankedUsers =>
         _results?.UserResults.OrderByDescending(u => u.Points).ThenBy(u => u.DisplayName)
@@ -260,5 +359,103 @@ else
             {
                 <span class="pd-badge pd-badge-you">You</span>
             }
+            @if (user.IsVoided)
+            {
+                @* Every surface below renders names through here, so one badge covers the desktop
+                   table, the phone points list and each question panel. *@
+                <span class="pd-badge pd-badge-voided" title="@user.VoidReason">Voided</span>
+            }
         </span>;
+
+    private void StartVoid(UserResultModel user)
+    {
+        _voidingUserId = user.UserId;
+        _voidReason = string.Empty;
+        _reasonMissing = false;
+        _adminError = null;
+        _adminStatus = null;
+    }
+
+    private void CancelVoid()
+    {
+        _voidingUserId = null;
+        _voidReason = string.Empty;
+        _reasonMissing = false;
+    }
+
+    private async Task ConfirmVoidAsync(UserResultModel user)
+    {
+        if (Busy) return;
+
+        // Say what's missing rather than disabling the button, as elsewhere in the admin pages.
+        if (string.IsNullOrWhiteSpace(_voidReason))
+        {
+            _reasonMissing = true;
+            return;
+        }
+
+        _reasonMissing = false;
+        _voiding = true;
+        _adminError = null;
+        _adminStatus = null;
+
+        try
+        {
+            await Api.VoidPicksAsync(PollId, new VoidPicksRequest(user.UserId, _voidReason.Trim()));
+            await ReloadResultsAsync();
+            _adminStatus = $"{user.DisplayName}'s picks for this game day are voided.";
+            _voidingUserId = null;
+            _voidReason = string.Empty;
+        }
+        catch (Exception)
+        {
+            _adminError = "Failed to void picks. Please try again.";
+        }
+        finally
+        {
+            _voiding = false;
+        }
+
+        // The button that was clicked is replaced by its opposite, so move focus somewhere stable.
+        await _adminHeading.FocusAsync();
+    }
+
+    private async Task RestorePicksAsync(UserResultModel user)
+    {
+        if (Busy) return;
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            $"Restore {user.DisplayName}'s picks? This game day will count towards their season total again.");
+        if (!confirmed) return;
+
+        _restoring = true;
+        _adminError = null;
+        _adminStatus = null;
+
+        try
+        {
+            await Api.RestorePicksAsync(PollId, user.UserId);
+            await ReloadResultsAsync();
+            _adminStatus = $"{user.DisplayName}'s picks count again.";
+        }
+        catch (Exception)
+        {
+            _adminError = "Failed to restore picks. Please try again.";
+        }
+        finally
+        {
+            _restoring = false;
+        }
+
+        await _adminHeading.FocusAsync();
+    }
+
+    /// <summary>
+    /// Re-reads the results so the voided badges reflect what the API actually stored, rather than
+    /// being patched in optimistically.
+    /// </summary>
+    private async Task ReloadResultsAsync()
+    {
+        _results = await Api.GetResultsAsync(PollId);
+    }
 }

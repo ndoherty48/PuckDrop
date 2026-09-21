@@ -126,7 +126,9 @@ public class PollsTests : BunitContext
             Assert.Equal(new[] { "Edit", "Publish" }, Controls(rows[0], "Poll draft"));
             Assert.Equal(new[] { "Edit", "Close voting" }, Controls(rows[1], "Poll open"));
             Assert.Equal(new[] { "Score" }, Controls(rows[2], "Poll closed"));
-            Assert.Equal(new[] { "View results" }, Controls(rows[3], "Poll scored"));
+            // Re-score is offered on a Scored poll so a wrong correct option can be fixed, or a
+            // partly scored poll finished.
+            Assert.Equal(new[] { "View results", "Re-score" }, Controls(rows[3], "Poll scored"));
 
             Assert.Equal("admin/polls/draft/edit", rows[0].QuerySelector("a")!.GetAttribute("href"));
             Assert.Equal("admin/polls/closed/score", rows[2].QuerySelector("a")!.GetAttribute("href"));

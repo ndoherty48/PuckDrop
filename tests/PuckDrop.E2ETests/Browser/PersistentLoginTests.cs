@@ -28,7 +28,7 @@ public class PersistentLoginTests(AppHostFixture fixture)
         await page.FillAsync("#password", TestData.FriendPassword);
         await page.ClickAsync("#kc-login");
 
-        await page.WaitForSelectorAsync($"text=Hello, {TestData.FriendDisplayName}");
+        await Assertions.Expect(SignedInName(page)).ToBeVisibleAsync();
         await page.CloseAsync();
 
         var reopened = await context.NewPageAsync();
@@ -40,7 +40,7 @@ public class PersistentLoginTests(AppHostFixture fixture)
         };
 
         await fixture.GotoWithBootstrapRetryAsync(reopened, fixture.BlazorBaseUri.ToString());
-        await reopened.WaitForSelectorAsync($"text=Hello, {TestData.FriendDisplayName}");
+        await Assertions.Expect(SignedInName(reopened)).ToBeVisibleAsync();
 
         Assert.Empty(authorizeRequests);
 
@@ -48,4 +48,9 @@ public class PersistentLoginTests(AppHostFixture fixture)
             "() => Object.keys(localStorage).filter(key => key.startsWith('puckdrop.oidc.'))");
         Assert.NotEmpty(persistedUserKeys);
     }
+
+    // The header shows the signed-in user's name, as in LoginTests.
+    private static ILocator SignedInName(IPage page) =>
+        page.GetByRole(AriaRole.Banner)
+            .GetByText(TestData.FriendDisplayName, new LocatorGetByTextOptions { Exact = true });
 }

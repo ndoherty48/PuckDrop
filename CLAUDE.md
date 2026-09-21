@@ -25,7 +25,7 @@ dotnet test PuckDrop.slnx         # Run all tests (xUnit v3 on Microsoft.Testing
 
 `API/tests/` and `UI/tests/` hold four xUnit v3 test projects — `PuckDrop.Domain.Tests`,
 `PuckDrop.Application.Tests`, `PuckDrop.Api.Tests` (all pure/fast, no external dependencies), and
-`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 226 tests total, covered in
+`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 313 tests total, covered in
 `docs/implementation-plan.md`'s Phase 7.
 
 A fifth project, `tests/PuckDrop.E2ETests/` (repo-root `tests/`, not under `API/`/`UI/` — it's
@@ -60,9 +60,12 @@ There is no linter/formatter config (`.editorconfig`) and no CI workflow in this
 ### API: layered, Clean-Architecture-style, one project per layer
 
 - **PuckDrop.Domain** — entities (`Season`, `GameDayPoll`, `Question`, `Option`, `UserAnswer`,
-  `LeaderboardEntry`) and enums (`PollStatus`). No dependencies on other layers.
+  `PollScore`, `PollVoid`, `PointAdjustment`, `LeaderboardEntry`), enums (`PollStatus`), and
+  `Standings/SeasonStandings` — the pure fold that derives a season's standings from its scoring
+  facts. No dependencies on other layers.
 - **PuckDrop.Application** — use-case services (`SeasonService`, `PollService`, `AnswerService`,
-  `ScoringService`, `ResultsService`, `LeaderboardService`), repository *interfaces*
+  `ScoringService`, `ResultsService`, `LeaderboardService`, `PollVoidService`,
+  `PointAdjustmentService`), repository *interfaces*
   (`ISeasonRepository`, `IPollRepository`, `IUserAnswerRepository`, `ILeaderboardRepository`),
   and the `IUserProfileService` abstraction (display-name resolution, implemented in PuckDrop.Api
   as `Auth/UserProfileService`). Depends only on Domain.
@@ -82,10 +85,30 @@ Application; only Infrastructure knows about DynamoDB.
 Everything lives in one `PuckDrop` table (`PK`/`SK`, plus GSI1 and GSI2) — see
 `docs/dynamodb-design.md` for the full access-pattern-to-key mapping and
 `API/src/PuckDrop.Infrastructure/DynamoDb/DynamoDbKeys.cs` for the canonical key-building
-functions (e.g. `POLL#{pollId}`, `SEASON#{seasonId}#STATUS#{status}`, inverted zero-padded score
-keys for leaderboard sort order). Item shape and key layout must stay in sync between that doc,
-`DynamoDbKeys.cs`, and `DynamoDb/Items/*Item.cs` — when changing an access pattern, update all
-three plus `DynamoDbMapper.cs`.
+functions (e.g. `POLL#{pollId}`, `SEASON#{seasonId}#STATUS#{status}`, `U#{userId}#POLL#{pollId}`).
+Item shape and key layout must stay in sync between that doc, `DynamoDbKeys.cs`, and
+`DynamoDb/Items/*Item.cs` — when changing an access pattern, update all three plus
+`DynamoDbMapper.cs`.
+
+### Leaderboard: derived, not accumulated
+
+There is **no stored leaderboard total**. A season's standings are folded on read by
+`SeasonStandings.Build` from three fact types, all in the `LEADERBOARD#{seasonId}` partition under a
+shared `U#{userId}#` prefix (so one query covers a player, or the whole season):
+`U#{userId}#POLL#{pollId}` (what they earned in a poll), `U#{userId}#VOID#{pollId}` (an admin voiding
+that game day) and `U#{userId}#ADJ#{adjustmentId}` (a signed point adjustment).
+
+This is load-bearing, not incidental. Because totals are derived, **re-scoring a poll is the same
+operation as scoring it** (`GameDayPoll.MarkScored` permits `Scored → Scored`; the facts are simply
+overwritten), and voiding or deducting is one write that can be undone by one conditional delete with
+the total returning to exactly what it was. Nothing may incrementally adjust a total anywhere — if a
+write path ever "just adds" the new poll's points, order-independence dies silently. There is no
+`AddPollResults`, and the old inverted-score sort key (`SCORE#{999999 - points}#{userId}`) is gone: it
+could not express a subtraction, and a negative total sorted *first* rather than last.
+
+Voids are kept separate from score facts on purpose, so a re-score can't clobber one. Deductions may
+take a total below zero, which is displayed and ranked as-is. Accuracy is always measured on earned
+points, never the effective total.
 
 ### Auth: dual-provider, resolved at startup, normalized to provider-agnostic claims
 

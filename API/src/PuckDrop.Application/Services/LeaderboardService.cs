@@ -1,4 +1,5 @@
 using PuckDrop.Domain.Entities;
+using PuckDrop.Domain.Standings;
 using PuckDrop.Application.Repositories;
 
 namespace PuckDrop.Application.Services;
@@ -20,7 +21,8 @@ public class LeaderboardService(ILeaderboardRepository leaderboardRepository, Se
             seasonId = currentSeason.SeasonId;
         }
 
-        var entries = await leaderboardRepository.GetLeaderboardAsync(seasonId, cancellationToken);
+        var facts = await leaderboardRepository.GetSeasonFactsAsync(seasonId, cancellationToken);
+        var entries = SeasonStandings.Build(seasonId, facts.Scores, facts.Voids, facts.Adjustments);
         var ranked = AssignRanks(entries);
 
         return new LeaderboardResult(seasonId, ranked);
@@ -33,7 +35,9 @@ public class LeaderboardService(ILeaderboardRepository leaderboardRepository, Se
     {
         var ranked = new List<RankedEntry>();
         int currentRank = 0;
-        int previousPoints = -1;
+        // Nullable, not a -1 sentinel: deductions can take a real total negative, and a player on
+        // exactly -1 point would otherwise be treated as tied with the initial value and ranked 0.
+        int? previousPoints = null;
 
         for (int i = 0; i < entries.Count; i++)
         {

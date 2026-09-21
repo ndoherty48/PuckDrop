@@ -183,8 +183,9 @@ public class AppHostFixture : IAsyncLifetime
         await page.FillAsync("#password", password);
         await page.ClickAsync("#kc-login");
 
-        // "Logout" only renders once the user is authenticated.
-        await page.WaitForSelectorAsync("text=Logout");
+        // "Log out" only renders once the user is authenticated.
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Log out" }))
+            .ToBeVisibleAsync();
 
         var sessionStorage = await page.EvaluateAsync<Dictionary<string, string>>("() => ({ ...sessionStorage })");
         var storageState = await context.StorageStateAsync();

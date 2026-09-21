@@ -79,7 +79,7 @@ else
 
         @* Desktop: a sticky sidebar. Below 768px, ScorePoll.razor.css turns it into a bar pinned above the tab bar. *@
         <aside class="pd-card pd-aside-sticky score-summary" aria-labelledby="score-summary-title">
-            <h2 id="score-summary-title" class="pd-h2 score-summary-title">Ready to score?</h2>
+            <h2 id="score-summary-title" class="pd-h2 score-summary-title">@(IsRescore ? "Ready to re-score?" : "Ready to score?")</h2>
             <p class="pd-strong pd-tnum score-count">@_correctAnswers.Count of @_questions.Count answers set</p>
             <progress class="pd-progress score-progress" max="@_questions.Count" value="@_correctAnswers.Count" aria-hidden="true"></progress>
 
@@ -119,11 +119,16 @@ else
             <div class="score-actions">
                 <button type="button" class="pd-btn pd-btn-primary pd-btn-lg pd-btn-block" disabled="@_submitting"
                         @onclick="SubmitScoresAsync">
-                    @(_submitting ? "Submitting…" : "Submit scores")
+                    @(_submitting ? "Submitting…" : IsRescore ? "Update scores" : "Submit scores")
                 </button>
                 <a href="admin/polls" class="pd-btn pd-btn-quiet pd-btn-block score-cancel">Cancel</a>
             </div>
-            <p class="pd-hint score-hint">You'll be asked to confirm first. Scoring marks everyone's picks and updates the leaderboard.</p>
+            <p class="pd-hint score-hint">
+                You'll be asked to confirm first.
+                @(IsRescore
+                    ? "Re-scoring replaces this game day's answers and recalculates the leaderboard."
+                    : "Scoring marks everyone's picks and updates the leaderboard.")
+            </p>
         </aside>
     </div>
 }
@@ -167,7 +172,15 @@ else
         {
             _poll = await Api.GetPollAsync(PollId);
             if (_poll is not null)
+            {
                 _questions = _poll.Questions.OrderBy(q => q.SortOrder).ToList();
+
+                // Seed from the answers already recorded, so re-scoring starts from what the poll
+                // currently says rather than "0 of 2 answers set" - and so a partly scored poll
+                // shows exactly which questions are still missing an answer.
+                foreach (var question in _questions.Where(q => q.CorrectOptionId is not null))
+                    _correctAnswers[question.QuestionId] = question.CorrectOptionId!;
+            }
         }
         catch (Exception)
         {
@@ -178,6 +191,12 @@ else
             _loading = false;
         }
     }
+
+    /// <summary>
+    /// Whether this is a re-score rather than a first pass. Drives the wording only - the request
+    /// is identical either way, because scoring a poll twice overwrites its facts.
+    /// </summary>
+    private bool IsRescore => _poll?.Status == "Scored";
 
     private void SelectAnswer(string questionId, string optionId)
     {
@@ -203,8 +222,9 @@ else
 
         _showMissing = false;
 
-        var confirmed = await JS.InvokeAsync<bool>("confirm",
-            "Submit these scores? This sets the correct answers and updates the leaderboard.");
+        var confirmed = await JS.InvokeAsync<bool>("confirm", IsRescore
+            ? "Update these scores? This replaces the correct answers and recalculates the leaderboard."
+            : "Submit these scores? This sets the correct answers and updates the leaderboard.");
         if (!confirmed)
             return;
 

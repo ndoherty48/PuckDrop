@@ -24,3 +24,12 @@ public record QuestionScore(string QuestionId, string CorrectOptionId);
 /// An option definition when creating a question.
 /// </summary>
 public record OptionDefinition(string Text, int SortOrder);
+
+/// <summary>
+/// Every scoring fact recorded for a season: what players earned, what an admin voided, and any
+/// manual point adjustments. Folded into standings by SeasonStandings.Build - never accumulated.
+/// </summary>
+public record SeasonFacts(
+    IReadOnlyList<PollScore> Scores,
+    IReadOnlyList<PollVoid> Voids,
+    IReadOnlyList<PointAdjustment> Adjustments);

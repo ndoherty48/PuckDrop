@@ -198,6 +198,9 @@ public class DynamoDbPollRepository(IAmazonDynamoDB dynamoDb) : IPollRepository
 
     public async Task UpdateQuestionsAsync(IReadOnlyList<Question> questions, CancellationToken cancellationToken = default)
     {
+        // A transaction with zero items is a ValidationException, not a no-op.
+        if (questions.Count == 0) return;
+
         var transactItems = questions.Select(q => new TransactWriteItem
         {
             Put = new Put
