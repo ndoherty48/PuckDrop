@@ -32,9 +32,14 @@ A fifth project, `tests/PuckDrop.E2ETests/` (repo-root `tests/`, not under `API/
 genuinely cross-cutting), supersedes what Phase 7 originally deferred (separate infrastructure and
 API-pipeline test layers): it boots the real AppHost via `Aspire.Hosting.Testing` and drives a real
 headless Chromium browser via Playwright against it — real DynamoDB Local, real Keycloak, the real
-Lambda-hosted API, the real Blazor WASM app, nothing mocked. Needs Docker (same as `aspire start`)
-plus a one-time `pwsh tests/PuckDrop.E2ETests/bin/Debug/net10.0/playwright.ps1 install chromium`
-after first build, to fetch Playwright's browser binary. Meaningfully slower than the four fast
+Lambda-hosted API, the real Blazor WASM app, nothing mocked. Needs a container runtime (same as `aspire start` - Docker or
+Podman), the `Amazon.Lambda.TestTool` global tool (`dotnet tool install --global
+Amazon.Lambda.TestTool`), which `AddAWSLambdaFunction` shells out to and which also provides the
+API Gateway emulator, plus a one-time
+`pwsh tests/PuckDrop.E2ETests/bin/Debug/net10.0/playwright.ps1 install chromium` after first build
+to fetch Playwright's browser binary. All three are easy to forget because a dev machine acquires
+them once: a fresh CI runner has none of them, and missing the Lambda tool shows up as `api-gateway`
+never becoming healthy rather than as anything mentioning Lambda. Meaningfully slower than the four fast
 projects above (real container boots, real cold WASM loads, real AWS Lambda Service Emulator round
 trips) — for routine local iteration, run the fast subset (`dotnet test` against each of the four
 projects above individually — `dotnet test PuckDrop.slnx` runs everything, this project included,
