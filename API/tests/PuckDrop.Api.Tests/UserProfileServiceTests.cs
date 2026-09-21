@@ -71,7 +71,7 @@ public class UserProfileServiceTests
         var handler = new FakeHandler(_ => throw new InvalidOperationException("userInfo should not be called."));
         var service = CreateService(handler, new Claim("sub", Sub), new Claim("preferred_username", "nathan"));
 
-        var displayName = await service.GetDisplayNameAsync();
+        var displayName = await service.GetDisplayNameAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal("nathan", displayName);
         Assert.Empty(handler.Requests);

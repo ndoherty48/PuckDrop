@@ -24,9 +24,9 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
       - name: Build
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build --no-restore
       - name: Unit Tests
-        run: dotnet test --configuration Release --no-build --verbosity normal -- --filter-not-trait Category=E2E --ignore-exit-code=8
+        run: dotnet test --no-build --verbosity normal -- --filter-not-trait Category=E2E --ignore-exit-code=8
       # Aspire's AddAWSLambdaFunction shells out to this tool to run the function locally, and
       # the API Gateway emulator comes from the same package. Without it nothing serves the
       # Lambda route, so api-gateway never passes its health check and the fixture times out.
@@ -37,4 +37,4 @@ jobs:
       - name: Install Playwright browsers
         run: pwsh tests/PuckDrop.E2ETests/bin/Release/net10.0/playwright.ps1 install chromium --with-deps
       - name: E2E Tests
-        run: dotnet test --configuration Release --no-build --verbosity normal --project tests/PuckDrop.E2ETests/PuckDrop.E2ETests.csproj --retry-failed-tests 1 --retry-failed-tests-delay 5s
+        run: dotnet test --no-build --verbosity normal --project tests/PuckDrop.E2ETests/PuckDrop.E2ETests.csproj --retry-failed-tests 1 --retry-failed-tests-delay 5s
