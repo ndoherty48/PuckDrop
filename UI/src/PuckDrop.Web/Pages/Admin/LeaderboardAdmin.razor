@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "admin")]
 @inject PuckDropApiClient Api
 @inject IJSRuntime JS
+@using System.Net
 
 <div class="pd-page-head">
     <div>
@@ -221,6 +222,14 @@ else
             _points = null;
             _reason = string.Empty;
         }
+        catch (ApiException ex)
+        {
+            // Don't say "try again" for something that will never succeed on a retry.
+            _error = ex.ApiMessage
+                ?? (ex.StatusCode == HttpStatusCode.NotFound
+                    ? "That endpoint isn't available. The app may be running an older build - restart it to pick up the latest."
+                    : $"The server rejected the adjustment ({(int)ex.StatusCode}).");
+        }
         catch (Exception)
         {
             _error = "Failed to apply the adjustment. Please try again.";
@@ -251,6 +260,13 @@ else
             await Api.RemoveAdjustmentAsync(adjustment.AdjustmentId, entry.UserId, _leaderboard?.SeasonId);
             await LoadAsync();
             _status = $"Adjustment removed for {entry.DisplayName}.";
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.ApiMessage
+                ?? (ex.StatusCode == HttpStatusCode.NotFound
+                    ? "That adjustment is already gone. Reload the page."
+                    : $"The server rejected the removal ({(int)ex.StatusCode}).");
         }
         catch (Exception)
         {
