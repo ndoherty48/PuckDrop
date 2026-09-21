@@ -1,0 +1,31 @@
+name: Pull-Request
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pull-request-ci
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Restore dependencies
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+      - name: Unit Tests
+        run: dotnet test --configuration Release --no-build --verbosity normal -- --filter-not-trait Category=E2E --ignore-exit-code=8
+      - name: E2E Tests
+        run: dotnet test --configuration Release --no-build --verbosity normal --project tests/PuckDrop.E2ETests/PuckDrop.E2ETests.csproj
