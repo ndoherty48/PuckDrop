@@ -85,6 +85,21 @@ public class ResultsVoidTests : BunitContext
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".results-void-list")));
     }
 
+    [Fact]
+    public void AdminSection_PutsItsContentInACardBody()
+    {
+        // .pd-card is background and border only - it has no padding of its own. Free content
+        // dropped straight into one renders flush against the card edge.
+        var cut = RenderAsAdmin(Routes());
+
+        cut.WaitForAssertion(() =>
+        {
+            var body = cut.Find(".results-admin .pd-card-body");
+            Assert.NotNull(body.QuerySelector(".results-void-list"));
+            Assert.NotNull(body.QuerySelector(".results-admin-intro"));
+        });
+    }
+
     // ─── Voiding ────────────────────────────────────────────────────────────
 
     [Fact]

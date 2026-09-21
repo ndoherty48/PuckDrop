@@ -1,3 +1,21 @@
+/* .pd-card is background/border only - free content inside one is padded by .pd-card-body, and
+   the standings table by its own cells. */
+.lba-card + .lba-card {
+    margin-top: 1.75rem;
+}
+
+/* A bare paragraph used as a card still needs the card's own padding. */
+.lba-empty {
+    margin: 0;
+    padding: 1.25rem 1.75rem;
+}
+
+/* Aligned with the table's cell padding rather than the card body's, so the note lines up with
+   the first column above it. */
+.lba-footnote {
+    padding: 1rem 1.25rem;
+}
+
 .lba-intro {
     margin: 0 0 1rem;
     font-size: 0.9375rem;

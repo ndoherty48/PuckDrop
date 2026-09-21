@@ -25,7 +25,7 @@ else if (_loadError is not null)
 }
 else if (_leaderboard is null || _leaderboard.Entries.Count == 0)
 {
-    <p class="pd-card pd-muted">
+    <p class="pd-card pd-muted lba-empty">
         Nobody has a standing yet. Points can only be adjusted once a player has answered a scored
         poll — their name comes from their own picks, so there is nothing to adjust before that.
     </p>
@@ -50,11 +50,12 @@ else
         </div>
     }
 
-    <section class="pd-card" aria-labelledby="adjust-add-title">
+    <section class="pd-card lba-card" aria-labelledby="adjust-add-title">
         <div class="pd-card-head">
             <h2 id="adjust-add-title" class="pd-h2">Adjust a player's points</h2>
         </div>
 
+        <div class="pd-card-body">
         <p class="pd-muted lba-intro">
             Use a negative number to deduct, positive to award. The reason is shown to everyone on the
             leaderboard, and a deduction can take a total below zero.
@@ -107,9 +108,10 @@ else
         <button type="button" class="pd-btn pd-btn-primary" disabled="@Busy" @onclick="AddAdjustmentAsync">
             @(_adding ? "Applying…" : "Apply adjustment")
         </button>
+        </div>
     </section>
 
-    <section class="pd-card" aria-labelledby="adjust-standings-title">
+    <section class="pd-card lba-card" aria-labelledby="adjust-standings-title">
         <div class="pd-card-head">
             <h2 id="adjust-standings-title" class="pd-h2">Standings</h2>
         </div>
@@ -154,7 +156,7 @@ else
                 </tbody>
             </table>
         </div>
-        <p class="pd-hint">
+        <p class="pd-hint lba-footnote">
             To void a whole game day for a player, open that poll's results and use “Void picks”.
         </p>
     </section>

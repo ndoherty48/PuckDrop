@@ -161,6 +161,12 @@
 
 /* ─── Admin: void picks ──────────────────────────────────────────────────── */
 
+/* Cards carry no padding of their own - .pd-card is background/border only, and content is
+   padded by .pd-card-head or .pd-card-body. */
+.results-admin {
+    margin-top: 1.75rem;
+}
+
 .results-admin-intro {
     margin: 0 0 1rem;
     font-size: 0.9375rem;
