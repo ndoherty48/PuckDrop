@@ -23,7 +23,6 @@ public class PollLifecycleTests(AppHostFixture fixture)
         var adminSession = await fixture.LoginAndCaptureSessionAsync(TestData.AdminUsername, TestData.AdminPassword);
         await using var adminContext = await fixture.NewAuthenticatedBrowserContextAsync(adminSession);
         var admin = await adminContext.NewPageAsync();
-        admin.Dialog += async (_, dialog) => await dialog.AcceptAsync();
 
         await fixture.GotoWithBootstrapRetryAsync(admin, new Uri(fixture.BlazorBaseUri, "admin/polls").ToString());
 
@@ -49,6 +48,7 @@ public class PollLifecycleTests(AppHostFixture fixture)
 
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
         await poll1Row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Publish" }).ClickAsync();
+        await AdminPollActions.ConfirmAsync(admin, "Publish");
         await Assertions.Expect(poll1Row.GetByText("Open")).ToBeVisibleAsync();
 
         // ── Friend: now visible as the active poll, votes, submits ─────────────────────────
@@ -69,6 +69,7 @@ public class PollLifecycleTests(AppHostFixture fixture)
         // ── Admin: close, score (one right, one wrong for the friend) ──────────────────────
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
         await poll1Row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Close" }).ClickAsync();
+        await AdminPollActions.ConfirmAsync(admin, "Close voting");
         await Assertions.Expect(poll1Row.GetByText("Closed")).ToBeVisibleAsync();
 
         // Closed polls drop off the "Next Game" card too - only Open ones show there.
@@ -83,6 +84,7 @@ public class PollLifecycleTests(AppHostFixture fixture)
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Yes" }).ClickAsync();
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Under" }).ClickAsync();
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Submit Scores" }).ClickAsync();
+        await AdminPollActions.ConfirmAsync(admin, "Submit scores");
 
         // ── Results: friend's real display name, one correct + one incorrect mark ──────────
         await WaitForResultsAsync(admin, poll1Title);
@@ -103,6 +105,7 @@ public class PollLifecycleTests(AppHostFixture fixture)
 
         // Published from the edit page this time - poll 1 covered publishing from the Manage polls row.
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Publish poll" }).ClickAsync();
+        await AdminPollActions.ConfirmAsync(admin, "Publish");
         await Assertions.Expect(admin.GetByText("is now open for picks")).ToBeVisibleAsync();
 
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
@@ -119,10 +122,12 @@ public class PollLifecycleTests(AppHostFixture fixture)
 
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
         await poll2Row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Close" }).ClickAsync();
+        await AdminPollActions.ConfirmAsync(admin, "Close voting");
         await Assertions.Expect(poll2Row.GetByText("Closed")).ToBeVisibleAsync();
         await poll2Row.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = "Score" }).ClickAsync();
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Yes" }).ClickAsync();
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Submit Scores" }).ClickAsync();
+        await AdminPollActions.ConfirmAsync(admin, "Submit scores");
 
         // Wait for scoring's redirect to Results, or it can land after the next navigation.
         await WaitForResultsAsync(admin, poll2Title);
