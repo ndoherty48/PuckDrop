@@ -654,6 +654,13 @@ html {
   border-bottom: 1px solid var(--pd-line);
 }
 
+/* A card pinned to the viewport bottom, e.g. Import fixtures' "Import N fixtures" bar */
+.pd-card-sticky {
+  position: sticky;
+  bottom: 1rem;
+  box-shadow: 0 8px 24px rgba(11, 25, 40, 0.16);
+}
+
 .pd-h2 {
   margin: 0;
   font-family: var(--pd-font-display);
@@ -1115,7 +1122,8 @@ html {
   background: var(--pd-ice);
 }
 
-.pd-opt input[type="radio"] {
+.pd-opt input[type="radio"],
+.pd-opt input[type="checkbox"] {
   flex-shrink: 0;
   width: 1.5rem;
   height: 1.5rem;
@@ -1178,6 +1186,38 @@ html {
   border-style: dashed;
   background: var(--pd-ice);
   cursor: default;
+}
+
+/* ---------- Filter chips (e.g. Import fixtures' category filter) ---------- */
+.pd-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pd-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0 0.875rem;
+  border: 2px solid var(--pd-line-strong);
+  border-radius: var(--pd-radius-pill);
+  background: var(--pd-surface);
+  color: var(--pd-slate);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pd-chip:hover {
+  background: var(--pd-ice);
+}
+
+.pd-chip[aria-pressed="true"] {
+  border-color: var(--pd-blue);
+  background: var(--pd-blue-tint);
+  color: var(--pd-blue-text);
 }
 
 /* ---------- Progress ---------- */

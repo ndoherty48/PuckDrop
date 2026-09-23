@@ -49,6 +49,13 @@ public record LeaderboardAdjustmentModel(string AdjustmentId, int Points, string
 /// <summary>A game day whose picks were voided for this player, with its reason.</summary>
 public record LeaderboardVoidModel(string PollId, string PollTitle, string Reason);
 
+// ─── Fixture import ───────────────────────────────────────────────────────────
+
+public record FixtureImportItemModel(string Title, string Category, DateOnly GameDate, DateTime Deadline);
+
+/// <summary>Wraps the preview response's fixture list - matches the API's response shape.</summary>
+public record FixtureImportPreviewResponseModel(List<FixtureImportItemModel> Fixtures);
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 /// <summary>
@@ -75,3 +82,5 @@ public record ScoreItem(string QuestionId, string CorrectOptionId);
 public record VoidPicksRequest(string UserId, string Reason);
 
 public record CreateAdjustmentRequest(string UserId, int Points, string Reason, string? SeasonId = null);
+
+public record FixtureImportPreviewRequest(string IcsUrl, DateOnly StartDate, DateOnly? EndDate);

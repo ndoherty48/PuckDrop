@@ -42,6 +42,14 @@ public record PollDetailResponse(
     string CreatedAt,
     IReadOnlyList<QuestionResponse> Questions);
 
+// ─── Fixture import ───────────────────────────────────────────────────────────
+
+public record FixtureImportPreviewRequest(string IcsUrl, string StartDate, string? EndDate);
+
+public record FixtureImportPreviewResponse(IReadOnlyList<FixtureImportItem> Fixtures);
+
+public record FixtureImportItem(string Title, string Category, string GameDate, string Deadline);
+
 // ─── Questions ────────────────────────────────────────────────────────────────
 
 public record CreateQuestionRequest(string Text, int SortOrder, IReadOnlyList<CreateOptionRequest> Options);

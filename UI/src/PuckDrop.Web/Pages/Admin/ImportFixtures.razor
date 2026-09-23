@@ -1,0 +1,245 @@
+@page "/admin/polls/import"
+@attribute [Authorize(Roles = "admin")]
+@inject PuckDropApiClient Api
+@inject ConfirmDialogService ConfirmDialog
+
+<nav class="pd-crumbs" aria-label="Breadcrumb">
+    <a href="admin/polls">Manage polls</a>
+    <Icon Name="right" Size="16" />
+    <span aria-current="page">Import fixtures</span>
+</nav>
+<h1 class="pd-page-title import-title">Import fixtures</h1>
+
+@if (_importedCount is not null)
+{
+    <div class="pd-card import-card">
+        <div class="pd-card-body">
+            <div class="pd-alert pd-alert-success" role="status">
+                <Icon Name="check" />
+                <p>
+                    @_importedCount fixture@(_importedCount == 1 ? "" : "s") imported as draft polls.
+                    @if (_failedCount > 0)
+                    {
+                        <text> @_failedCount failed - try importing @(_failedCount == 1 ? "it" : "them") again.</text>
+                    }
+                </p>
+            </div>
+            <div class="pd-btn-row import-summary-actions">
+                <a href="admin/polls" class="pd-btn pd-btn-primary">Back to Manage polls</a>
+                <button type="button" class="pd-btn pd-btn-quiet" @onclick="ResetForMore">Import more</button>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="pd-card import-card">
+        <div class="pd-card-body import-fields">
+            <div class="pd-field">
+                <label for="icsUrl" class="pd-label">Calendar URL</label>
+                <p id="icsUrl-hint" class="pd-hint">Paste your team's public ICS calendar link.</p>
+                @if (_urlError is not null)
+                {
+                    <p class="pd-error-msg" role="alert"><Icon Name="alert" Size="18" />@_urlError</p>
+                }
+                <input id="icsUrl" type="url" class="pd-input" @bind="_icsUrl" @bind:event="oninput"
+                       aria-describedby="icsUrl-hint" />
+            </div>
+
+            @if (Categories.Count > 0)
+            {
+                <div class="pd-field">
+                    <span class="pd-label">Category</span>
+                    <div class="pd-chip-row" role="group" aria-label="Filter by category">
+                        <button type="button" class="pd-chip" aria-pressed="@(_selectedCategory is null)"
+                                @onclick="() => _selectedCategory = null">All</button>
+                        @foreach (var category in Categories)
+                        {
+                            <button type="button" class="pd-chip" aria-pressed="@(_selectedCategory == category)"
+                                    @onclick="() => _selectedCategory = category">@category</button>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="import-date-row">
+                <div class="pd-field">
+                    <label for="startDate" class="pd-label">Start date</label>
+                    <input id="startDate" type="date" class="pd-input" @bind="_startDate" />
+                </div>
+                <div class="pd-field">
+                    <label for="endDate" class="pd-label">End date <span class="import-optional">(optional)</span></label>
+                    <input id="endDate" type="date" class="pd-input" @bind="_endDate" />
+                </div>
+            </div>
+
+            @if (_searchError is not null)
+            {
+                <div class="pd-alert pd-alert-danger" role="alert">
+                    <Icon Name="alert" />
+                    <p>@_searchError</p>
+                </div>
+            }
+
+            <button type="button" class="pd-btn pd-btn-primary" @onclick="FindFixturesAsync" disabled="@_searching">
+                @(_searching ? "Finding…" : "Find fixtures")
+            </button>
+        </div>
+    </div>
+
+    @if (_rows is { Count: > 0 })
+    {
+        <h2 class="pd-h3 import-results-title">@_rows.Count fixture@(_rows.Count == 1 ? "" : "s") found</h2>
+
+        <div class="import-selected-bar">
+            <span>@SelectedCount of @_rows.Count selected</span>
+            <button type="button" class="pd-btn pd-btn-quiet pd-btn-sm" @onclick="ToggleSelectVisible">
+                @(AllVisibleSelected ? "Select none" : "Select all")
+            </button>
+        </div>
+
+        <div class="import-fixture-list">
+            @foreach (var row in VisibleRows)
+            {
+                <label class="pd-opt import-fixture-row">
+                    <input type="checkbox" checked="@row.Selected"
+                           @onchange="e => row.Selected = (bool)e.Value!" />
+                    <span class="import-fixture-info">
+                        <span class="pd-hint">@row.Fixture.Deadline.ToString("ddd d MMM, HH:mm")</span>
+                        <span>@row.Fixture.Title</span>
+                    </span>
+                    <span class="pd-badge pd-badge-scored">@row.Fixture.Category</span>
+                </label>
+            }
+        </div>
+
+        <div class="pd-card pd-card-sticky import-action-bar">
+            <div class="pd-card-body import-action-bar-body">
+                <span class="pd-strong">@SelectedCount selected</span>
+                <button type="button" class="pd-btn pd-btn-primary" @onclick="ImportSelectedAsync"
+                        disabled="@(_importing || SelectedCount == 0)">
+                    @(_importing ? "Importing…" : $"Import {SelectedCount} fixture{(SelectedCount == 1 ? "" : "s")}")
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private string _icsUrl = "";
+    private DateOnly _startDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly? _endDate;
+    private string? _selectedCategory;
+
+    private string? _urlError;
+    private string? _searchError;
+    private bool _searching;
+    private List<FixtureRow>? _rows;
+
+    private bool _importing;
+    private int? _importedCount;
+    private int? _failedCount;
+
+    private List<string> Categories =>
+        _rows is null ? [] : _rows.Select(r => r.Fixture.Category).Distinct().OrderBy(c => c).ToList();
+
+    private IEnumerable<FixtureRow> VisibleRows =>
+        _rows is null
+            ? []
+            : _selectedCategory is null ? _rows : _rows.Where(r => r.Fixture.Category == _selectedCategory);
+
+    private int SelectedCount => _rows?.Count(r => r.Selected) ?? 0;
+
+    private bool AllVisibleSelected => VisibleRows.Any() && VisibleRows.All(r => r.Selected);
+
+    private void ToggleSelectVisible()
+    {
+        var select = !AllVisibleSelected;
+        foreach (var row in VisibleRows)
+            row.Selected = select;
+    }
+
+    private async Task FindFixturesAsync()
+    {
+        if (_searching) return;
+
+        _urlError = string.IsNullOrWhiteSpace(_icsUrl) ? "Enter a calendar URL." : null;
+        if (_urlError is not null) return;
+
+        _searching = true;
+        _searchError = null;
+        _rows = null;
+        _selectedCategory = null;
+
+        try
+        {
+            var request = new FixtureImportPreviewRequest(_icsUrl.Trim(), _startDate, _endDate);
+            var fixtures = await Api.PreviewFixtureImportAsync(request) ?? [];
+            _rows = fixtures.Select(f => new FixtureRow { Fixture = f }).ToList();
+
+            if (_rows.Count == 0)
+                _searchError = "No fixtures found in that range.";
+        }
+        catch (ApiException ex)
+        {
+            _searchError = ex.ApiMessage ?? "Failed to fetch that calendar. Check the URL and try again.";
+        }
+        catch (Exception)
+        {
+            _searchError = "Failed to fetch that calendar. Check the URL and try again.";
+        }
+        finally
+        {
+            _searching = false;
+        }
+    }
+
+    private async Task ImportSelectedAsync()
+    {
+        if (_importing || _rows is null) return;
+
+        var selected = _rows.Where(r => r.Selected).ToList();
+        if (selected.Count == 0) return;
+
+        var confirmed = await ConfirmDialog.ShowAsync(
+            "These will be added as draft polls, ready to publish individually.",
+            title: $"Import {selected.Count} fixture{(selected.Count == 1 ? "" : "s")}?",
+            confirmLabel: "Import");
+        if (!confirmed) return;
+
+        _importing = true;
+
+        var succeeded = 0;
+        var failed = 0;
+
+        foreach (var row in selected)
+        {
+            try
+            {
+                await Api.CreatePollAsync(new CreatePollRequest(row.Fixture.Title, row.Fixture.GameDate, row.Fixture.Deadline));
+                succeeded++;
+            }
+            catch (Exception)
+            {
+                failed++;
+            }
+        }
+
+        _importedCount = succeeded;
+        _failedCount = failed;
+        _rows = null;
+        _importing = false;
+    }
+
+    private void ResetForMore()
+    {
+        _importedCount = null;
+        _failedCount = null;
+    }
+
+    private sealed class FixtureRow
+    {
+        public required FixtureImportItemModel Fixture { get; init; }
+        public bool Selected { get; set; } = true;
+    }
+}

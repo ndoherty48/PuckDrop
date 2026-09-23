@@ -1,0 +1,84 @@
+.import-title {
+    margin-bottom: 1.5rem;
+}
+
+.import-card {
+    max-width: 45rem;
+    padding: 2rem;
+    margin-bottom: 1.75rem;
+}
+
+.import-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+}
+
+.import-optional {
+    font-weight: 400;
+    color: var(--pd-steel);
+}
+
+.import-date-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.import-date-row .pd-field {
+    flex: 1;
+}
+
+.import-results-title {
+    margin-bottom: 0.75rem;
+}
+
+.import-selected-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    font-weight: 700;
+}
+
+.import-fixture-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.import-fixture-row {
+    align-items: flex-start;
+}
+
+.import-fixture-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.import-action-bar-body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1.75rem;
+}
+
+.import-summary-actions {
+    margin-top: 1.5rem;
+}
+
+@media (max-width: 767.98px) {
+    .import-card {
+        padding: 1.25rem;
+    }
+
+    .import-date-row {
+        flex-direction: column;
+        gap: 1.75rem;
+    }
+}

@@ -16,6 +16,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<ResultsService>();
         services.AddScoped<PollVoidService>();
         services.AddScoped<PointAdjustmentService>();
+        services.AddScoped<FixtureImportService>();
 
         return services;
     }
