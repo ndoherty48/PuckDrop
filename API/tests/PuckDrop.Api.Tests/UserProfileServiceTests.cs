@@ -83,7 +83,7 @@ public class UserProfileServiceTests
         var handler = new FakeHandler(_ => Json($$"""{"sub":"{{Sub}}","preferred_username":"nathan","email":"nathan@example.com"}"""));
         var service = CreateService(handler, new Claim("sub", Sub));
 
-        var displayName = await service.GetDisplayNameAsync();
+        var displayName = await service.GetDisplayNameAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal("nathan", displayName);
         var request = Assert.Single(handler.Requests);
@@ -98,7 +98,7 @@ public class UserProfileServiceTests
         var handler = new FakeHandler(_ => Json("""{"name":"Nathan Doherty","preferred_username":"nathan"}"""));
         var service = CreateService(handler, new Claim("sub", Sub));
 
-        Assert.Equal("Nathan Doherty", await service.GetDisplayNameAsync());
+        Assert.Equal("Nathan Doherty", await service.GetDisplayNameAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class UserProfileServiceTests
         var handler = new FakeHandler(_ => Json("""{"email":"nathan@example.com"}"""));
         var service = CreateService(handler, new Claim("sub", Sub));
 
-        Assert.Equal("nathan@example.com", await service.GetDisplayNameAsync());
+        Assert.Equal("nathan@example.com", await service.GetDisplayNameAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class UserProfileServiceTests
         var handler = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized));
         var service = CreateService(handler, new Claim("sub", Sub));
 
-        Assert.Equal(Sub, await service.GetDisplayNameAsync());
+        Assert.Equal(Sub, await service.GetDisplayNameAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -125,6 +125,6 @@ public class UserProfileServiceTests
         var handler = new FakeHandler(_ => throw new HttpRequestException("connection refused"));
         var service = CreateService(handler, new Claim("sub", Sub));
 
-        Assert.Equal(Sub, await service.GetDisplayNameAsync());
+        Assert.Equal(Sub, await service.GetDisplayNameAsync(TestContext.Current.CancellationToken));
     }
 }

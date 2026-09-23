@@ -29,7 +29,6 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
         var adminSession = await fixture.LoginAndCaptureSessionAsync(TestData.AdminUsername, TestData.AdminPassword);
         await using var adminContext = await fixture.NewAuthenticatedBrowserContextAsync(adminSession);
         var admin = await adminContext.NewPageAsync();
-        admin.Dialog += async (_, dialog) => await dialog.AcceptAsync();
 
         await fixture.GotoWithBootstrapRetryAsync(admin, new Uri(fixture.BlazorBaseUri, "leaderboard").ToString());
         var baseline = await LeaderboardAssertions.PointsAsync(admin, TestData.FriendDisplayName);
@@ -45,6 +44,7 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
         var pollRow = admin.Locator("tr", new PageLocatorOptions { HasText = title });
         await pollRow.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Publish" }).ClickAsync();
+        await AdminPollActions.ConfirmAsync(admin, "Publish");
         await Assertions.Expect(pollRow.GetByText("Open")).ToBeVisibleAsync();
 
         var friendSession = await fixture.LoginAndCaptureSessionAsync(TestData.FriendUsername, TestData.FriendPassword);
@@ -60,12 +60,14 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
 
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Admin" }).ClickAsync();
         await pollRow.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Close" }).ClickAsync();
+        await AdminPollActions.ConfirmAsync(admin, "Close voting");
         await Assertions.Expect(pollRow.GetByText("Closed")).ToBeVisibleAsync();
 
         await pollRow.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = "Score" }).ClickAsync();
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Yes" }).ClickAsync();
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Over" }).ClickAsync();
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Submit Scores" }).ClickAsync();
+        await AdminPollActions.ConfirmAsync(admin, "Submit scores");
         await admin.WaitForURLAsync(url => url.Contains("/results/"));
 
         await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, baseline + 2);
@@ -78,6 +80,7 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
         await Assertions.Expect(admin.GetByText("2 of 2 answers set")).ToBeVisibleAsync();
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Under" }).ClickAsync();
         await admin.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Update scores" }).ClickAsync();
+        await AdminPollActions.ConfirmAsync(admin, "Update scores");
         await admin.WaitForURLAsync(url => url.Contains("/results/"));
 
         await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, baseline + 1);
@@ -98,6 +101,7 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
         await GoToResultsAsync(admin, title);
         await admin.GetByRole(AriaRole.Button,
             new PageGetByRoleOptions { Name = $"Restore picks for {TestData.FriendDisplayName}" }).ClickAsync();
+        await AdminPollActions.ConfirmAsync(admin, "Restore");
         await Assertions.Expect(admin.GetByText("picks count again")).ToBeVisibleAsync();
 
         await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, baseline + 1);
@@ -137,6 +141,7 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Point adjustments" }).ClickAsync();
         await admin.GetByRole(AriaRole.Button,
             new PageGetByRoleOptions { Name = $"adjustment for {TestData.FriendDisplayName}" }).ClickAsync();
+        await AdminPollActions.ConfirmAsync(admin, "Remove");
         await Assertions.Expect(admin.GetByText($"Adjustment removed for {TestData.FriendDisplayName}"))
             .ToBeVisibleAsync();
 

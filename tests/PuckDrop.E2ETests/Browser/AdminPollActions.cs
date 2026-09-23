@@ -46,4 +46,16 @@ internal static class AdminPollActions
         await Assertions.Expect(admin.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = questionText }))
             .ToBeVisibleAsync();
     }
+
+    /// <summary>
+    /// Clicks the confirm button of the design-system confirm dialog (Components/Modal.razor via
+    /// ConfirmDialogHost) that now answers Publish/Close voting/Submit scores/Restore/Remove -
+    /// window.confirm() no longer fires for any of them.
+    /// </summary>
+    public static async Task ConfirmAsync(IPage page, string buttonName)
+    {
+        await page.GetByRole(AriaRole.Dialog)
+            .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = buttonName, Exact = true })
+            .ClickAsync();
+    }
 }
