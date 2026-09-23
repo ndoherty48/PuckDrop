@@ -1,0 +1,78 @@
+@* Generic modal shell on the native <dialog> element, styled to match the design system - the
+   building block behind ConfirmDialogHost, and reusable directly for any other modal content.
+   showModal() gives real modal semantics for free (focus trap, Escape-to-close, top-layer
+   stacking); dialog.js reports a dismissal via Escape or a backdrop click back here, since those
+   don't go through a footer button this component already handles. *@
+@implements IDisposable
+@inject IJSRuntime JS
+
+<dialog class="pd-dialog" @ref="_dialogRef" aria-labelledby="@_titleId">
+    <div class="pd-dialog-panel">
+        <h2 id="@_titleId" class="pd-dialog-title">@Title</h2>
+        <div class="pd-dialog-body">
+            @ChildContent
+        </div>
+        @if (FooterContent is not null)
+        {
+            <div class="pd-dialog-actions">
+                @FooterContent
+            </div>
+        }
+    </div>
+</dialog>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? FooterContent { get; set; }
+
+    [Parameter]
+    public bool Open { get; set; }
+
+    /// <summary>
+    /// Raised when the dialog is dismissed by the user without going through a footer button -
+    /// pressing Escape or clicking the backdrop. The caller owns Open, so it should flip it to
+    /// false here (and treat the dismissal as a cancel, if that's the modal's meaning).
+    /// </summary>
+    [Parameter]
+    public EventCallback OnDismiss { get; set; }
+
+    private readonly string _titleId = $"pd-dialog-title-{Guid.NewGuid():N}";
+    private ElementReference _dialogRef;
+    private DotNetObjectReference<Modal>? _selfRef;
+    private bool _wasOpen;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Open && !_wasOpen)
+        {
+            _selfRef ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("puckDropDialog.show", _dialogRef, _selfRef);
+        }
+        else if (!Open && _wasOpen)
+        {
+            await JS.InvokeVoidAsync("puckDropDialog.close", _dialogRef);
+        }
+
+        _wasOpen = Open;
+    }
+
+    [JSInvokable]
+    public async Task HandleDismissed()
+    {
+        // Fires for every close, including ones this component already knows about (the caller
+        // flipped Open before we told the dialog element to close). Only act on the ones it
+        // doesn't - a real Escape/backdrop dismissal, where Open is still true.
+        if (Open)
+        {
+            await OnDismiss.InvokeAsync();
+        }
+    }
+
+    public void Dispose() => _selfRef?.Dispose();
+}

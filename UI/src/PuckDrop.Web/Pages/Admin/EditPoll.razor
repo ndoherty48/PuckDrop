@@ -2,7 +2,7 @@
 @attribute [Authorize(Roles = "admin")]
 @using System.Net
 @inject PuckDropApiClient Api
-@inject IJSRuntime JS
+@inject ConfirmDialogService ConfirmDialog
 
 <nav class="pd-crumbs" aria-label="Breadcrumb">
     <a href="admin/polls">Manage polls</a>
@@ -336,7 +336,10 @@ else
         }
 
         // Same confirmation as Manage polls, so publishing reads the same wherever you do it from
-        if (!await JS.InvokeAsync<bool>("confirm", $"Publish \"{_poll.Title}\"? It will open for voting immediately."))
+        if (!await ConfirmDialog.ShowAsync(
+                $"\"{_poll.Title}\" will open for voting immediately.",
+                title: "Publish this poll?",
+                confirmLabel: "Publish"))
             return;
 
         _publishing = true;
@@ -376,7 +379,11 @@ else
         _statusMessage = null;
         _error = null;
 
-        if (!await JS.InvokeAsync<bool>("confirm", $"Close voting for \"{_poll.Title}\"? This cannot be undone."))
+        if (!await ConfirmDialog.ShowAsync(
+                $"Voting for \"{_poll.Title}\" will close. This cannot be undone.",
+                title: "Close voting?",
+                confirmLabel: "Close voting",
+                danger: true))
             return;
 
         _closing = true;

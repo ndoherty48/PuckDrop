@@ -1,0 +1,49 @@
+@* Mount once in MainLayout. Listens for ConfirmDialogService.ShowAsync calls and answers each one
+   through a Modal, replacing window.confirm() with something that matches the design system. *@
+@implements IDisposable
+@inject ConfirmDialogService ConfirmDialog
+
+<Modal Title="@(_pending?.Title ?? "")" Open="@(_pending is not null)" OnDismiss="HandleCancel">
+    <ChildContent>
+        <p>@_pending?.Message</p>
+    </ChildContent>
+    <FooterContent>
+        <button class="pd-btn pd-btn-quiet" type="button" @onclick="HandleCancel">
+            @_pending?.CancelLabel
+        </button>
+        <button class="@ConfirmButtonClass" type="button" @onclick="HandleConfirm">
+            @_pending?.ConfirmLabel
+        </button>
+    </FooterContent>
+</Modal>
+
+@code {
+    private ConfirmDialogRequest? _pending;
+
+    private string ConfirmButtonClass =>
+        _pending?.Danger == true ? "pd-btn pd-btn-danger" : "pd-btn pd-btn-primary";
+
+    protected override void OnInitialized()
+    {
+        ConfirmDialog.Requested += HandleRequested;
+    }
+
+    private void HandleRequested(ConfirmDialogRequest request)
+    {
+        _pending = request;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleConfirm() => Resolve(true);
+
+    private void HandleCancel() => Resolve(false);
+
+    private void Resolve(bool result)
+    {
+        var pending = _pending;
+        _pending = null;
+        pending?.Completion.TrySetResult(result);
+    }
+
+    public void Dispose() => ConfirmDialog.Requested -= HandleRequested;
+}

@@ -12,6 +12,7 @@ public class MainLayoutTests : BunitContext
     public MainLayoutTests()
     {
         Services.AddSingleton(new AuthConfigModel("http://localhost/realms/PuckDrop", "PuckDrop-UI", "code"));
+        Services.AddSingleton(new ConfirmDialogService());
     }
 
     private IRenderedComponent<MainLayout> RenderLayout() =>

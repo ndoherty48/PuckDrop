@@ -50,6 +50,7 @@ public class ResultsTests : BunitContext
     private IRenderedComponent<Results> RenderResults(RoutingHttpMessageHandler handler, string currentUserSub = "u2")
     {
         Services.AddSingleton(handler.BuildClient());
+        Services.AddSingleton(new ConfirmDialogService());
 
         var authContext = AddAuthorization();
         authContext.SetAuthorized("Friend");

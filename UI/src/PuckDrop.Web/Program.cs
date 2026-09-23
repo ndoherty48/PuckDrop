@@ -76,6 +76,8 @@ if (authConfig is not null)
 // [AllowAnonymous].
 builder.Services.AddAuthorizationCore();
 
+builder.Services.AddScoped<ConfirmDialogService>();
+
 var app = builder.Build();
 
 // WebAssembly does not support IHostedService, so TelemetryHostedService is never started.

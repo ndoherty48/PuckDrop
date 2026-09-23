@@ -18,10 +18,13 @@ public class PollsTests : BunitContext
         pollId, "2025-26", gameDate ?? new DateOnly(2026, 1, 15), $"Poll {pollId}",
         DateTime.UtcNow.AddDays(1), status, "admin-user", DateTime.UtcNow);
 
-    private IRenderedComponent<Polls> RenderWithHandler(RoutingHttpMessageHandler handler)
+    private ConfirmDialogStub Confirm { get; set; } = null!;
+
+    private IRenderedComponent<Polls> RenderWithHandler(RoutingHttpMessageHandler handler, bool confirmResult = true)
     {
         handler.MapJson(HttpMethod.Get, "seasons/current", BuildSeason());
         Services.AddSingleton(handler.BuildClient());
+        Confirm = ConfirmDialogStub.Register(this, confirmResult);
         return Render<Polls>();
     }
 
@@ -36,14 +39,12 @@ public class PollsTests : BunitContext
         var handler = new RoutingHttpMessageHandler()
             .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", new List<PollModel> { BuildPoll() })
             .Map(HttpMethod.Post, "polls/poll-1/publish", _ => { publishCalled = true; return new HttpResponseMessage(HttpStatusCode.OK); });
-        var cut = RenderWithHandler(handler);
-
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
+        var cut = RenderWithHandler(handler, confirmResult: false);
 
         cut.WaitForAssertion(() => TableControl(cut, "Publish"));
         TableControl(cut, "Publish").Click();
 
-        cut.WaitForAssertion(() => JSInterop.VerifyInvoke("confirm"));
+        cut.WaitForAssertion(() => Assert.NotNull(Confirm.LastRequest));
         Assert.False(publishCalled);
     }
 
@@ -63,8 +64,6 @@ public class PollsTests : BunitContext
             });
         var cut = RenderWithHandler(handler);
 
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
-
         cut.WaitForAssertion(() => TableControl(cut, "Publish"));
         TableControl(cut, "Publish").Click();
 
@@ -82,14 +81,12 @@ public class PollsTests : BunitContext
         var handler = new RoutingHttpMessageHandler()
             .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", new List<PollModel> { BuildPoll(status: "Open") })
             .Map(HttpMethod.Post, "polls/poll-1/close", _ => { closeCalled = true; return new HttpResponseMessage(HttpStatusCode.OK); });
-        var cut = RenderWithHandler(handler);
-
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
+        var cut = RenderWithHandler(handler, confirmResult: false);
 
         cut.WaitForAssertion(() => TableControl(cut, "Close voting"));
         TableControl(cut, "Close voting").Click();
 
-        cut.WaitForAssertion(() => JSInterop.VerifyInvoke("confirm"));
+        cut.WaitForAssertion(() => Assert.NotNull(Confirm.LastRequest));
         Assert.False(closeCalled);
     }
 

@@ -34,9 +34,12 @@ public class RescoreTests : BunitContext
             ])
         ]);
 
-    private IRenderedComponent<ScorePoll> RenderScorePoll(RoutingHttpMessageHandler handler)
+    private ConfirmDialogStub Confirm { get; set; } = null!;
+
+    private IRenderedComponent<ScorePoll> RenderScorePoll(RoutingHttpMessageHandler handler, bool confirmResult = true)
     {
         Services.AddSingleton(handler.BuildClient());
+        Confirm = ConfirmDialogStub.Register(this, confirmResult);
         return Render<ScorePoll>(parameters => parameters.Add(p => p.PollId, PollId));
     }
 
@@ -98,7 +101,6 @@ public class RescoreTests : BunitContext
                 sent = request.Content!.ReadFromJsonAsync<ScorePollRequest>().GetAwaiter().GetResult();
                 return new HttpResponseMessage(HttpStatusCode.OK);
             });
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         var cut = RenderScorePoll(handler);
 
         cut.WaitForAssertion(() => Button(cut, "Away"));
@@ -119,13 +121,12 @@ public class RescoreTests : BunitContext
         var handler = new RoutingHttpMessageHandler()
             .MapJson(HttpMethod.Get, $"polls/{PollId}", BuildScoredPoll())
             .Map(HttpMethod.Post, $"polls/{PollId}/score", _ => new HttpResponseMessage(HttpStatusCode.OK));
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
-        var cut = RenderScorePoll(handler);
+        var cut = RenderScorePoll(handler, confirmResult: false);
 
         cut.WaitForAssertion(() => Button(cut, "Update scores"));
         Button(cut, "Update scores").Click();
 
-        var confirm = JSInterop.Invocations["confirm"].Single();
-        Assert.Contains("recalculates the leaderboard", (string)confirm.Arguments[0]!);
+        cut.WaitForAssertion(() => Assert.NotNull(Confirm.LastRequest));
+        Assert.Contains("recalculates the leaderboard", Confirm.LastRequest!.Message);
     }
 }

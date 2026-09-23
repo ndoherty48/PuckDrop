@@ -30,11 +30,14 @@ public class ScorePollTests : BunitContext
             ])
         ]);
 
-    private IRenderedComponent<ScorePoll> RenderScorePoll(RoutingHttpMessageHandler? extra = null)
+    private ConfirmDialogStub Confirm { get; set; } = null!;
+
+    private IRenderedComponent<ScorePoll> RenderScorePoll(RoutingHttpMessageHandler? extra = null, bool confirmResult = true)
     {
         var handler = extra ?? new RoutingHttpMessageHandler();
         handler.MapJson(HttpMethod.Get, $"polls/{PollId}", BuildPoll());
         Services.AddSingleton(handler.BuildClient());
+        Confirm = ConfirmDialogStub.Register(this, confirmResult);
 
         return Render<ScorePoll>(parameters => parameters.Add(p => p.PollId, PollId));
     }
@@ -85,7 +88,7 @@ public class ScorePollTests : BunitContext
             Assert.DoesNotContain("Pick the correct answer", cut.Find("#q-q1 .pd-q-head").TextContent);
         });
         JSInterop.VerifyFocusAsyncInvoke();
-        JSInterop.VerifyNotInvoke("confirm");
+        Assert.Null(Confirm.LastRequest);
     }
 
     [Fact]
@@ -94,13 +97,12 @@ public class ScorePollTests : BunitContext
         var scoreCalled = false;
         var handler = new RoutingHttpMessageHandler()
             .Map(HttpMethod.Post, $"polls/{PollId}/score", _ => { scoreCalled = true; return new HttpResponseMessage(HttpStatusCode.OK); });
-        var cut = RenderScorePoll(handler);
+        var cut = RenderScorePoll(handler, confirmResult: false);
         AnswerBothQuestions(cut);
 
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
         Button(cut, "Submit scores").Click();
 
-        cut.WaitForAssertion(() => JSInterop.VerifyInvoke("confirm"));
+        cut.WaitForAssertion(() => Assert.NotNull(Confirm.LastRequest));
         Assert.False(scoreCalled);
 
         var nav = Services.GetRequiredService<BunitNavigationManager>();
@@ -120,7 +122,6 @@ public class ScorePollTests : BunitContext
         var cut = RenderScorePoll(handler);
         AnswerBothQuestions(cut);
 
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         Button(cut, "Submit scores").Click();
 
         var nav = Services.GetRequiredService<BunitNavigationManager>();
@@ -138,7 +139,6 @@ public class ScorePollTests : BunitContext
         var cut = RenderScorePoll(handler);
         AnswerBothQuestions(cut);
 
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         Button(cut, "Submit scores").Click();
 
         cut.WaitForAssertion(() =>

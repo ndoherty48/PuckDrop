@@ -27,12 +27,15 @@ public class EditPollTests : BunitContext
     // that follows an add or delete.
     private PollDetailModel _currentPoll = BuildPoll(Question("q1", "Who wins?", 1, "Belfast Giants", "Guildford Flames"));
 
-    private IRenderedComponent<EditPoll> RenderEditPoll(RoutingHttpMessageHandler? handler = null)
+    private ConfirmDialogStub Confirm { get; set; } = null!;
+
+    private IRenderedComponent<EditPoll> RenderEditPoll(RoutingHttpMessageHandler? handler = null, bool confirmResult = true)
     {
         handler ??= new RoutingHttpMessageHandler();
         handler.Map(HttpMethod.Get, $"polls/{PollId}", _ =>
             new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(_currentPoll) });
         Services.AddSingleton(handler.BuildClient());
+        Confirm = ConfirmDialogStub.Register(this, confirmResult);
 
         return Render<EditPoll>(parameters => parameters.Add(p => p.PollId, PollId));
     }
@@ -165,7 +168,6 @@ public class EditPollTests : BunitContext
                 };
             });
         var cut = RenderEditPoll(handler);
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         cut.WaitForAssertion(() => Button(cut, "Publish"));
 
         Button(cut, "Publish").Click();
@@ -189,13 +191,12 @@ public class EditPollTests : BunitContext
         var publishCalled = false;
         var handler = new RoutingHttpMessageHandler()
             .Map(HttpMethod.Post, $"polls/{PollId}/publish", _ => { publishCalled = true; return new HttpResponseMessage(HttpStatusCode.OK); });
-        var cut = RenderEditPoll(handler);
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
+        var cut = RenderEditPoll(handler, confirmResult: false);
         cut.WaitForAssertion(() => Button(cut, "Publish"));
 
         Button(cut, "Publish").Click();
 
-        cut.WaitForAssertion(() => JSInterop.VerifyInvoke("confirm"));
+        cut.WaitForAssertion(() => Assert.NotNull(Confirm.LastRequest));
         Assert.False(publishCalled);
         Assert.Equal("Ready to publish?", cut.Find("#next-step-title").TextContent.Trim());
     }
@@ -215,7 +216,7 @@ public class EditPollTests : BunitContext
             Assert.Contains("Add a question before publishing.", cut.Find("[role=alert]").TextContent);
             Assert.DoesNotContain("Failed to publish poll", cut.Markup);
         });
-        Assert.DoesNotContain("confirm", JSInterop.Invocations.Select(i => i.Identifier));
+        Assert.Null(Confirm.LastRequest);
         JSInterop.VerifyFocusAsyncInvoke();
     }
 
@@ -229,7 +230,6 @@ public class EditPollTests : BunitContext
                 Content = JsonContent.Create(new { error = "INVALID_OPERATION", message = "Cannot publish a poll with no questions. Add at least one question first." })
             });
         var cut = RenderEditPoll(handler);
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         cut.WaitForAssertion(() => Button(cut, "Publish"));
 
         Button(cut, "Publish").Click();
@@ -248,7 +248,6 @@ public class EditPollTests : BunitContext
         var handler = new RoutingHttpMessageHandler()
             .Map(HttpMethod.Post, $"polls/{PollId}/publish", _ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
         var cut = RenderEditPoll(handler);
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         cut.WaitForAssertion(() => Button(cut, "Publish"));
 
         Button(cut, "Publish").Click();
@@ -270,7 +269,6 @@ public class EditPollTests : BunitContext
                 Content = JsonContent.Create(_currentPoll with { Status = "Closed" })
             });
         var cut = RenderEditPoll(handler);
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         cut.WaitForAssertion(() => Button(cut, "Close voting"));
 
         Button(cut, "Close voting").Click();

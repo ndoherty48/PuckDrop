@@ -1,7 +1,7 @@
 @page "/admin/polls"
 @attribute [Authorize(Roles = "admin")]
 @inject PuckDropApiClient Api
-@inject IJSRuntime JS
+@inject ConfirmDialogService ConfirmDialog
 
 <div class="pd-page-head">
     <div>
@@ -136,7 +136,10 @@ else
     private async Task PublishAsync(PollModel poll)
     {
         if (_actionInProgress) return;
-        if (!await JS.InvokeAsync<bool>("confirm", $"Publish \"{poll.Title}\"? It will open for voting immediately."))
+        if (!await ConfirmDialog.ShowAsync(
+                $"\"{poll.Title}\" will open for voting immediately.",
+                title: "Publish this poll?",
+                confirmLabel: "Publish"))
             return;
 
         _actionInProgress = true;
@@ -161,7 +164,11 @@ else
     private async Task CloseAsync(PollModel poll)
     {
         if (_actionInProgress) return;
-        if (!await JS.InvokeAsync<bool>("confirm", $"Close voting for \"{poll.Title}\"? This cannot be undone."))
+        if (!await ConfirmDialog.ShowAsync(
+                $"Voting for \"{poll.Title}\" will close. This cannot be undone.",
+                title: "Close voting?",
+                confirmLabel: "Close voting",
+                danger: true))
             return;
 
         _actionInProgress = true;
