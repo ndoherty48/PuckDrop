@@ -91,7 +91,7 @@ public class PollsTests : BunitContext
     }
 
     [Fact]
-    public void Rows_AreNewestFirst_WithActionsForEachStatus_NamingThePoll()
+    public void Rows_AreClosestGameFirst_WithActionsForEachStatus_NamingThePoll()
     {
         var handler = new RoutingHttpMessageHandler()
             .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", new List<PollModel>
@@ -117,19 +117,19 @@ public class PollsTests : BunitContext
         {
             var rows = cut.FindAll(".polls-table tbody tr");
             Assert.Equal(
-                new[] { "Poll draft", "Poll open", "Poll closed", "Poll scored" },
+                new[] { "Poll scored", "Poll closed", "Poll open", "Poll draft" },
                 rows.Select(row => row.QuerySelector("th")!.TextContent.Trim()));
 
-            Assert.Equal(new[] { "Edit", "Publish" }, Controls(rows[0], "Poll draft"));
-            Assert.Equal(new[] { "Edit", "Close voting" }, Controls(rows[1], "Poll open"));
-            Assert.Equal(new[] { "Score" }, Controls(rows[2], "Poll closed"));
             // Re-score is offered on a Scored poll so a wrong correct option can be fixed, or a
             // partly scored poll finished.
-            Assert.Equal(new[] { "View results", "Re-score" }, Controls(rows[3], "Poll scored"));
+            Assert.Equal(new[] { "View results", "Re-score" }, Controls(rows[0], "Poll scored"));
+            Assert.Equal(new[] { "Score" }, Controls(rows[1], "Poll closed"));
+            Assert.Equal(new[] { "Edit", "Close voting" }, Controls(rows[2], "Poll open"));
+            Assert.Equal(new[] { "Edit", "Publish" }, Controls(rows[3], "Poll draft"));
 
-            Assert.Equal("admin/polls/draft/edit", rows[0].QuerySelector("a")!.GetAttribute("href"));
-            Assert.Equal("admin/polls/closed/score", rows[2].QuerySelector("a")!.GetAttribute("href"));
-            Assert.Equal("results/scored", rows[3].QuerySelector("a")!.GetAttribute("href"));
+            Assert.Equal("results/scored", rows[0].QuerySelector("a")!.GetAttribute("href"));
+            Assert.Equal("admin/polls/closed/score", rows[1].QuerySelector("a")!.GetAttribute("href"));
+            Assert.Equal("admin/polls/draft/edit", rows[3].QuerySelector("a")!.GetAttribute("href"));
 
             Assert.Equal(4, cut.FindAll(".polls-cards > li").Count);
         });
