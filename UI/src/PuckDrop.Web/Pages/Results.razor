@@ -2,7 +2,7 @@
 @attribute [Authorize]
 @inject PuckDropApiClient Api
 @inject AuthenticationStateProvider AuthStateProvider
-@inject IJSRuntime JS
+@inject ConfirmDialogService ConfirmDialog
 @using System.Net
 
 @if (_loading)
@@ -434,8 +434,10 @@ else
     {
         if (Busy) return;
 
-        var confirmed = await JS.InvokeAsync<bool>("confirm",
-            $"Restore {user.DisplayName}'s picks? This game day will count towards their season total again.");
+        var confirmed = await ConfirmDialog.ShowAsync(
+            $"{user.DisplayName}'s picks will be restored. This game day will count towards their season total again.",
+            title: "Restore these picks?",
+            confirmLabel: "Restore");
         if (!confirmed) return;
 
         _restoring = true;

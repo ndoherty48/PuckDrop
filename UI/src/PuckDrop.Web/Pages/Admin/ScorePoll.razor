@@ -2,7 +2,7 @@
 @attribute [Authorize(Roles = "admin")]
 @inject PuckDropApiClient Api
 @inject NavigationManager Nav
-@inject IJSRuntime JS
+@inject ConfirmDialogService ConfirmDialog
 
 <nav class="pd-crumbs" aria-label="Breadcrumb">
     <a href="admin/polls">Manage polls</a>
@@ -222,9 +222,12 @@ else
 
         _showMissing = false;
 
-        var confirmed = await JS.InvokeAsync<bool>("confirm", IsRescore
-            ? "Update these scores? This replaces the correct answers and recalculates the leaderboard."
-            : "Submit these scores? This sets the correct answers and updates the leaderboard.");
+        var confirmed = await ConfirmDialog.ShowAsync(
+            IsRescore
+                ? "This replaces the correct answers and recalculates the leaderboard."
+                : "This sets the correct answers and updates the leaderboard.",
+            title: IsRescore ? "Update these scores?" : "Submit these scores?",
+            confirmLabel: IsRescore ? "Update scores" : "Submit scores");
         if (!confirmed)
             return;
 

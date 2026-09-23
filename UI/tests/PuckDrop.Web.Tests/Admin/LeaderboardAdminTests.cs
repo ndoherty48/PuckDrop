@@ -22,9 +22,12 @@ public class LeaderboardAdminTests : BunitContext
                 : [])
     ]);
 
-    private IRenderedComponent<LeaderboardAdmin> RenderPage(RoutingHttpMessageHandler handler)
+    private ConfirmDialogStub Confirm { get; set; } = null!;
+
+    private IRenderedComponent<LeaderboardAdmin> RenderPage(RoutingHttpMessageHandler handler, bool confirmResult = true)
     {
         Services.AddSingleton(handler.BuildClient());
+        Confirm = ConfirmDialogStub.Register(this, confirmResult);
         return Render<LeaderboardAdmin>();
     }
 
@@ -193,13 +196,12 @@ public class LeaderboardAdminTests : BunitContext
                 called = true;
                 return new HttpResponseMessage(HttpStatusCode.OK);
             });
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
-        var cut = RenderPage(handler);
+        var cut = RenderPage(handler, confirmResult: false);
 
         cut.WaitForAssertion(() => Button(cut, "Remove"));
         Button(cut, "Remove").Click();
 
-        JSInterop.VerifyInvoke("confirm");
+        cut.WaitForAssertion(() => Assert.NotNull(Confirm.LastRequest));
         Assert.False(called);
     }
 
@@ -219,7 +221,6 @@ public class LeaderboardAdminTests : BunitContext
                 removed = true;
                 return new HttpResponseMessage(HttpStatusCode.OK);
             });
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         var cut = RenderPage(handler);
 
         cut.WaitForAssertion(() => Button(cut, "Remove"));

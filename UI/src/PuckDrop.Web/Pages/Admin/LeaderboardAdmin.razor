@@ -1,7 +1,7 @@
 @page "/admin/leaderboard"
 @attribute [Authorize(Roles = "admin")]
 @inject PuckDropApiClient Api
-@inject IJSRuntime JS
+@inject ConfirmDialogService ConfirmDialog
 @using System.Net
 
 <div class="pd-page-head">
@@ -248,9 +248,12 @@ else
     {
         if (Busy) return;
 
-        var confirmed = await JS.InvokeAsync<bool>("confirm",
-            $"Remove the {FormatDelta(adjustment.Points)} adjustment for {entry.DisplayName}? "
-            + "Their total goes back to what it was.");
+        var confirmed = await ConfirmDialog.ShowAsync(
+            $"The {FormatDelta(adjustment.Points)} adjustment for {entry.DisplayName} will be removed. "
+            + "Their total goes back to what it was.",
+            title: "Remove this adjustment?",
+            confirmLabel: "Remove",
+            danger: true);
         if (!confirmed) return;
 
         _removing = true;

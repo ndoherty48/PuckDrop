@@ -38,9 +38,12 @@ public class ResultsVoidTests : BunitContext
             IsVoided: friendVoided, VoidReason: friendVoided ? "Picked after puck drop" : null)
     ]);
 
-    private IRenderedComponent<Results> RenderAsAdmin(RoutingHttpMessageHandler handler, bool isAdmin = true)
+    private ConfirmDialogStub Confirm { get; set; } = null!;
+
+    private IRenderedComponent<Results> RenderAsAdmin(RoutingHttpMessageHandler handler, bool isAdmin = true, bool confirmResult = true)
     {
         Services.AddSingleton(handler.BuildClient());
+        Confirm = ConfirmDialogStub.Register(this, confirmResult);
 
         var authContext = AddAuthorization();
         authContext.SetAuthorized("Nathan");
@@ -155,13 +158,12 @@ public class ResultsVoidTests : BunitContext
         var called = false;
         var handler = Routes(friendVoided: true)
             .Map(HttpMethod.Delete, $"polls/{PollId}/voids/u2", _ => { called = true; return Ok(); });
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(false);
-        var cut = RenderAsAdmin(handler);
+        var cut = RenderAsAdmin(handler, confirmResult: false);
 
         cut.WaitForAssertion(() => Button(cut, "Restore picks"));
         Button(cut, "Restore picks").Click();
 
-        JSInterop.VerifyInvoke("confirm");
+        cut.WaitForAssertion(() => Assert.NotNull(Confirm.LastRequest));
         Assert.False(called);
     }
 
@@ -179,7 +181,6 @@ public class ResultsVoidTests : BunitContext
                 restored = true;
                 return Ok();
             });
-        JSInterop.Setup<bool>("confirm", _ => true).SetResult(true);
         var cut = RenderAsAdmin(handler);
 
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".pd-badge-voided")));
