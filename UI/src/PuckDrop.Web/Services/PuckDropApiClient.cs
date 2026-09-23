@@ -131,6 +131,16 @@ public class PuckDropApiClient(HttpClient httpClient)
         await EnsureSuccessAsync(response);
     }
 
+    // ─── Fixture import ───────────────────────────────────────────────────────
+
+    public async Task<List<FixtureImportItemModel>?> PreviewFixtureImportAsync(FixtureImportPreviewRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync("fixture-imports/preview", request);
+        await EnsureSuccessAsync(response);
+        var result = await response.Content.ReadFromJsonAsync<FixtureImportPreviewResponseModel>();
+        return result?.Fixtures;
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private async Task<T?> GetAsync<T>(string url)

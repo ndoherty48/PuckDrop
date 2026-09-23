@@ -33,3 +33,9 @@ public record SeasonFacts(
     IReadOnlyList<PollScore> Scores,
     IReadOnlyList<PollVoid> Voids,
     IReadOnlyList<PointAdjustment> Adjustments);
+
+/// <summary>
+/// A fixture parsed from an external calendar feed, not yet created as a poll - a transient read
+/// model for the bulk-import preview, not a persisted domain concept.
+/// </summary>
+public record FixtureCandidate(string Title, string Category, DateOnly GameDate, DateTime Deadline);
