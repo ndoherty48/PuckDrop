@@ -51,7 +51,7 @@ public record LeaderboardVoidModel(string PollId, string PollTitle, string Reaso
 
 // ─── Fixture import ───────────────────────────────────────────────────────────
 
-public record FixtureImportItemModel(string Title, string Category, DateOnly GameDate, DateTime Deadline);
+public record FixtureImportItemModel(string Title, string Category, DateOnly GameDate, DateTime Deadline, bool AlreadyImported);
 
 /// <summary>Wraps the preview response's fixture list - matches the API's response shape.</summary>
 public record FixtureImportPreviewResponseModel(List<FixtureImportItemModel> Fixtures);
