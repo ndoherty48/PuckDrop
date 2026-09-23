@@ -108,6 +108,10 @@ else
                         <span class="pd-hint">@row.Fixture.Deadline.ToString("ddd d MMM, HH:mm")</span>
                         <span>@row.Fixture.Title</span>
                     </span>
+                    @if (row.Fixture.AlreadyImported)
+                    {
+                        <span class="pd-badge pd-badge-draft">Already imported</span>
+                    }
                     <span class="pd-badge pd-badge-scored">@row.Fixture.Category</span>
                 </label>
             }
@@ -175,7 +179,7 @@ else
         {
             var request = new FixtureImportPreviewRequest(_icsUrl.Trim(), _startDate, _endDate);
             var fixtures = await Api.PreviewFixtureImportAsync(request) ?? [];
-            _rows = fixtures.Select(f => new FixtureRow { Fixture = f }).ToList();
+            _rows = fixtures.Select(f => new FixtureRow { Fixture = f, Selected = !f.AlreadyImported }).ToList();
 
             if (_rows.Count == 0)
                 _searchError = "No fixtures found in that range.";
@@ -240,6 +244,6 @@ else
     private sealed class FixtureRow
     {
         public required FixtureImportItemModel Fixture { get; init; }
-        public bool Selected { get; set; } = true;
+        public required bool Selected { get; set; }
     }
 }

@@ -48,7 +48,7 @@ public record FixtureImportPreviewRequest(string IcsUrl, string StartDate, strin
 
 public record FixtureImportPreviewResponse(IReadOnlyList<FixtureImportItem> Fixtures);
 
-public record FixtureImportItem(string Title, string Category, string GameDate, string Deadline);
+public record FixtureImportItem(string Title, string Category, string GameDate, string Deadline, bool AlreadyImported);
 
 // ─── Questions ────────────────────────────────────────────────────────────────
 

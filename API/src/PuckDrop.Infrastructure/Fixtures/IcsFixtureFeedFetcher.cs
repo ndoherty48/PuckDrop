@@ -9,8 +9,8 @@ namespace PuckDrop.Infrastructure.Fixtures;
 /// <summary>
 /// Fetches a public per-team ICS feed (e.g. the fixture calendars published at
 /// eihl-calendars.nathandoherty.dev) and parses it into fixture candidates. Admin-only feature,
-/// but the URL is still admin-supplied input, so this stays defensive: https-only, a request
-/// timeout on the HttpClient, and a content-length cap before reading the body.
+/// but the URL is still admin-supplied input, so this stays defensive: http/https only (no other
+/// scheme), a request timeout on the HttpClient, and a content-length cap before reading the body.
 /// </summary>
 public class IcsFixtureFeedFetcher(HttpClient httpClient) : IIcsFixtureFeedFetcher
 {
@@ -19,8 +19,9 @@ public class IcsFixtureFeedFetcher(HttpClient httpClient) : IIcsFixtureFeedFetch
     public async Task<IReadOnlyList<FixtureCandidate>> FetchAsync(
         string icsUrl, CancellationToken cancellationToken = default)
     {
-        if (!Uri.TryCreate(icsUrl, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
-            throw new ArgumentException("The calendar URL must be an absolute https:// URL.", nameof(icsUrl));
+        if (!Uri.TryCreate(icsUrl, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
+            throw new ArgumentException("The calendar URL must be an absolute http:// or https:// URL.", nameof(icsUrl));
 
         using var response = await httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();

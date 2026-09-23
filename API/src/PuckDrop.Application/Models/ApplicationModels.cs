@@ -38,4 +38,11 @@ public record SeasonFacts(
 /// A fixture parsed from an external calendar feed, not yet created as a poll - a transient read
 /// model for the bulk-import preview, not a persisted domain concept.
 /// </summary>
-public record FixtureCandidate(string Title, string Category, DateOnly GameDate, DateTime Deadline);
+public record FixtureCandidate(string Title, string Category, DateOnly GameDate, DateTime Deadline)
+{
+    /// <summary>
+    /// Whether a poll with this title and game date already exists in that date's season - set by
+    /// FixtureImportService, never by the feed fetcher itself, which only knows the calendar.
+    /// </summary>
+    public bool AlreadyImported { get; init; }
+}
