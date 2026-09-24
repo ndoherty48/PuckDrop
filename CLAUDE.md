@@ -180,6 +180,53 @@ Cognito is the production IdP (provisioned by CDK in `DeploymentStack`); Keycloa
 local dev via Aspire (`AddKeycloak` + realm import from
 `Infrastructure/PuckDrop.AppHost/Keycloak/PuckDrop-realm.json`).
 
+The Cognito user pool construct is `PuckDropUserPoolV2` because several of its settings are
+immutable once a pool exists — case sensitivity, the sign-in attributes, and which standard
+attributes are required and mutable. CloudFormation reports `UsernameConfiguration` as "no
+interruption" and `UpdateUserPool` has no parameter for it, so changing any of these in place
+deploys green and silently does nothing; only a new pool (new construct ID) applies them. Both
+pools carry `RemovalPolicy.RETAIN`, so V1 is orphaned rather than deleted. Consequences of a
+swap: every `sub` changes, and `sub` is the key behind `UserAnswerPK`/`UserAnswerGSI1SK` and
+every scoring fact under `UserFactSKPrefixFor` (`PollScoreSK`/`PollVoidSK`/`PointAdjustmentSK`),
+so picks and standings both need remapping; and the domain prefix (globally unique across
+all AWS accounts) gains a `v2-` segment because CloudFormation creates the new domain before
+deleting the retained one — droppable in a later deploy once V1 is gone, and invisible to the UI,
+which resolves login endpoints from OIDC discovery off the issuer rather than the domain.
+
+Managed login branding is deliberately two-stage (`CreateManagedLoginBranding`). Cognito publishes
+no schema for the branding settings document and silently drops keys it doesn't recognise, so the
+only reliable source is a describe against a live style. Until
+`AWS/Branding/branding-settings.json` exists the stack deploys `UseCognitoProvidedValues` — a
+CloudFormation-created client with no style at all shows "Login pages unavailable" — and once it's
+committed the stack switches to that document plus the logos in `AWS/Branding/` (settings, assets
+and `UseCognitoProvidedValues` are mutually exclusive). The file is committed, so the fallback is
+now only insurance. Refresh it with the describe below, then re-run `apply-design-tokens.py`,
+which maps app.css's tokens onto the light-mode colours and is idempotent — the describe returns
+Cognito's defaults for anything not overridden, so the two steps always go together:
+
+```bash
+aws cognito-idp describe-managed-login-branding-by-client --user-pool-id <pool> \
+  --client-id <client> --return-merged-resources \
+  --query 'ManagedLoginBranding.Settings' > Infrastructure/PuckDrop.AppHost/AWS/Branding/branding-settings.json
+```
+
+The logos are generated, not hand-drawn, and the generator is deliberately not committed (it's
+the repo's only Python dependency and a once-in-a-logo-change tool). To redo them:
+`puckdrop-lockup-{ink,frost}.svg` are `wwwroot/logo.svg`'s 32x32 mark scaled 1.25x at the left,
+plus a "PuckDrop" wordmark whose letterforms are outlined from
+`wwwroot/fonts/barlow-condensed-700.woff2` with fontTools (`SVGPathPen` through a `TransformPen`
+per glyph, advancing by each glyph's width) at a 26px cap height on a baseline of y=34, starting
+at x=52, in a 181x48 viewBox. Outlines rather than a `<text>` element because managed login has no
+font asset category, so Barlow Condensed wouldn't load and the wordmark would fall back to a
+generic sans. Keep to the sanitiser's allowlist: `<title>` is permitted, `role` and `aria-*` are
+not. `ink` is for the white form card, `frost` for the
+`--pd-boards` header; `ColorMode` on each asset is the browser's light/dark preference, not the
+colour of the surface behind the logo. `categories.global.pageHeader` is enabled to give the frost
+lockup its `--pd-boards` band — the schema has no text colour for the header, only a background and
+a logo, so nothing else should land on that dark strip, but that's worth an eye on first deploy. Branding also requires the domain on
+`ManagedLoginVersion.NEWER_MANAGED_LOGIN` — the CDK default is the classic hosted UI, which
+ignores styles — and the Essentials feature plan or higher.
+
 ### Infrastructure orchestration (Aspire) vs. deployment (CDK)
 
 - **`Infrastructure/PuckDrop.AppHost/AppHost.cs`** is the Aspire app model: it wires DynamoDB
