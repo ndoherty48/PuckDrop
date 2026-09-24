@@ -88,6 +88,11 @@ public class ImportFixturesTests : BunitContext
 
         Assert.Contains("Belfast Giants vs Sheffield Steelers", cut.Markup);
         Assert.DoesNotContain("Cardiff Devils vs Nottingham Panthers", cut.Markup);
+
+        // aria-pressed must be the literal string "true"/"false", not Blazor's boolean-attribute
+        // present/absent treatment - .pd-chip[aria-pressed="true"] is what styles the selection.
+        Assert.Equal("true", Chip(cut, "League").GetAttribute("aria-pressed"));
+        Assert.Equal("false", Chip(cut, "All").GetAttribute("aria-pressed"));
     }
 
     [Fact]

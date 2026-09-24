@@ -51,11 +51,11 @@ else
                 <div class="pd-field">
                     <span class="pd-label">Category</span>
                     <div class="pd-chip-row" role="group" aria-label="Filter by category">
-                        <button type="button" class="pd-chip" aria-pressed="@(_selectedCategory is null)"
+                        <button type="button" class="pd-chip" aria-pressed="@(_selectedCategory is null ? "true" : "false")"
                                 @onclick="() => _selectedCategory = null">All</button>
                         @foreach (var category in Categories)
                         {
-                            <button type="button" class="pd-chip" aria-pressed="@(_selectedCategory == category)"
+                            <button type="button" class="pd-chip" aria-pressed="@(_selectedCategory == category ? "true" : "false")"
                                     @onclick="() => _selectedCategory = category">@category</button>
                         }
                     </div>
