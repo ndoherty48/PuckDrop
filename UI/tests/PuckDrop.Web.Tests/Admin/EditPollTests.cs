@@ -35,6 +35,7 @@ public class EditPollTests : BunitContext
         handler.Map(HttpMethod.Get, $"polls/{PollId}", _ =>
             new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(_currentPoll) });
         Services.AddSingleton(handler.BuildClient());
+        Services.AddSingleton(TimeZoneInfo.FindSystemTimeZoneById("Europe/London"));
         Confirm = ConfirmDialogStub.Register(this, confirmResult);
 
         return Render<EditPoll>(parameters => parameters.Add(p => p.PollId, PollId));
@@ -314,7 +315,10 @@ public class EditPollTests : BunitContext
         JSInterop.SetupVoid("puckDropDialog.close", _ => true).SetVoidResult();
 
         var newDate = new DateOnly(2026, 9, 30);
-        var newDeadline = new DateTime(2026, 9, 30, 18, 0, 0);
+        // Admin types 18:00 in their own timezone (BST, UTC+1 in late September); the server is
+        // sent and returns the UTC equivalent, and the page converts it back to 18:00 for display.
+        var newDeadlineLocal = new DateTime(2026, 9, 30, 18, 0, 0);
+        var newDeadlineUtc = new DateTime(2026, 9, 30, 17, 0, 0, DateTimeKind.Utc);
         string? submittedBody = null;
         var handler = new RoutingHttpMessageHandler()
             .Map(HttpMethod.Post, $"polls/{PollId}/reschedule", request =>
@@ -323,7 +327,7 @@ public class EditPollTests : BunitContext
                 return new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = JsonContent.Create(new PollModel(
-                        PollId, "2026-27", newDate, _currentPoll.Title, newDeadline, "Draft", "admin", DateTime.UtcNow))
+                        PollId, "2026-27", newDate, _currentPoll.Title, newDeadlineUtc, "Draft", "admin", DateTime.UtcNow))
                 };
             });
         var cut = RenderEditPoll(handler);
@@ -331,17 +335,18 @@ public class EditPollTests : BunitContext
 
         Button(cut, "Edit date and time").Click();
         cut.Find("#rescheduleDate").Change(newDate.ToString("yyyy-MM-dd"));
-        cut.Find("#rescheduleDeadline").Change(newDeadline.ToString("yyyy-MM-ddTHH:mm:ss"));
+        cut.Find("#rescheduleDeadline").Change(newDeadlineLocal.ToString("yyyy-MM-ddTHH:mm:ss"));
         Button(cut, "Save").Click();
 
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Date and time updated.", cut.Find("[role=status]").TextContent);
             Assert.Contains(newDate.ToString("ddd d MMM yyyy"), cut.Markup);
-            Assert.Contains(newDeadline.ToString("ddd d MMM, HH:mm"), cut.Markup);
+            Assert.Contains(newDeadlineLocal.ToString("ddd d MMM, HH:mm"), cut.Markup);
         });
         Assert.NotNull(submittedBody);
         Assert.Contains("\"gameDate\":\"2026-09-30\"", submittedBody);
+        Assert.Contains("\"deadline\":\"2026-09-30T17:00:00", submittedBody);
     }
 
     [Fact]

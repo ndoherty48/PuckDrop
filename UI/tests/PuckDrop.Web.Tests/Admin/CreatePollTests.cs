@@ -15,6 +15,7 @@ public class CreatePollTests : BunitContext
     private IRenderedComponent<CreatePoll> RenderCreatePoll(RoutingHttpMessageHandler handler)
     {
         Services.AddSingleton(handler.BuildClient());
+        Services.AddSingleton(TimeZoneInfo.FindSystemTimeZoneById("Europe/London"));
         return Render<CreatePoll>();
     }
 

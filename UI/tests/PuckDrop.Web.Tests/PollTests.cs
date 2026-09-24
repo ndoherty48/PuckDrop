@@ -38,6 +38,7 @@ public class PollTests : BunitContext
             .MapJson(HttpMethod.Get, $"polls/{PollId}", BuildPoll(deadline))
             .MapJson(HttpMethod.Get, $"polls/{PollId}/answers", existingAnswers ?? []);
         Services.AddSingleton(handler.BuildClient());
+        Services.AddSingleton(TimeZoneInfo.FindSystemTimeZoneById("Europe/London"));
 
         return Render<Poll>(parameters => parameters.Add(p => p.PollId, PollId));
     }
@@ -135,6 +136,7 @@ public class PollTests : BunitContext
         var handler = new RoutingHttpMessageHandler()
             .Map(HttpMethod.Get, $"polls/{PollId}", _ => new HttpResponseMessage(HttpStatusCode.NotFound));
         Services.AddSingleton(handler.BuildClient());
+        Services.AddSingleton(TimeZoneInfo.FindSystemTimeZoneById("Europe/London"));
 
         var cut = Render<Poll>(parameters => parameters.Add(p => p.PollId, PollId));
 

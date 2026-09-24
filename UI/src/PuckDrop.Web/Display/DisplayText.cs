@@ -47,4 +47,11 @@ public static class DisplayText
     }
 
     private static string InUnits(int count, string unit) => $"In {count} {unit}{(count == 1 ? "" : "s")}";
+
+    /// <summary>
+    /// A UTC deadline, formatted in the viewer's own timezone - "Sat 10 Oct, 18:00" for someone in
+    /// UTC, "Sat 10 Oct, 19:00" for someone in BST, same instant either way.
+    /// </summary>
+    public static string LocalDeadline(DateTime utcDeadline, TimeZoneInfo timeZone) =>
+        TimeZoneInfo.ConvertTimeFromUtc(utcDeadline, timeZone).ToString("ddd d MMM, HH:mm");
 }

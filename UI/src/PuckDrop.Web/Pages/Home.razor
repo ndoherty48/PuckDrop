@@ -3,6 +3,7 @@
 
 @inject PuckDropApiClient Api
 @inject AuthenticationStateProvider AuthStateProvider
+@inject TimeZoneInfo LocalTimeZone
 
 <div class="pd-page-head">
     <div>
@@ -50,7 +51,7 @@ else
                             <dt class="pd-eyebrow">Picks close</dt>
                             <dd class="pd-meta home-fact-value">
                                 <Icon Name="clock" />
-                                <span>@activePoll.Deadline.ToString("ddd d MMM, HH:mm")</span>
+                                <span>@DisplayText.LocalDeadline(activePoll.Deadline, LocalTimeZone)</span>
                             </dd>
                             <dd class="pd-muted home-fact-sub">@DisplayText.TimeUntilDeadline(activePoll.Deadline, DateTime.UtcNow)</dd>
                         </div>

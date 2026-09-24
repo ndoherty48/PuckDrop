@@ -45,6 +45,7 @@ public class HomeTests : BunitContext
     private IRenderedComponent<Home> RenderHome(RoutingHttpMessageHandler handler, string currentUserSub = "user-3")
     {
         Services.AddSingleton(handler.BuildClient());
+        Services.AddSingleton(TimeZoneInfo.FindSystemTimeZoneById("Europe/London"));
 
         var authContext = AddAuthorization();
         authContext.SetAuthorized("Sam R.");
