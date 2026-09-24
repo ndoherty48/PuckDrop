@@ -113,4 +113,19 @@ public class GameDayPoll
         EnsureCanBeScored(utcNow);
         Status = PollStatus.Scored;
     }
+
+    /// <summary>
+    /// Changes the game date and deadline. Draft only - once picks are open, moving the game
+    /// underneath players would be confusing (and a game date already published is what other
+    /// players' calendars/expectations are set by).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if poll is not in Draft status.</exception>
+    public void Reschedule(DateOnly gameDate, DateTime deadline)
+    {
+        if (Status != PollStatus.Draft)
+            throw new InvalidOperationException($"Cannot reschedule a poll with status '{Status}'. Poll must be in Draft status.");
+
+        GameDate = gameDate;
+        Deadline = deadline;
+    }
 }

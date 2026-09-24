@@ -36,6 +36,13 @@ public class PuckDropApiClient(HttpClient httpClient)
         return await response.Content.ReadFromJsonAsync<PollModel>();
     }
 
+    public async Task<PollModel?> ReschedulePollAsync(string pollId, RescheduleRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync($"polls/{pollId}/reschedule", request);
+        await EnsureSuccessAsync(response);
+        return await response.Content.ReadFromJsonAsync<PollModel>();
+    }
+
     public async Task<PollModel?> PublishPollAsync(string pollId)
     {
         var response = await httpClient.PostAsync($"polls/{pollId}/publish", null);

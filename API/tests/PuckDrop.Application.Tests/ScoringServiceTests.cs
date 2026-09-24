@@ -240,7 +240,7 @@ public class ScoringServiceTests
                 new QuestionScore(Question2Id, Q2OptionAId)
             ], TestContext.Current.CancellationToken));
 
-        await fixture.PollRepository.DidNotReceive().SavePollAsync(Arg.Any<GameDayPoll>(), Arg.Any<CancellationToken>());
+        await fixture.PollRepository.DidNotReceive().SavePollAsync(Arg.Any<GameDayPoll>(), cancellationToken: Arg.Any<CancellationToken>());
         Assert.Equal(Domain.Enums.PollStatus.Closed, pollData.Poll.Status);
     }
 
@@ -256,6 +256,6 @@ public class ScoringServiceTests
         ], TestContext.Current.CancellationToken);
 
         await fixture.PollRepository.Received(1).SavePollAsync(
-            Arg.Is<GameDayPoll>(p => p.Status == Domain.Enums.PollStatus.Scored), Arg.Any<CancellationToken>());
+            Arg.Is<GameDayPoll>(p => p.Status == Domain.Enums.PollStatus.Scored), cancellationToken: Arg.Any<CancellationToken>());
     }
 }
