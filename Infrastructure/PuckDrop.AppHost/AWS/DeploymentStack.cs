@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Amazon.CDK;
 using Amazon.CDK.AWS.Apigatewayv2;
 using Amazon.CDK.AWS.Cognito;
@@ -55,26 +57,53 @@ public class DeploymentStack : Stack
 
     private void CreateCognitoResources()
     {
-        UserPool = new UserPool(this, "PuckDropUserPool", new UserPoolProps
+        // V2 is a replacement pool, not an edit of the original. Case sensitivity, the sign-in
+        // attributes and which standard attributes are required are all immutable once a pool
+        // exists - CloudFormation reports UsernameConfiguration as "no interruption" and
+        // UpdateUserPool has no parameter for it, so an in-place change deploys green and does
+        // nothing. The V1 pool keeps RemovalPolicy.RETAIN: it's orphaned rather than deleted, so
+        // it stays readable while users and their answer history move across.
+        UserPool = new UserPool(this, "PuckDropUserPoolV2", new UserPoolProps
         {
             UserPoolName = "PuckDrop",
             SelfSignUpEnabled = false,
+            // Email is the sign-in identifier (CDK emits UsernameAttributes, not AliasAttributes);
+            // the username underneath is a UUID Cognito generates.
             SignInAliases = new SignInAliases { Email = true },
+            // The reason for V2. Left at its default of true, Nathan@example.com and
+            // nathan@example.com are separate accounts, and managed login reports the wrong
+            // casing as a bad password (PreventUserExistenceErrors hides the real cause).
+            SignInCaseSensitive = false,
             AutoVerify = new AutoVerifiedAttrs { Email = true },
+            // Mutability is itself immutable, so say it rather than inherit it: preferred_username
+            // is the leaderboard display name and people need to be able to change it.
             StandardAttributes = new StandardAttributes
             {
-                Email = new StandardAttribute { Required = true },
-                PreferredUsername = new StandardAttribute { Required = true }
+                Email = new StandardAttribute { Required = true, Mutable = true },
+                PreferredUsername = new StandardAttribute { Required = true, Mutable = true }
             },
             PasswordPolicy = new PasswordPolicy
             {
                 MinLength = 8,
                 RequireUppercase = false,
                 RequireDigits = true,
-                RequireSymbols = false
+                RequireSymbols = false,
+                // Cognito defaults to 7 days, which assumes people open their email promptly.
+                TempPasswordValidity = Duration.Days(30)
+            },
+            // Cognito requires {username} and {####} in an invitation template. No sign-in URL:
+            // the CloudFront domain doesn't exist yet at pool-creation time.
+            UserInvitation = new UserInvitationConfig
+            {
+                EmailSubject = "You're in: PuckDrop",
+                EmailBody = "Your PuckDrop account is ready.<br/><br/>" +
+                    "Email: {username}<br/>Temporary password: {####}<br/><br/>" +
+                    "Sign in before the next game day and get your picks in."
             },
             AccountRecovery = AccountRecovery.EMAIL_ONLY,
             RemovalPolicy = RemovalPolicy.RETAIN,
+            // RemovalPolicy only guards the CloudFormation path; this guards the console and API.
+            DeletionProtection = true,
             Mfa = Mfa.OPTIONAL,
             MfaSecondFactor = new MfaSecondFactor
             {
@@ -118,21 +147,105 @@ public class DeploymentStack : Stack
             Description = "Administrators who can create/score polls"
         });
 
-        // Domain prefixes are global across all AWS accounts, so add the account ID.
+        // Domain prefixes are global across all AWS accounts, so add the account ID. The "v2" is
+        // because the retained V1 pool still owns the original prefix and CloudFormation creates
+        // this domain before deleting that one - they can't share a name for the overlap. Drop the
+        // suffix in a later deploy once V1 is gone; the OIDC authority is the issuer URL, not this
+        // domain, so the UI picks the change up from discovery without a rebuild.
         UserPool.AddDomain("PuckDropDomain", new UserPoolDomainOptions
         {
-            CognitoDomain = new CognitoDomainOptions { DomainPrefix = $"puckdrop-{Account}" }
+            CognitoDomain = new CognitoDomainOptions { DomainPrefix = $"puckdrop-v2-{Account}" },
+            // Branding styles only apply to managed login. The CDK default leaves a domain on the
+            // classic hosted UI, which ignores them entirely.
+            ManagedLoginVersion = ManagedLoginVersion.NEWER_MANAGED_LOGIN
         });
 
-        // Without a branding style, managed login shows "Login pages unavailable" for clients
-        // created through CloudFormation. Cognito's default look is enough.
+        CreateManagedLoginBranding();
+    }
+
+    /// <summary>
+    /// Managed login branding, in two stages. Cognito publishes no schema for the settings
+    /// document and silently drops keys it doesn't recognise, so the only reliable source is a
+    /// describe against a live style:
+    /// <code>
+    /// aws cognito-idp describe-managed-login-branding-by-client     ///   --user-pool-id &lt;pool&gt; --client-id &lt;client&gt; --return-merged-resources     ///   --query 'ManagedLoginBranding.Settings' &gt; AWS/Branding/branding-settings.json
+    /// </code>
+    /// Until that file is committed, deploy Cognito's own defaults - a client created through
+    /// CloudFormation with no style at all shows "Login pages unavailable". Settings and
+    /// UseCognitoProvidedValues are mutually exclusive, and so are the assets, so the logos only
+    /// go up once there's a settings document to hang them on.
+    /// </summary>
+    private void CreateManagedLoginBranding()
+    {
+        var settings = LoadBrandingSettings();
+
         _ = new CfnManagedLoginBranding(this, "PuckDropManagedLoginBranding", new CfnManagedLoginBrandingProps
         {
             UserPoolId = UserPool.UserPoolId,
             ClientId = UserPoolClient.UserPoolClientId,
-            UseCognitoProvidedValues = true
+            UseCognitoProvidedValues = settings is null,
+            Settings = settings,
+            Assets = settings is null ? null : BrandingAssets()
         });
     }
+
+    /// <summary>
+    /// The logos, keyed by where managed login uses them. ColorMode is the browser's light/dark
+    /// preference, not the colour of the surface behind the logo - app.css has no dark theme, so
+    /// everything is LIGHT except the favicon, which DYNAMIC renders in every context.
+    /// </summary>
+    private static object[] BrandingAssets() =>
+    [
+        // Sits on the white form card, so the wordmark is --pd-ink.
+        BrandingAsset("FORM_LOGO", "LIGHT", "puckdrop-lockup-ink.svg"),
+        // Sits on the --pd-boards header, so the wordmark is --pd-frost.
+        BrandingAsset("PAGE_HEADER_LOGO", "LIGHT", "puckdrop-lockup-frost.svg"),
+        BrandingAsset("FAVICON_SVG", "DYNAMIC", "puckdrop-favicon.svg")
+    ];
+
+    private static CfnManagedLoginBranding.AssetTypeProperty BrandingAsset(
+        string category, string colorMode, string fileName) =>
+        new()
+        {
+            Category = category,
+            ColorMode = colorMode,
+            Extension = "SVG",
+            Bytes = Convert.ToBase64String(File.ReadAllBytes(BrandingPath(fileName)))
+        };
+
+    private static object? LoadBrandingSettings()
+    {
+        var path = BrandingPath("branding-settings.json");
+        if (!File.Exists(path))
+            return null;
+
+        var node = JsonNode.Parse(File.ReadAllText(path))
+            ?? throw new InvalidOperationException($"{path} is empty.");
+
+        return ToJsiiValue(node);
+    }
+
+    /// <summary>
+    /// JSII serialises plain dictionaries, lists and primitives; it doesn't understand
+    /// <see cref="JsonNode"/>, so the parsed document is walked into those types.
+    /// </summary>
+    private static object? ToJsiiValue(JsonNode? node) => node switch
+    {
+        null => null,
+        JsonObject obj => obj.ToDictionary(pair => pair.Key, pair => ToJsiiValue(pair.Value)),
+        JsonArray array => array.Select(ToJsiiValue).ToArray(),
+        JsonValue value => value.GetValueKind() switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Number => value.GetValue<double>(),
+            _ => value.GetValue<string>()
+        },
+        _ => throw new InvalidOperationException($"Unexpected JSON node {node.GetType().Name}.")
+    };
+
+    private static string BrandingPath(string fileName) =>
+        Path.Combine(AppContext.BaseDirectory, "AWS", "Branding", fileName);
 
     private void CreateApiGateway()
     {

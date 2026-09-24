@@ -15,6 +15,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Read at synth time by DeploymentStack.BrandingPath, which resolves from the output dir. -->
+    <Content Include="AWS/Branding/*.svg" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="AWS/Branding/branding-settings.json" CopyToOutputDirectory="PreserveNewest"
+             Condition="Exists('AWS/Branding/branding-settings.json')" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\UI\src\PuckDrop.Web\PuckDrop.Web.csproj" />
     <ProjectReference Include="..\..\API\src\PuckDrop.Api\PuckDrop.Api.csproj" />
   </ItemGroup>
