@@ -67,6 +67,20 @@ public class PollsController(PollService pollService) : ControllerBase
     }
 
     [Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
+    [HttpPost("{pollId}/reschedule")]
+    public async Task<ActionResult<PollResponse>> ReschedulePoll(
+        string pollId, [FromBody] RescheduleRequest request, CancellationToken ct)
+    {
+        var poll = await pollService.RescheduleAsync(
+            pollId,
+            DateOnly.ParseExact(request.GameDate, "yyyy-MM-dd"),
+            DateTime.Parse(request.Deadline).ToUniversalTime(),
+            ct);
+
+        return Ok(poll.ToResponse());
+    }
+
+    [Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
     [HttpPost("{pollId}/publish")]
     public async Task<ActionResult<PollResponse>> PublishPoll(string pollId, CancellationToken ct)
     {

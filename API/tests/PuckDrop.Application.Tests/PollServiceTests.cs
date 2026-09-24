@@ -70,7 +70,7 @@ public class PollServiceTests
         Assert.Equal(Season.DeriveSeasonId(gameDate), poll.SeasonId);
         Assert.False(string.IsNullOrEmpty(poll.PollId));
         await seasonRepository.Received(1).SaveAsync(Arg.Any<Season>(), Arg.Any<CancellationToken>());
-        await pollRepository.Received(1).SavePollAsync(poll, Arg.Any<CancellationToken>());
+        await pollRepository.Received(1).SavePollAsync(poll, cancellationToken: Arg.Any<CancellationToken>());
     }
 
     // ─── UpdatePollAsync ────────────────────────────────────────────────────
@@ -105,6 +105,84 @@ public class PollServiceTests
         Assert.Equal(newDeadline.ToUniversalTime(), result.Deadline);
     }
 
+    // ─── RescheduleAsync ────────────────────────────────────────────────────
+
+    private static GameDayPoll BuildDraftPollForReschedule(DateOnly gameDate) => new()
+    {
+        PollId = PollId,
+        SeasonId = Season.DeriveSeasonId(gameDate),
+        GameDate = gameDate,
+        Title = "Belfast Giants vs Sheffield Steelers",
+        Deadline = gameDate.ToDateTime(new TimeOnly(19, 0)),
+        CreatedBy = "admin-user"
+    };
+
+    [Fact]
+    public async Task RescheduleAsync_PollNotFound_ThrowsKeyNotFoundException()
+    {
+        var (service, _, _) = CreateService(poll: null);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            service.RescheduleAsync(PollId, new DateOnly(2026, 1, 20), DateTime.UtcNow, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RescheduleAsync_PollNotDraft_ThrowsInvalidOperationException()
+    {
+        var (service, _, _) = CreateService(BuildPoll(PollStatus.Open));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.RescheduleAsync(PollId, new DateOnly(2026, 1, 20), DateTime.UtcNow, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RescheduleAsync_NewDateInADifferentSeason_ThrowsInvalidOperationException_AndDoesNotSave()
+    {
+        var poll = BuildDraftPollForReschedule(new DateOnly(2026, 1, 15)); // "2025-26" season
+        var (service, pollRepository, _) = CreateService(poll);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.RescheduleAsync(PollId, new DateOnly(2026, 9, 1), DateTime.UtcNow, TestContext.Current.CancellationToken)); // "2026-27" season
+
+        await pollRepository.DidNotReceive().SavePollAsync(
+            Arg.Any<GameDayPoll>(), Arg.Any<DateOnly?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RescheduleAsync_SameGameDate_SavesWithNoPreviousGameDate()
+    {
+        var gameDate = new DateOnly(2026, 1, 15);
+        var poll = BuildDraftPollForReschedule(gameDate);
+        var (service, pollRepository, _) = CreateService(poll);
+        var newDeadline = gameDate.ToDateTime(new TimeOnly(20, 0));
+
+        await service.RescheduleAsync(PollId, gameDate, newDeadline, TestContext.Current.CancellationToken);
+
+        // Same day: no season-collection key change, so no previousGameDate is needed to clean up.
+        await pollRepository.Received(1).SavePollAsync(
+            Arg.Is<GameDayPoll>(p => p.Deadline == newDeadline.ToUniversalTime()),
+            previousGameDate: null,
+            cancellationToken: Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RescheduleAsync_DifferentGameDateSameSeason_SavesWithThePreviousGameDate()
+    {
+        var originalDate = new DateOnly(2026, 1, 15);
+        var newDate = new DateOnly(2026, 1, 20); // still "2025-26"
+        var poll = BuildDraftPollForReschedule(originalDate);
+        var (service, pollRepository, _) = CreateService(poll);
+
+        var result = await service.RescheduleAsync(
+            PollId, newDate, newDate.ToDateTime(new TimeOnly(19, 0)), TestContext.Current.CancellationToken);
+
+        Assert.Equal(newDate, result.GameDate);
+        // Different day: the stale SEASON# collection item at the old date must be cleaned up, or
+        // the poll shows up twice in ListBySeasonAsync - once at each date.
+        await pollRepository.Received(1).SavePollAsync(
+            result, previousGameDate: originalDate, cancellationToken: Arg.Any<CancellationToken>());
+    }
+
     // ─── PublishPollAsync / ClosePollAsync ──────────────────────────────────
 
     [Fact]
@@ -131,7 +209,7 @@ public class PollServiceTests
         var result = await service.PublishPollAsync(PollId, TestContext.Current.CancellationToken);
 
         Assert.Equal(PollStatus.Open, result.Status);
-        await pollRepository.Received(1).SavePollAsync(result, Arg.Any<CancellationToken>());
+        await pollRepository.Received(1).SavePollAsync(result, cancellationToken: Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -143,7 +221,7 @@ public class PollServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.PublishPollAsync(PollId, TestContext.Current.CancellationToken));
 
         Assert.Equal(PollStatus.Draft, poll.Status);
-        await pollRepository.DidNotReceive().SavePollAsync(Arg.Any<GameDayPoll>(), Arg.Any<CancellationToken>());
+        await pollRepository.DidNotReceive().SavePollAsync(Arg.Any<GameDayPoll>(), cancellationToken: Arg.Any<CancellationToken>());
     }
 
     [Fact]

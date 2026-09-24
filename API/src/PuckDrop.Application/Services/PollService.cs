@@ -30,7 +30,7 @@ public class PollService(IPollRepository pollRepository, SeasonService seasonSer
             CreatedAt = DateTime.UtcNow
         };
 
-        await pollRepository.SavePollAsync(poll, cancellationToken);
+        await pollRepository.SavePollAsync(poll, cancellationToken: cancellationToken);
         return poll;
     }
 
@@ -54,7 +54,38 @@ public class PollService(IPollRepository pollRepository, SeasonService seasonSer
         if (deadline.HasValue)
             poll.Deadline = deadline.Value.ToUniversalTime();
 
-        await pollRepository.SavePollAsync(poll, cancellationToken);
+        await pollRepository.SavePollAsync(poll, cancellationToken: cancellationToken);
+        return poll;
+    }
+
+    /// <summary>
+    /// Changes a poll's game date and/or deadline. Draft only - see GameDayPoll.Reschedule. The
+    /// new game date must stay within the poll's current season: the season-collection copy of a
+    /// poll is keyed by (season, game date), so moving into a different season would mean moving
+    /// it to a different partition entirely, not just a different key within this one - handled
+    /// today by deleting and recreating the poll instead, if that's ever actually needed.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if the poll isn't Draft, or the new date falls in a different season.
+    /// </exception>
+    public async Task<GameDayPoll> RescheduleAsync(
+        string pollId,
+        DateOnly gameDate,
+        DateTime deadline,
+        CancellationToken cancellationToken = default)
+    {
+        var poll = await GetPollOrThrowAsync(pollId, cancellationToken);
+        var previousGameDate = poll.GameDate;
+
+        if (gameDate != previousGameDate && Season.DeriveSeasonId(gameDate) != poll.SeasonId)
+            throw new InvalidOperationException("The new game date must stay within the current season.");
+
+        poll.Reschedule(gameDate, deadline.ToUniversalTime());
+
+        await pollRepository.SavePollAsync(
+            poll,
+            previousGameDate: previousGameDate == gameDate ? null : previousGameDate,
+            cancellationToken: cancellationToken);
         return poll;
     }
 
@@ -75,7 +106,7 @@ public class PollService(IPollRepository pollRepository, SeasonService seasonSer
                 "Cannot publish a poll with no questions. Add at least one question first.");
 
         pollData.Poll.Publish();
-        await pollRepository.SavePollAsync(pollData.Poll, cancellationToken);
+        await pollRepository.SavePollAsync(pollData.Poll, cancellationToken: cancellationToken);
         return pollData.Poll;
     }
 
@@ -86,7 +117,7 @@ public class PollService(IPollRepository pollRepository, SeasonService seasonSer
     {
         var poll = await GetPollOrThrowAsync(pollId, cancellationToken);
         poll.Close();
-        await pollRepository.SavePollAsync(poll, cancellationToken);
+        await pollRepository.SavePollAsync(poll, cancellationToken: cancellationToken);
         return poll;
     }
 

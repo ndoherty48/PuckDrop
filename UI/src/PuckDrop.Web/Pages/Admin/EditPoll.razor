@@ -31,8 +31,37 @@ else
             <PollStatusBadge Status="@_poll.Status" />
             <span class="pd-meta"><Icon Name="calendar" />@_poll.GameDate.ToString("ddd d MMM yyyy")</span>
             <span class="pd-meta"><Icon Name="clock" />Picks close @_poll.Deadline.ToString("ddd d MMM, HH:mm")</span>
+            @if (_poll.Status == "Draft")
+            {
+                <button type="button" class="pd-btn pd-btn-quiet pd-btn-sm" disabled="@Busy" @onclick="OpenReschedule">
+                    <Icon Name="pencil" Size="16" />Edit date and time
+                </button>
+            }
         </div>
     </div>
+
+    <Modal Title="Edit date and time" Open="@_rescheduling" OnDismiss="CancelReschedule">
+        <ChildContent>
+            <div class="pd-field">
+                <label for="rescheduleDate" class="pd-label">Game date</label>
+                <input id="rescheduleDate" type="date" class="pd-input" @bind="_rescheduleGameDate" />
+            </div>
+            <div class="pd-field">
+                <label for="rescheduleDeadline" class="pd-label">Picks close</label>
+                <input id="rescheduleDeadline" type="datetime-local" class="pd-input" @bind="_rescheduleDeadline" />
+            </div>
+            @if (_rescheduleError is not null)
+            {
+                <p class="pd-error-msg" role="alert"><Icon Name="alert" Size="18" />@_rescheduleError</p>
+            }
+        </ChildContent>
+        <FooterContent>
+            <button type="button" class="pd-btn pd-btn-quiet" @onclick="CancelReschedule">Cancel</button>
+            <button type="button" class="pd-btn pd-btn-primary" disabled="@_reschedulingSaving" @onclick="SaveRescheduleAsync">
+                @(_reschedulingSaving ? "Saving…" : "Save")
+            </button>
+        </FooterContent>
+    </Modal>
 
     @* Always rendered, so screen readers announce additions and deletions *@
     <div role="status">
@@ -207,11 +236,17 @@ else
     private bool _deleting;
     private bool _publishing;
     private bool _closing;
+    private bool _rescheduling;
+    private bool _reschedulingSaving;
     private string? _loadError;
     private string? _error;
     private string? _statusMessage;
     private string? _questionError;
     private string? _optionsError;
+    private string? _rescheduleError;
+
+    private DateOnly _rescheduleGameDate;
+    private DateTime _rescheduleDeadline;
 
     private string _newQuestionText = "";
     private List<string> _newOptions = ["", ""];
@@ -221,7 +256,7 @@ else
     private ElementReference _questionInput;
     private readonly Dictionary<int, ElementReference> _optionInputs = new();
 
-    private bool Busy => _addingQuestion || _deleting || _publishing || _closing;
+    private bool Busy => _addingQuestion || _deleting || _publishing || _closing || _reschedulingSaving;
 
     // The API rejects question edits once voting has closed
     private bool CanEditQuestions => _poll?.Status is "Draft" or "Open";
@@ -369,6 +404,57 @@ else
         finally
         {
             _publishing = false;
+        }
+    }
+
+    private void OpenReschedule()
+    {
+        if (_poll is null) return;
+
+        _rescheduleGameDate = _poll.GameDate;
+        _rescheduleDeadline = _poll.Deadline;
+        _rescheduleError = null;
+        _rescheduling = true;
+    }
+
+    private void CancelReschedule()
+    {
+        _rescheduling = false;
+        _rescheduleError = null;
+    }
+
+    private async Task SaveRescheduleAsync()
+    {
+        if (_reschedulingSaving || _poll is null) return;
+
+        _rescheduleError = null;
+        _reschedulingSaving = true;
+
+        try
+        {
+            var updated = await Api.ReschedulePollAsync(
+                PollId, new RescheduleRequest(_rescheduleGameDate, _rescheduleDeadline));
+
+            _poll = _poll with
+            {
+                GameDate = updated?.GameDate ?? _rescheduleGameDate,
+                Deadline = updated?.Deadline ?? _rescheduleDeadline
+            };
+            _statusMessage = "Date and time updated.";
+            _rescheduling = false;
+        }
+        catch (ApiException ex) when (ex.StatusCode == HttpStatusCode.BadRequest)
+        {
+            // Shown inside the still-open modal, not the page-level _error - the admin is mid-edit.
+            _rescheduleError = ex.ApiMessage ?? "That date and time couldn't be saved. Please try again.";
+        }
+        catch (Exception)
+        {
+            _rescheduleError = "Failed to save. Please try again.";
+        }
+        finally
+        {
+            _reschedulingSaving = false;
         }
     }
 

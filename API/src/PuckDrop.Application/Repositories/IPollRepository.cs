@@ -14,7 +14,13 @@ public interface IPollRepository
 
     Task<IReadOnlyList<GameDayPoll>> ListBySeasonAsync(string seasonId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<GameDayPoll>> GetActiveAsync(string seasonId, CancellationToken cancellationToken = default);
-    Task SavePollAsync(GameDayPoll poll, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves a poll. Pass <paramref name="previousGameDate"/> when the poll's GameDate has just
+    /// changed from that value - the season-collection copy is keyed by game date, so a save that
+    /// changes it needs the old copy deleted or it's left behind as a stale duplicate.
+    /// </summary>
+    Task SavePollAsync(GameDayPoll poll, DateOnly? previousGameDate = null, CancellationToken cancellationToken = default);
     Task SaveQuestionAsync(Question question, IReadOnlyList<Option> options, CancellationToken cancellationToken = default);
     Task DeleteQuestionAsync(string pollId, string questionId, CancellationToken cancellationToken = default);
     Task UpdateQuestionsAsync(IReadOnlyList<Question> questions, CancellationToken cancellationToken = default);

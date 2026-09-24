@@ -67,6 +67,8 @@ public record AuthConfigModel(string Authority, string ClientId, string Response
 
 public record CreatePollRequest(string Title, DateOnly GameDate, DateTime Deadline);
 
+public record RescheduleRequest(DateOnly GameDate, DateTime Deadline);
+
 public record CreateQuestionRequest(string Text, int SortOrder, List<CreateOptionRequest> Options);
 
 public record CreateOptionRequest(string Text, int SortOrder);

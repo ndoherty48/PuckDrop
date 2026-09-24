@@ -21,6 +21,9 @@ public record CreatePollRequest(string Title, string GameDate, string Deadline);
 
 public record UpdatePollRequest(string? Title, string? Deadline);
 
+/// <summary>Draft-only: see PollService.RescheduleAsync.</summary>
+public record RescheduleRequest(string GameDate, string Deadline);
+
 public record PollResponse(
     string PollId,
     string SeasonId,

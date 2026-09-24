@@ -86,6 +86,6 @@ public class ScoringService(
 
         // 5. Everything has landed - now transition the poll to Scored
         poll.MarkScored(utcNow);
-        await pollRepository.SavePollAsync(poll, cancellationToken);
+        await pollRepository.SavePollAsync(poll, cancellationToken: cancellationToken);
     }
 }

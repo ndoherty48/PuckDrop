@@ -281,6 +281,112 @@ public class EditPollTests : BunitContext
         });
     }
 
+    // ─── Reschedule (Draft only) ────────────────────────────────────────────
+
+    [Fact]
+    public void Reschedule_Draft_ShowsTheEditButton()
+    {
+        var cut = RenderEditPoll();
+
+        cut.WaitForAssertion(() => Assert.NotNull(Button(cut, "Edit date and time")));
+    }
+
+    [Theory]
+    [InlineData("Open", "Open for picks")]
+    [InlineData("Closed", "Voting closed")]
+    [InlineData("Scored", "Poll scored")]
+    public void Reschedule_NotDraft_HidesTheEditButton(string status, string expectedNextStepTitle)
+    {
+        _currentPoll = BuildPoll(status, Question("q1", "Who wins?", 1, "Belfast Giants", "Guildford Flames"));
+
+        var cut = RenderEditPoll();
+
+        cut.WaitForAssertion(() => Assert.Equal(expectedNextStepTitle, cut.Find("#next-step-title").TextContent.Trim()));
+        // The modal's own (always-rendered, natively-hidden) title text also reads "Edit date and
+        // time", so check for the trigger button specifically rather than the string anywhere.
+        Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() == "Edit date and time");
+    }
+
+    [Fact]
+    public void Reschedule_Save_UpdatesTheDisplayedDateAndTime()
+    {
+        JSInterop.SetupVoid("puckDropDialog.show", _ => true).SetVoidResult();
+        JSInterop.SetupVoid("puckDropDialog.close", _ => true).SetVoidResult();
+
+        var newDate = new DateOnly(2026, 9, 30);
+        var newDeadline = new DateTime(2026, 9, 30, 18, 0, 0);
+        string? submittedBody = null;
+        var handler = new RoutingHttpMessageHandler()
+            .Map(HttpMethod.Post, $"polls/{PollId}/reschedule", request =>
+            {
+                submittedBody = request.Content!.ReadAsStringAsync().Result;
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = JsonContent.Create(new PollModel(
+                        PollId, "2026-27", newDate, _currentPoll.Title, newDeadline, "Draft", "admin", DateTime.UtcNow))
+                };
+            });
+        var cut = RenderEditPoll(handler);
+        cut.WaitForAssertion(() => Button(cut, "Edit date and time"));
+
+        Button(cut, "Edit date and time").Click();
+        cut.Find("#rescheduleDate").Change(newDate.ToString("yyyy-MM-dd"));
+        cut.Find("#rescheduleDeadline").Change(newDeadline.ToString("yyyy-MM-ddTHH:mm:ss"));
+        Button(cut, "Save").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Date and time updated.", cut.Find("[role=status]").TextContent);
+            Assert.Contains(newDate.ToString("ddd d MMM yyyy"), cut.Markup);
+            Assert.Contains(newDeadline.ToString("ddd d MMM, HH:mm"), cut.Markup);
+        });
+        Assert.NotNull(submittedBody);
+        Assert.Contains("\"gameDate\":\"2026-09-30\"", submittedBody);
+    }
+
+    [Fact]
+    public void Reschedule_RejectedByTheApi_ShowsTheErrorInsideTheModal_NotAsThePageError()
+    {
+        JSInterop.SetupVoid("puckDropDialog.show", _ => true).SetVoidResult();
+        JSInterop.SetupVoid("puckDropDialog.close", _ => true).SetVoidResult();
+
+        var handler = new RoutingHttpMessageHandler()
+            .Map(HttpMethod.Post, $"polls/{PollId}/reschedule", _ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = JsonContent.Create(new { error = "INVALID_OPERATION", message = "The new game date must stay within the current season." })
+            });
+        var cut = RenderEditPoll(handler);
+        cut.WaitForAssertion(() => Button(cut, "Edit date and time"));
+
+        Button(cut, "Edit date and time").Click();
+        Button(cut, "Save").Click();
+
+        cut.WaitForAssertion(() =>
+            Assert.Contains("The new game date must stay within the current season.", cut.Find(".pd-dialog").TextContent));
+        // Not surfaced as the page-level error banner (.edit-message) - the admin is still mid-edit.
+        Assert.Empty(cut.FindAll(".edit-message"));
+    }
+
+    [Fact]
+    public void Reschedule_Cancel_DiscardsChanges_WithoutCallingTheApi()
+    {
+        JSInterop.SetupVoid("puckDropDialog.show", _ => true).SetVoidResult();
+        JSInterop.SetupVoid("puckDropDialog.close", _ => true).SetVoidResult();
+
+        var rescheduleCalled = false;
+        var handler = new RoutingHttpMessageHandler()
+            .Map(HttpMethod.Post, $"polls/{PollId}/reschedule", _ => { rescheduleCalled = true; return new HttpResponseMessage(HttpStatusCode.OK); });
+        var cut = RenderEditPoll(handler);
+        cut.WaitForAssertion(() => Button(cut, "Edit date and time"));
+
+        Button(cut, "Edit date and time").Click();
+        cut.Find("#rescheduleDate").Change("2026-10-15");
+        Button(cut, "Cancel").Click();
+
+        Assert.False(rescheduleCalled);
+        Assert.Contains(_currentPoll.GameDate.ToString("ddd d MMM yyyy"), cut.Markup);
+    }
+
     [Fact]
     public void ClosedPoll_OffersScoring_AndDropsTheQuestionEditor()
     {

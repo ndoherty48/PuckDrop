@@ -108,18 +108,39 @@ public class DynamoDbPollRepository(IAmazonDynamoDB dynamoDb) : IPollRepository
         return response.Items.Select(MapPollFromAttributes).ToList();
     }
 
-    public async Task SavePollAsync(GameDayPoll poll, CancellationToken cancellationToken = default)
+    public async Task SavePollAsync(
+        GameDayPoll poll, DateOnly? previousGameDate = null, CancellationToken cancellationToken = default)
     {
         var mainItem = ToPollAttributes(DynamoDbMapper.ToItem(poll));
         var collectionItem = ToPollAttributes(DynamoDbMapper.ToSeasonCollectionItem(poll));
 
+        var transactItems = new List<TransactWriteItem>
+        {
+            new() { Put = new Put { TableName = DynamoDbKeys.TableName, Item = mainItem } },
+            new() { Put = new Put { TableName = DynamoDbKeys.TableName, Item = collectionItem } }
+        };
+
+        // The season-collection copy's SK is keyed by game date, so a date change needs the old
+        // copy deleted or it's left behind as a stale duplicate alongside the new one.
+        if (previousGameDate is { } previous && previous != poll.GameDate)
+        {
+            transactItems.Add(new TransactWriteItem
+            {
+                Delete = new Delete
+                {
+                    TableName = DynamoDbKeys.TableName,
+                    Key = new Dictionary<string, AttributeValue>
+                    {
+                        ["PK"] = new(DynamoDbKeys.SeasonPK(poll.SeasonId)),
+                        ["SK"] = new(DynamoDbKeys.PollSeasonSK(previous, poll.PollId))
+                    }
+                }
+            });
+        }
+
         await dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
         {
-            TransactItems =
-            [
-                new TransactWriteItem { Put = new Put { TableName = DynamoDbKeys.TableName, Item = mainItem } },
-                new TransactWriteItem { Put = new Put { TableName = DynamoDbKeys.TableName, Item = collectionItem } }
-            ]
+            TransactItems = transactItems
         }, cancellationToken);
     }
 
