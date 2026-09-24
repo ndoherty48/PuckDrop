@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "admin")]
 @inject PuckDropApiClient Api
 @inject NavigationManager Nav
+@inject TimeZoneInfo LocalTimeZone
 
 <nav class="pd-crumbs" aria-label="Breadcrumb">
     <a href="admin/polls">Manage polls</a>
@@ -124,7 +125,8 @@
 
         try
         {
-            var request = new CreatePollRequest(_model.Title.Trim(), _model.GameDate, _model.Deadline);
+            var deadlineUtc = TimeZoneInfo.ConvertTimeToUtc(_model.Deadline, LocalTimeZone);
+            var request = new CreatePollRequest(_model.Title.Trim(), _model.GameDate, deadlineUtc);
             var poll = await Api.CreatePollAsync(request);
 
             if (poll is not null)
@@ -155,6 +157,8 @@
     {
         public string Title { get; set; } = "";
         public DateOnly GameDate { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow);
-        public DateTime Deadline { get; set; } = DateTime.Today;
+        // Unspecified, not Local - it's a wall-clock value the admin picks, meaningless until
+        // interpreted through LocalTimeZone; Kind=Local would tie it to the app process's own zone.
+        public DateTime Deadline { get; set; } = DateTime.SpecifyKind(DateTime.Today, DateTimeKind.Unspecified);
     }
 }

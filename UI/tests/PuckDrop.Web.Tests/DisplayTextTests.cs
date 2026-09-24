@@ -33,4 +33,34 @@ public class DisplayTextTests
 
         Assert.Equal(expected, DisplayText.TimeUntilDeadline(now.AddMinutes(minutesUntilDeadline), now));
     }
+
+    [Fact]
+    public void LocalDeadline_ConvertsFromUtc_ToTheGivenTimeZone_BST()
+    {
+        // 18:00 UTC on 23 Sep 2026 is 19:00 in Europe/London - British Summer Time (UTC+1).
+        var utcDeadline = new DateTime(2026, 9, 23, 18, 0, 0, DateTimeKind.Utc);
+        var london = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
+
+        Assert.Equal("Wed 23 Sep, 19:00", DisplayText.LocalDeadline(utcDeadline, london));
+    }
+
+    [Fact]
+    public void LocalDeadline_ConvertsFromUtc_ToTheGivenTimeZone_GMT()
+    {
+        // Outside BST, Europe/London is just UTC - no shift.
+        var utcDeadline = new DateTime(2026, 1, 15, 19, 0, 0, DateTimeKind.Utc);
+        var london = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
+
+        Assert.Equal("Thu 15 Jan, 19:00", DisplayText.LocalDeadline(utcDeadline, london));
+    }
+
+    [Fact]
+    public void LocalDeadline_ConvertsFromUtc_ToAFixedOffsetZone()
+    {
+        var utcDeadline = new DateTime(2026, 9, 23, 18, 0, 0, DateTimeKind.Utc);
+        var pacific = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+
+        // PDT (UTC-7) in September.
+        Assert.Equal("Wed 23 Sep, 11:00", DisplayText.LocalDeadline(utcDeadline, pacific));
+    }
 }

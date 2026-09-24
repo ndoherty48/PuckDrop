@@ -2,6 +2,7 @@
 @attribute [Authorize]
 
 @inject PuckDropApiClient Api
+@inject TimeZoneInfo LocalTimeZone
 
 @if (loadError is not null)
 {
@@ -26,12 +27,12 @@ else
             @if (IsVotingClosed)
             {
                 <span class="pd-badge pd-badge-closed"><Icon Name="lock" Size="16" />Voting closed</span>
-                <span class="pd-meta pd-strong"><Icon Name="clock" />Picks closed @poll.Deadline.ToString("ddd d MMM, HH:mm")</span>
+                <span class="pd-meta pd-strong"><Icon Name="clock" />Picks closed @DisplayText.LocalDeadline(poll.Deadline, LocalTimeZone)</span>
             }
             else
             {
                 <span class="pd-badge pd-badge-open"><Icon Name="dot" Size="16" />Open</span>
-                <span class="pd-meta pd-strong"><Icon Name="clock" />Picks close @poll.Deadline.ToString("ddd d MMM, HH:mm")</span>
+                <span class="pd-meta pd-strong"><Icon Name="clock" />Picks close @DisplayText.LocalDeadline(poll.Deadline, LocalTimeZone)</span>
                 <span class="pd-muted">@DisplayText.TimeUntilDeadline(poll.Deadline, DateTime.UtcNow) · you can change picks until then</span>
             }
         </div>
@@ -145,7 +146,7 @@ else
                         @onclick="SubmitPicksAsync" disabled="@isSubmitting">
                     @(isSubmitting ? "Submitting…" : "Submit picks")
                 </button>
-                <p class="pd-hint poll-summary-hint">You can change your picks until @poll.Deadline.ToString("ddd d MMM, HH:mm").</p>
+                <p class="pd-hint poll-summary-hint">You can change your picks until @DisplayText.LocalDeadline(poll.Deadline, LocalTimeZone).</p>
             }
         </aside>
     </div>

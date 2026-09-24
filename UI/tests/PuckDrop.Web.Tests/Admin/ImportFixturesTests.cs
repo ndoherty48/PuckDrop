@@ -25,6 +25,7 @@ public class ImportFixturesTests : BunitContext
     private IRenderedComponent<ImportFixtures> RenderPage(RoutingHttpMessageHandler handler, bool confirmResult = true)
     {
         Services.AddSingleton(handler.BuildClient());
+        Services.AddSingleton(TimeZoneInfo.FindSystemTimeZoneById("Europe/London"));
         Confirm = ConfirmDialogStub.Register(this, confirmResult);
         return Render<ImportFixtures>();
     }

@@ -78,6 +78,10 @@ builder.Services.AddAuthorizationCore();
 
 builder.Services.AddScoped<ConfirmDialogService>();
 
+// Deadlines are stored/transmitted as UTC; pages convert to this for display and back for input.
+// TimeZoneInfo.Local correctly resolves to the browser's own configured timezone in Blazor WASM.
+builder.Services.AddSingleton(TimeZoneInfo.Local);
+
 var app = builder.Build();
 
 // WebAssembly does not support IHostedService, so TelemetryHostedService is never started.

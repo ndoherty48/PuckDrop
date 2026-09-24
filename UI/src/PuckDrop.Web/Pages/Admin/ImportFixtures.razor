@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "admin")]
 @inject PuckDropApiClient Api
 @inject ConfirmDialogService ConfirmDialog
+@inject TimeZoneInfo LocalTimeZone
 
 <nav class="pd-crumbs" aria-label="Breadcrumb">
     <a href="admin/polls">Manage polls</a>
@@ -105,7 +106,7 @@ else
                     <input type="checkbox" checked="@row.Selected"
                            @onchange="e => row.Selected = (bool)e.Value!" />
                     <span class="import-fixture-info">
-                        <span class="pd-hint">@row.Fixture.Deadline.ToString("ddd d MMM, HH:mm")</span>
+                        <span class="pd-hint">@DisplayText.LocalDeadline(row.Fixture.Deadline, LocalTimeZone)</span>
                         <span>@row.Fixture.Title</span>
                     </span>
                     @if (row.Fixture.AlreadyImported)

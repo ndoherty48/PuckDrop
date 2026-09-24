@@ -3,6 +3,7 @@
 @using System.Net
 @inject PuckDropApiClient Api
 @inject ConfirmDialogService ConfirmDialog
+@inject TimeZoneInfo LocalTimeZone
 
 <nav class="pd-crumbs" aria-label="Breadcrumb">
     <a href="admin/polls">Manage polls</a>
@@ -30,7 +31,7 @@ else
         <div class="pd-meta-row">
             <PollStatusBadge Status="@_poll.Status" />
             <span class="pd-meta"><Icon Name="calendar" />@_poll.GameDate.ToString("ddd d MMM yyyy")</span>
-            <span class="pd-meta"><Icon Name="clock" />Picks close @_poll.Deadline.ToString("ddd d MMM, HH:mm")</span>
+            <span class="pd-meta"><Icon Name="clock" />Picks close @DisplayText.LocalDeadline(_poll.Deadline, LocalTimeZone)</span>
             @if (_poll.Status == "Draft")
             {
                 <button type="button" class="pd-btn pd-btn-quiet pd-btn-sm" disabled="@Busy" @onclick="OpenReschedule">
@@ -131,7 +132,7 @@ else
                             @(_publishing ? "Publishing…" : "Publish poll")
                         </button>
                     </div>
-                    <p class="pd-hint edit-next-hint">You'll be asked to confirm first. Picks open straight away and close @_poll.Deadline.ToString("ddd d MMM, HH:mm").</p>
+                    <p class="pd-hint edit-next-hint">You'll be asked to confirm first. Picks open straight away and close @DisplayText.LocalDeadline(_poll.Deadline, LocalTimeZone).</p>
                 }
                 else if (_poll.Status == "Open")
                 {
@@ -142,7 +143,7 @@ else
                         </button>
                         <a href="poll/@PollId" class="pd-btn pd-btn-quiet pd-btn-block">View the live poll</a>
                     </div>
-                    <p class="pd-hint edit-next-hint">Friends can pick until @_poll.Deadline.ToString("ddd d MMM, HH:mm"). Closing stops new picks and locks the questions — it can't be undone.</p>
+                    <p class="pd-hint edit-next-hint">Friends can pick until @DisplayText.LocalDeadline(_poll.Deadline, LocalTimeZone). Closing stops new picks and locks the questions — it can't be undone.</p>
                 }
                 else if (_poll.Status == "Closed")
                 {
@@ -412,7 +413,7 @@ else
         if (_poll is null) return;
 
         _rescheduleGameDate = _poll.GameDate;
-        _rescheduleDeadline = _poll.Deadline;
+        _rescheduleDeadline = TimeZoneInfo.ConvertTimeFromUtc(_poll.Deadline, LocalTimeZone);
         _rescheduleError = null;
         _rescheduling = true;
     }
@@ -432,13 +433,14 @@ else
 
         try
         {
+            var deadlineUtc = TimeZoneInfo.ConvertTimeToUtc(_rescheduleDeadline, LocalTimeZone);
             var updated = await Api.ReschedulePollAsync(
-                PollId, new RescheduleRequest(_rescheduleGameDate, _rescheduleDeadline));
+                PollId, new RescheduleRequest(_rescheduleGameDate, deadlineUtc));
 
             _poll = _poll with
             {
                 GameDate = updated?.GameDate ?? _rescheduleGameDate,
-                Deadline = updated?.Deadline ?? _rescheduleDeadline
+                Deadline = updated?.Deadline ?? deadlineUtc
             };
             _statusMessage = "Date and time updated.";
             _rescheduling = false;
