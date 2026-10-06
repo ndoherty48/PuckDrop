@@ -10,6 +10,13 @@ public record PollModel(
     string PollId, string SeasonId, DateOnly GameDate, string Title,
     DateTime Deadline, string Status, string CreatedBy, DateTime CreatedAt);
 
+/// <summary>
+/// Admin-only: players who've picked per published poll, out of everyone who's picked this season.
+/// </summary>
+public record SeasonParticipationModel(int PlayerCount, List<PollParticipationModel> Polls);
+
+public record PollParticipationModel(string PollId, int PickedCount);
+
 public record PollDetailModel(
     string PollId, string SeasonId, DateOnly GameDate, string Title,
     DateTime Deadline, string Status, string CreatedBy, DateTime CreatedAt,

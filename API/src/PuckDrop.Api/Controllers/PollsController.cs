@@ -10,7 +10,7 @@ namespace PuckDrop.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("polls")]
-public class PollsController(PollService pollService) : ControllerBase
+public class PollsController(PollService pollService, ParticipationService participationService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<PollResponse>>> ListPolls(
@@ -26,6 +26,15 @@ public class PollsController(PollService pollService) : ControllerBase
     {
         var polls = await pollService.GetActivePollsAsync(seasonId, ct);
         return Ok(polls.Select(p => p.ToResponse()).ToList());
+    }
+
+    [Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
+    [HttpGet("participation")]
+    public async Task<ActionResult<SeasonParticipationResponse>> GetParticipation(
+        [FromQuery] string seasonId, CancellationToken ct)
+    {
+        var participation = await participationService.GetSeasonParticipationAsync(seasonId, ct);
+        return Ok(participation.ToResponse());
     }
 
     [HttpGet("{pollId}")]

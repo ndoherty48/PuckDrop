@@ -1,0 +1,32 @@
+@* How many players have picked in a poll, out of everyone who's picked this season. Amber while
+   anyone's missing on a live poll, green once everyone's in; neutral once scored, as it's history. *@
+@if (Status == "Draft")
+{
+    <span class="pd-muted" aria-hidden="true">—</span><span class="pd-sr-only">No picks until published</span>
+}
+else
+{
+    <span class="pd-badge @BadgeClass"><Icon Name="@IconName" Size="16" /><span aria-hidden="true">@Picked / @Players</span><span class="pd-sr-only">@Picked of @Players players picked</span></span>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string Status { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public int Picked { get; set; }
+
+    [Parameter, EditorRequired]
+    public int Players { get; set; }
+
+    private bool EveryoneIn => Players > 0 && Picked >= Players;
+
+    private string BadgeClass => Status switch
+    {
+        "Scored" => "pd-badge-draft",
+        _ when EveryoneIn => "pd-badge-open",
+        _ => "pd-badge-closed"
+    };
+
+    private string IconName => EveryoneIn ? "check" : "users";
+}

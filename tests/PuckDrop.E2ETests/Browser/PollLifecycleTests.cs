@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 using Xunit;
 
@@ -71,6 +72,10 @@ public class PollLifecycleTests(AppHostFixture fixture)
         await poll1Row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Close" }).ClickAsync();
         await AdminPollActions.ConfirmAsync(admin, "Close voting");
         await Assertions.Expect(poll1Row.GetByText("Closed")).ToBeVisibleAsync();
+
+        // Only the friend picked. The season's player count depends on what else this run has
+        // picked in, so only the numerator is pinned.
+        await Assertions.Expect(poll1Row.GetByText(new Regex(@"^1 of \d+ players picked$"))).ToBeAttachedAsync();
 
         // Closed polls drop off the "Next Game" card too - only Open ones show there.
         await admin.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Home", Exact = true }).ClickAsync();

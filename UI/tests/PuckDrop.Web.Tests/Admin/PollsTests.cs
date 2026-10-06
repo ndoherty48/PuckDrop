@@ -144,4 +144,54 @@ public class PollsTests : BunitContext
         cut.WaitForAssertion(() =>
             Assert.Contains("Unable to load polls. Please try again later.", cut.Find("[role=alert]").TextContent));
     }
+
+    [Fact]
+    public void PickCounts_ShowPickedOutOfSeasonPlayers_ColouredByWhetherEveryonesIn()
+    {
+        var handler = new RoutingHttpMessageHandler()
+            .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", new List<PollModel>
+            {
+                BuildPoll("scored", "Scored", new DateOnly(2026, 1, 1)),
+                BuildPoll("closed", "Closed", new DateOnly(2026, 1, 2)),
+                BuildPoll("open", "Open", new DateOnly(2026, 1, 3)),
+                BuildPoll("draft", "Draft", new DateOnly(2026, 1, 4))
+            })
+            .MapJson(HttpMethod.Get, "polls/participation?seasonId=2025-26", new SeasonParticipationModel(9,
+            [
+                new("scored", 8),
+                new("closed", 9),
+                new("open", 5)
+            ]));
+        var cut = RenderWithHandler(handler);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Picks", cut.Find(".polls-table thead").TextContent);
+            var picks = cut.FindAll(".polls-table tbody tr").Select(row => row.QuerySelectorAll("td")[2]).ToList();
+
+            Assert.Equal("8 of 9 players picked", picks[0].QuerySelector(".pd-sr-only")!.TextContent);
+            Assert.Contains("pd-badge-draft", picks[0].QuerySelector(".pd-badge")!.ClassList);
+            Assert.Contains("pd-badge-open", picks[1].QuerySelector(".pd-badge")!.ClassList);
+            Assert.Equal("5 / 9", picks[2].QuerySelector("[aria-hidden=true]:not(svg)")!.TextContent);
+            Assert.Contains("pd-badge-closed", picks[2].QuerySelector(".pd-badge")!.ClassList);
+            Assert.Null(picks[3].QuerySelector(".pd-badge"));
+            Assert.Equal("No picks until published", picks[3].QuerySelector(".pd-sr-only")!.TextContent);
+        });
+    }
+
+    [Fact]
+    public void PickCountsFailToLoad_PollsStillShow_WithoutThePicksColumn()
+    {
+        // No participation route is registered, so that call throws.
+        var handler = new RoutingHttpMessageHandler()
+            .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", new List<PollModel> { BuildPoll(status: "Open") });
+        var cut = RenderWithHandler(handler);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(cut.FindAll(".polls-table tbody tr"));
+            Assert.DoesNotContain("Picks", cut.Find(".polls-table thead").TextContent);
+            Assert.Empty(cut.FindAll("[role=alert]"));
+        });
+    }
 }

@@ -59,6 +59,10 @@ else
                         <th scope="col" class="polls-date-col">Game date</th>
                         <th scope="col">Poll</th>
                         <th scope="col" class="polls-status-col">Status</th>
+                        @if (_participation is not null)
+                        {
+                            <th scope="col" class="polls-picks-col">Picks</th>
+                        }
                         <th scope="col" class="polls-actions-col">Actions</th>
                     </tr>
                 </thead>
@@ -69,6 +73,10 @@ else
                             <td class="pd-tnum">@poll.GameDate.ToString("ddd d MMM yyyy")</td>
                             <th scope="row">@poll.Title</th>
                             <td><PollStatusBadge Status="@poll.Status" /></td>
+                            @if (_participation is not null)
+                            {
+                                <td>@PickCount(poll)</td>
+                            }
                             <td><div class="pd-btn-row polls-actions">@Actions(poll)</div></td>
                         </tr>
                     }
@@ -84,7 +92,13 @@ else
             <li class="pd-card polls-card">
                 <div class="polls-card-top">
                     <p class="pd-muted pd-tnum polls-card-date">@poll.GameDate.ToString("ddd d MMM yyyy")</p>
-                    <PollStatusBadge Status="@poll.Status" />
+                    <div class="polls-card-badges">
+                        <PollStatusBadge Status="@poll.Status" />
+                        @if (_participation is not null)
+                        {
+                            @PickCount(poll)
+                        }
+                    </div>
                 </div>
                 <h2 class="pd-h3 polls-card-title">@poll.Title</h2>
                 <div class="pd-btn-row polls-actions">@Actions(poll)</div>
@@ -95,6 +109,7 @@ else
 
 @code {
     private List<PollModel>? _polls;
+    private SeasonParticipationModel? _participation;
     private string? _seasonName;
     private bool _loading = true;
     private bool _actionInProgress;
@@ -118,6 +133,7 @@ else
                 _seasonName = season.Name;
                 var polls = await Api.GetPollsAsync(season.SeasonId);
                 _polls = polls?.OrderBy(p => p.GameDate).ToList() ?? [];
+                _participation = await LoadParticipationAsync(season.SeasonId);
             }
             else
             {
@@ -133,6 +149,24 @@ else
             _loading = false;
         }
     }
+
+    // Pick counts are a nice-to-have: if they fail to load, the page works without them
+    private async Task<SeasonParticipationModel?> LoadParticipationAsync(string seasonId)
+    {
+        try
+        {
+            return await Api.GetParticipationAsync(seasonId);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private RenderFragment PickCount(PollModel poll) =>
+        @<PickCountBadge Status="@poll.Status"
+                         Picked="@(_participation!.Polls.FirstOrDefault(p => p.PollId == poll.PollId)?.PickedCount ?? 0)"
+                         Players="@_participation.PlayerCount" />;
 
     private async Task PublishAsync(PollModel poll)
     {
