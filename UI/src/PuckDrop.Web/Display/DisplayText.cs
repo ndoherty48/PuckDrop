@@ -54,4 +54,19 @@ public static class DisplayText
     /// </summary>
     public static string LocalDeadline(DateTime utcDeadline, TimeZoneInfo timeZone) =>
         TimeZoneInfo.ConvertTimeFromUtc(utcDeadline, timeZone).ToString("ddd d MMM, HH:mm");
+
+    /// <summary>
+    /// Names as a sentence fragment: "Mark", "Dee and Mark", "Ciaran, Dee and Mark", and past
+    /// <paramref name="max"/> names, "Ciaran, Dee, Mark and 2 others".
+    /// </summary>
+    public static string NameList(IReadOnlyList<string> names, int max = 3)
+    {
+        if (names.Count <= max)
+            return names.Count <= 1
+                ? string.Concat(names)
+                : $"{string.Join(", ", names.Take(names.Count - 1))} and {names[^1]}";
+
+        var others = names.Count - max;
+        return $"{string.Join(", ", names.Take(max))} and {others} {(others == 1 ? "other" : "others")}";
+    }
 }

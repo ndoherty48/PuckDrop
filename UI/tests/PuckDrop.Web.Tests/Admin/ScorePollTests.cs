@@ -14,9 +14,9 @@ public class ScorePollTests : BunitContext
 {
     private const string PollId = "poll-1";
 
-    private static PollDetailModel BuildPoll() => new(
+    private static PollDetailModel BuildPoll(string status = "Closed") => new(
         PollId, "2025-26", new DateOnly(2026, 1, 15), "Belfast Giants vs Sheffield Steelers",
-        DateTime.UtcNow.AddDays(-1), "Closed", "admin-user", DateTime.UtcNow,
+        DateTime.UtcNow.AddDays(-1), status, "admin-user", DateTime.UtcNow,
         [
             new QuestionModel("q1", "Who scores first?", 0, null,
             [
@@ -32,10 +32,11 @@ public class ScorePollTests : BunitContext
 
     private ConfirmDialogStub Confirm { get; set; } = null!;
 
-    private IRenderedComponent<ScorePoll> RenderScorePoll(RoutingHttpMessageHandler? extra = null, bool confirmResult = true)
+    private IRenderedComponent<ScorePoll> RenderScorePoll(
+        RoutingHttpMessageHandler? extra = null, bool confirmResult = true, string status = "Closed")
     {
         var handler = extra ?? new RoutingHttpMessageHandler();
-        handler.MapJson(HttpMethod.Get, $"polls/{PollId}", BuildPoll());
+        handler.MapJson(HttpMethod.Get, $"polls/{PollId}", BuildPoll(status));
         Services.AddSingleton(handler.BuildClient());
         Confirm = ConfirmDialogStub.Register(this, confirmResult);
 
@@ -156,5 +157,62 @@ public class ScorePollTests : BunitContext
         var cut = RenderScorePoll(handler);
 
         cut.WaitForAssertion(() => Assert.Equal("Poll not found", cut.Find("h1").TextContent.Trim()));
+    }
+
+    private static RoutingHttpMessageHandler WithParticipation(int picked, int players, params string[] stillToPick) =>
+        new RoutingHttpMessageHandler().MapJson(HttpMethod.Get, $"polls/{PollId}/participation",
+            new PollParticipationDetailModel(PollId, picked, players,
+                stillToPick.Select(name => new PlayerModel($"u-{name}", name)).ToList()));
+
+    [Fact]
+    public void SomeoneDidntPick_WarnsByNameWithoutBlockingScoring()
+    {
+        var cut = RenderScorePoll(WithParticipation(8, 9, "Mark"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("8 of 9 players picked", cut.Find(".pd-meta-row .pd-badge .pd-sr-only").TextContent);
+            var note = cut.Find(".score-pickers");
+            Assert.Contains("pd-alert-warning", note.ClassList);
+            Assert.Equal("8 of 9 players picked. Mark didn't pick and will get 0 points.", note.TextContent.Trim());
+        });
+        Assert.False(Button(cut, "Submit").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void EveryonePicked_SaysSo()
+    {
+        var cut = RenderScorePoll(WithParticipation(9, 9));
+
+        cut.WaitForAssertion(() =>
+        {
+            var note = cut.Find(".score-pickers");
+            Assert.Contains("pd-alert-success", note.ClassList);
+            Assert.Equal("All 9 players picked.", note.TextContent.Trim());
+        });
+    }
+
+    [Fact]
+    public void Rescore_JustStatesTheCount()
+    {
+        var cut = RenderScorePoll(WithParticipation(8, 9, "Mark"), status: "Scored");
+
+        cut.WaitForAssertion(() =>
+        {
+            var note = cut.Find(".score-pickers");
+            Assert.DoesNotContain("pd-alert", note.ClassList);
+            Assert.Equal("8 of 9 players picked.", note.TextContent.Trim());
+        });
+    }
+
+    [Fact]
+    public void ParticipationFailsToLoad_ScoringStillWorks_WithoutTheNote()
+    {
+        // No participation route is registered, so that call throws.
+        var cut = RenderScorePoll();
+
+        cut.WaitForAssertion(() => Button(cut, "Home"));
+        Assert.Empty(cut.FindAll(".score-pickers"));
+        Assert.Single(cut.FindAll(".pd-meta-row .pd-badge"));
     }
 }

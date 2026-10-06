@@ -29,6 +29,10 @@ else
         <h1 class="pd-page-title">@_poll.Title</h1>
         <div class="pd-meta-row">
             <PollStatusBadge Status="@_poll.Status" />
+            @if (_participation is not null)
+            {
+                <PickCountBadge Status="@_poll.Status" Picked="@_participation.PickedCount" Players="@_participation.PlayerCount" />
+            }
             <span>Pick the correct answer for each question.</span>
         </div>
     </div>
@@ -100,6 +104,30 @@ else
                 }
             </ol>
 
+            @* A heads-up, not a blocker: someone not picking is normal. Omitted if it fails to load. *@
+            @if (_participation is { PlayerCount: > 0 } participation)
+            {
+                var missingNames = participation.StillToPick.Select(p => p.DisplayName).ToList();
+                @if (IsRescore)
+                {
+                    <p class="pd-hint score-pickers">@participation.PickedCount of @participation.PlayerCount players picked.</p>
+                }
+                else if (missingNames.Count == 0)
+                {
+                    <div class="pd-alert pd-alert-success score-message score-pickers">
+                        <Icon Name="check" />
+                        <p>All @participation.PlayerCount players picked.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="pd-alert pd-alert-warning score-message score-pickers">
+                        <Icon Name="alert" />
+                        <p>@participation.PickedCount of @participation.PlayerCount players picked. @DisplayText.NameList(missingNames) didn't pick and will get 0 points.</p>
+                    </div>
+                }
+            }
+
             @if (MissingAnswersMessage is { } missing)
             {
                 <div class="pd-alert pd-alert-danger score-message score-missing" role="alert">
@@ -137,6 +165,7 @@ else
     [Parameter] public string PollId { get; set; } = "";
 
     private PollDetailModel? _poll;
+    private PollParticipationDetailModel? _participation;
     private List<QuestionModel> _questions = [];
     private readonly Dictionary<string, string> _correctAnswers = new();
     private readonly Dictionary<string, ElementReference> _questionSections = new();
@@ -167,6 +196,23 @@ else
     }
 
     protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadPollAsync(), LoadParticipationAsync());
+    }
+
+    private async Task LoadParticipationAsync()
+    {
+        try
+        {
+            _participation = await Api.GetPollParticipationAsync(PollId);
+        }
+        catch (Exception)
+        {
+            // Only a heads-up, so scoring carries on without it
+        }
+    }
+
+    private async Task LoadPollAsync()
     {
         try
         {

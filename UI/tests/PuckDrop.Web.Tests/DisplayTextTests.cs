@@ -63,4 +63,16 @@ public class DisplayTextTests
         // PDT (UTC-7) in September.
         Assert.Equal("Wed 23 Sep, 11:00", DisplayText.LocalDeadline(utcDeadline, pacific));
     }
+
+    [Theory]
+    [InlineData(new string[0], "")]
+    [InlineData(new[] { "Mark" }, "Mark")]
+    [InlineData(new[] { "Dee", "Mark" }, "Dee and Mark")]
+    [InlineData(new[] { "Ciaran", "Dee", "Mark" }, "Ciaran, Dee and Mark")]
+    [InlineData(new[] { "Ciaran", "Dee", "Mark", "Sinead" }, "Ciaran, Dee, Mark and 1 other")]
+    [InlineData(new[] { "Ciaran", "Dee", "Mark", "Sinead", "Tom" }, "Ciaran, Dee, Mark and 2 others")]
+    public void NameList_JoinsUpToThreeNames_ThenCountsTheRest(string[] names, string expected)
+    {
+        Assert.Equal(expected, DisplayText.NameList(names));
+    }
 }
