@@ -148,7 +148,8 @@
     }
 
     .edit-add,
-    .edit-next {
+    .edit-next,
+    .edit-pickers {
         padding: 1.25rem;
     }
 
@@ -181,4 +182,26 @@
 
 .edit-next-hint {
     margin-top: 0.75rem;
+}
+
+.edit-pickers {
+    padding: 1.75rem;
+}
+
+.edit-pickers .edit-section-title {
+    margin-bottom: 0.75rem;
+}
+
+.edit-pickers-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+}
+
+.edit-picker {
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--pd-radius-pill);
+    background: var(--pd-draft-tint);
+    color: var(--pd-draft);
+    font-size: 0.9375rem;
 }

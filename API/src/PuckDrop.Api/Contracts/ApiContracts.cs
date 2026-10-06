@@ -60,6 +60,14 @@ public record SeasonParticipationResponse(int PlayerCount, IReadOnlyList<PollPar
 
 public record PollParticipationResponse(string PollId, int PickedCount);
 
+/// <summary>
+/// Admin-only: one poll's pick count against the season's players, and who hasn't picked yet.
+/// </summary>
+public record PollParticipationDetailResponse(
+    string PollId, int PickedCount, int PlayerCount, IReadOnlyList<PlayerResponse> StillToPick);
+
+public record PlayerResponse(string UserId, string DisplayName);
+
 // ─── Questions ────────────────────────────────────────────────────────────────
 
 public record CreateQuestionRequest(string Text, int SortOrder, IReadOnlyList<CreateOptionRequest> Options);
