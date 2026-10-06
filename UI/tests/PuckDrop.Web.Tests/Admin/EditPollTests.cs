@@ -469,13 +469,40 @@ public class EditPollTests : BunitContext
     }
 
     [Fact]
-    public void Draft_ShowsNoPickCountOrStillToPick()
+    public void Draft_ShowsNoPickCountOrStillToPick_AndDoesntAskForIt()
     {
-        var cut = RenderEditPoll(WithParticipation(0, 9));
+        var participationRequested = false;
+        var cut = RenderEditPoll(new RoutingHttpMessageHandler().Map(HttpMethod.Get, $"polls/{PollId}/participation", _ =>
+        {
+            participationRequested = true;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }));
 
         cut.WaitForAssertion(() => Assert.Equal("Belfast Giants vs Guildford Flames", cut.Find("h1").TextContent.Trim()));
         Assert.Single(cut.FindAll(".pd-meta-row .pd-badge"));
         Assert.Empty(cut.FindAll(".edit-pickers"));
+        Assert.False(participationRequested);
+    }
+
+    [Fact]
+    public void PublishingHere_LoadsWhoIsStillToPick()
+    {
+        var handler = WithParticipation(0, 3, "Ciaran", "Dee", "Mark")
+            .Map(HttpMethod.Post, $"polls/{PollId}/publish", _ =>
+            {
+                _currentPoll = _currentPoll with { Status = "Open" };
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(_currentPoll) };
+            });
+        var cut = RenderEditPoll(handler);
+
+        cut.WaitForAssertion(() => Button(cut, "Publish poll"));
+        Button(cut, "Publish poll").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Still to pick (3)", cut.Find("#still-to-pick-title").TextContent.Trim());
+            Assert.Equal("0 of 3 players picked", cut.Find(".pd-meta-row .pd-badge .pd-sr-only").TextContent);
+        });
     }
 
     [Fact]
