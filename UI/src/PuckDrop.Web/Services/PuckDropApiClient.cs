@@ -26,6 +26,9 @@ public class PuckDropApiClient(HttpClient httpClient)
     public Task<List<PollModel>?> GetActivePollsAsync(string seasonId) =>
         GetAsync<List<PollModel>>($"polls/active?seasonId={seasonId}");
 
+    public Task<SeasonParticipationModel?> GetParticipationAsync(string seasonId) =>
+        GetAsync<SeasonParticipationModel>($"polls/participation?seasonId={seasonId}");
+
     public Task<PollDetailModel?> GetPollAsync(string pollId) =>
         GetAsync<PollDetailModel>($"polls/{pollId}");
 

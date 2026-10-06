@@ -53,6 +53,13 @@ public record FixtureImportPreviewResponse(IReadOnlyList<FixtureImportItem> Fixt
 
 public record FixtureImportItem(string Title, string Category, string GameDate, string Deadline, bool AlreadyImported);
 
+/// <summary>
+/// Admin-only: who has picked in each published poll, out of everyone who's picked this season.
+/// </summary>
+public record SeasonParticipationResponse(int PlayerCount, IReadOnlyList<PollParticipationResponse> Polls);
+
+public record PollParticipationResponse(string PollId, int PickedCount);
+
 // ─── Questions ────────────────────────────────────────────────────────────────
 
 public record CreateQuestionRequest(string Text, int SortOrder, IReadOnlyList<CreateOptionRequest> Options);
