@@ -53,10 +53,26 @@ jobs:
         run: |
           curl -sSL https://aspire.dev/install.sh | bash
           echo "$HOME/.aspire/bin" >> "$GITHUB_PATH"
+      # configure-aws-credentials logs the role's unique ID (AROA...), and the account ID can be
+      # decoded from it offline, so mask-aws-account-id alone doesn't hide the account. Stored
+      # as a secret, it's masked like one. Look it up with:
+      #   aws iam get-role --role-name <deploy role> --query Role.RoleId --output text
+      - name: Mask deploy role ID
+        env:
+          ROLE_ID: ${{ secrets.AWS_DEPLOY_ROLE_ID }}
+        run: |
+          if [ -n "$ROLE_ID" ]; then
+            echo "::add-mask::$ROLE_ID"
+          else
+            echo "::warning::AWS_DEPLOY_ROLE_ID isn't set, so the deploy role's unique ID will appear in this log."
+          fi
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: puckdrop-deploy-${{ github.run_id }}
+          # Deploy logs are public if the repo is. Account IDs aren't secret, but there's no
+          # reason to publish one; this masks it in every later step's output too.
+          mask-aws-account-id: true
       - name: Deploy
         run: aspire deploy --non-interactive --nologo --include-exception-details

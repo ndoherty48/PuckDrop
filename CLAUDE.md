@@ -235,7 +235,11 @@ ignores styles — and the Essentials feature plan or higher.
   the AWS CDK environment used for real deployment.
 - **`Infrastructure/PuckDrop.AppHost/AWS/DeploymentStack.cs`** is the CDK stack used when
   publishing: creates the DynamoDB table + GSIs, the Cognito user pool/client/admin group, and an
-  HTTP API Gateway with a JWT authorizer wired to the Lambda. No VPC/ECS cluster — nothing in the
+  HTTP API Gateway with a JWT authorizer wired to the Lambda. The API's `$default` stage is
+  throttled (20 req/s, burst 50) because its execute-api URL bypasses CloudFront's geo restriction
+  and `/auth-config` invokes the Lambda unauthenticated; for the same reason that URL is deliberately
+  not a stack output, since outputs are printed to the deploy log (and `deploy.yml` masks the
+  account ID and deploy role ID there too). No VPC/ECS cluster — nothing in the
   stack needs one (confirmed: DynamoDB, Cognito, and API Gateway are all public managed APIs; the
   Lambda's `Vpc` property is nullable/opt-in and never set). The `ConstructFunctionCallback` in
   `AppHost.cs` (`PublishAsLambdaFunction`) is where CDK-provisioned values (user pool ID, table

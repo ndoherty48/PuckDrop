@@ -276,12 +276,21 @@ public class DeploymentStack : Stack
             }
         });
 
-        // Auto-deploy stage
+        // Auto-deploy stage. The throttle caps what anyone calling the execute-api URL directly
+        // (bypassing CloudFront and its geo restriction) can cost: GET /puckdrop/auth-config is
+        // unauthenticated, so it invokes the Lambda for every request. It applies to real
+        // traffic through CloudFront too, so it's sized well above a friend group's peak - a
+        // page load is a handful of calls.
         var stage = new CfnStage(this, "PuckDropApiStage", new CfnStageProps
         {
             ApiId = HttpApi.Ref,
             StageName = "$default",
-            AutoDeploy = true
+            AutoDeploy = true,
+            DefaultRouteSettings = new CfnStage.RouteSettingsProperty
+            {
+                ThrottlingRateLimit = 20,
+                ThrottlingBurstLimit = 50
+            }
         });
     }
 
@@ -333,9 +342,7 @@ public class DeploymentStack : Stack
         _ = new CfnOutput(this, "UserPoolId", new CfnOutputProps { Value = UserPool.UserPoolId });
         _ = new CfnOutput(this, "UserPoolClientId", new CfnOutputProps { Value = UserPoolClient.UserPoolClientId });
         _ = new CfnOutput(this, "DynamoDbTableName", new CfnOutputProps { Value = PuckDropTable.TableName });
-        _ = new CfnOutput(this, "ApiGatewayUrl", new CfnOutputProps
-        {
-            Value = $"https://{HttpApi.Ref}.execute-api.{Region}.amazonaws.com"
-        });
+        // No output for the execute-api URL: nothing reads it, the browser only ever uses
+        // CloudFront's /puckdrop/* path, and outputs are printed to the (public) deploy log.
     }
 }
