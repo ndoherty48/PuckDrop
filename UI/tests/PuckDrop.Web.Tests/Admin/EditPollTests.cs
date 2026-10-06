@@ -434,4 +434,62 @@ public class EditPollTests : BunitContext
 
         cut.WaitForAssertion(() => Assert.Equal("Poll not found", cut.Find("h1").TextContent.Trim()));
     }
+
+    private RoutingHttpMessageHandler WithParticipation(int picked, int players, params string[] stillToPick) =>
+        new RoutingHttpMessageHandler().MapJson(HttpMethod.Get, $"polls/{PollId}/participation",
+            new PollParticipationDetailModel(PollId, picked, players,
+                stillToPick.Select(name => new PlayerModel($"u-{name}", name)).ToList()));
+
+    [Fact]
+    public void Open_ShowsPickCountAndWhoIsStillToPick()
+    {
+        _currentPoll = BuildPoll("Open", Question("q1", "Who wins?", 1, "Belfast Giants", "Guildford Flames"));
+        var cut = RenderEditPoll(WithParticipation(5, 9, "Ciaran", "Dee", "Mark", "Sinead"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("5 of 9 players picked", cut.Find(".pd-meta-row .pd-badge .pd-sr-only").TextContent);
+            Assert.Equal("Still to pick (4)", cut.Find("#still-to-pick-title").TextContent.Trim());
+            Assert.Equal(new[] { "Ciaran", "Dee", "Mark", "Sinead" }, cut.FindAll(".edit-picker").Select(p => p.TextContent.Trim()));
+        });
+    }
+
+    [Fact]
+    public void Open_EveryonesPicked_SaysSo()
+    {
+        _currentPoll = BuildPoll("Open", Question("q1", "Who wins?", 1, "Belfast Giants", "Guildford Flames"));
+        var cut = RenderEditPoll(WithParticipation(9, 9));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Still to pick", cut.Find("#still-to-pick-title").TextContent.Trim());
+            Assert.Contains("Everyone's picked.", cut.Find(".edit-pickers").TextContent);
+            Assert.Contains("pd-badge-open", cut.Find(".pd-meta-row .pd-badge:not(:first-child)").ClassList);
+        });
+    }
+
+    [Fact]
+    public void Draft_ShowsNoPickCountOrStillToPick()
+    {
+        var cut = RenderEditPoll(WithParticipation(0, 9));
+
+        cut.WaitForAssertion(() => Assert.Equal("Belfast Giants vs Guildford Flames", cut.Find("h1").TextContent.Trim()));
+        Assert.Single(cut.FindAll(".pd-meta-row .pd-badge"));
+        Assert.Empty(cut.FindAll(".edit-pickers"));
+    }
+
+    [Fact]
+    public void Open_ParticipationFailsToLoad_SaysSoWithoutBreakingThePage()
+    {
+        // No participation route is registered, so that call throws.
+        _currentPoll = BuildPoll("Open", Question("q1", "Who wins?", 1, "Belfast Giants", "Guildford Flames"));
+        var cut = RenderEditPoll();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Couldn't load who's picked.", cut.Find(".edit-pickers").TextContent);
+            Assert.Single(cut.FindAll(".pd-meta-row .pd-badge"));
+            Assert.Equal("Question 1: Who wins?", cut.Find(".edit-question h3").TextContent.Trim());
+        });
+    }
 }

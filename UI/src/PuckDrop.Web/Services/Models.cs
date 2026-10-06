@@ -17,6 +17,14 @@ public record SeasonParticipationModel(int PlayerCount, List<PollParticipationMo
 
 public record PollParticipationModel(string PollId, int PickedCount);
 
+/// <summary>
+/// Admin-only: one poll's pick count against the season's players, and who hasn't picked yet.
+/// </summary>
+public record PollParticipationDetailModel(
+    string PollId, int PickedCount, int PlayerCount, List<PlayerModel> StillToPick);
+
+public record PlayerModel(string UserId, string DisplayName);
+
 public record PollDetailModel(
     string PollId, string SeasonId, DateOnly GameDate, string Title,
     DateTime Deadline, string Status, string CreatedBy, DateTime CreatedAt,

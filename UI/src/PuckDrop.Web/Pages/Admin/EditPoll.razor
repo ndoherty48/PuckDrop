@@ -30,6 +30,10 @@ else
         <h1 class="pd-page-title">@_poll.Title</h1>
         <div class="pd-meta-row">
             <PollStatusBadge Status="@_poll.Status" />
+            @if (_participation is not null && _poll.Status != "Draft")
+            {
+                <PickCountBadge Status="@_poll.Status" Picked="@_participation.PickedCount" Players="@_participation.PlayerCount" />
+            }
             <span class="pd-meta"><Icon Name="calendar" />@_poll.GameDate.ToString("ddd d MMM yyyy")</span>
             <span class="pd-meta"><Icon Name="clock" />Picks close @DisplayText.LocalDeadline(_poll.Deadline, LocalTimeZone)</span>
             @if (_poll.Status == "Draft")
@@ -161,6 +165,40 @@ else
                 }
             </section>
 
+            @* Who to chase before puck drop. Only while Open: after that it's too late to pick. *@
+            @if (_poll.Status == "Open")
+            {
+                <section class="pd-card edit-pickers" aria-labelledby="still-to-pick-title">
+                    <h2 id="still-to-pick-title" class="pd-h2 edit-section-title">Still to pick@(_participation?.StillToPick.Count > 0 ? $" ({_participation.StillToPick.Count})" : "")</h2>
+                    @if (_participationFailed)
+                    {
+                        <p class="pd-hint">Couldn't load who's picked. Reload the page to try again.</p>
+                    }
+                    else if (_participation is null)
+                    {
+                        <p class="pd-hint" role="status">Loading…</p>
+                    }
+                    else if (_participation.PlayerCount == 0)
+                    {
+                        <p class="pd-hint">No one has picked in any poll this season yet.</p>
+                    }
+                    else if (_participation.StillToPick.Count == 0)
+                    {
+                        <p class="pd-hint">Everyone's picked.</p>
+                    }
+                    else
+                    {
+                        <ul class="pd-list-reset edit-pickers-list">
+                            @foreach (var player in _participation.StillToPick)
+                            {
+                                <li class="edit-picker">@player.DisplayName</li>
+                            }
+                        </ul>
+                        <p class="pd-hint edit-next-hint">Everyone who's picked in a poll this season but not this one.</p>
+                    }
+                </section>
+            }
+
             @* Questions are only editable while Draft or Open - the API rejects the rest. *@
             @if (CanEditQuestions)
             {
@@ -232,6 +270,8 @@ else
     [Parameter] public string PollId { get; set; } = "";
 
     private PollDetailModel? _poll;
+    private PollParticipationDetailModel? _participation;
+    private bool _participationFailed;
     private bool _loading = true;
     private bool _addingQuestion;
     private bool _deleting;
@@ -275,7 +315,21 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadPollAsync();
+        await Task.WhenAll(LoadPollAsync(), LoadParticipationAsync());
+    }
+
+    // Loaded whatever the status, so the count is already there if a Draft is published here. It
+    // doesn't change on publish (nobody has picked yet) or on close (no new picks).
+    private async Task LoadParticipationAsync()
+    {
+        try
+        {
+            _participation = await Api.GetPollParticipationAsync(PollId);
+        }
+        catch (Exception)
+        {
+            _participationFailed = true;
+        }
     }
 
     private async Task LoadPollAsync()

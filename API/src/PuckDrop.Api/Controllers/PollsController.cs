@@ -48,6 +48,15 @@ public class PollsController(PollService pollService, ParticipationService parti
     }
 
     [Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
+    [HttpGet("{pollId}/participation")]
+    public async Task<ActionResult<PollParticipationDetailResponse>> GetPollParticipation(
+        string pollId, CancellationToken ct)
+    {
+        var participation = await participationService.GetPollParticipationAsync(pollId, ct);
+        return Ok(participation.ToResponse());
+    }
+
+    [Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
     [HttpPost]
     public async Task<ActionResult<PollResponse>> CreatePoll(
         [FromBody] CreatePollRequest request, CancellationToken ct)
