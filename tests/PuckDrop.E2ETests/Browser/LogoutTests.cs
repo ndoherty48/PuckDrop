@@ -34,21 +34,11 @@ public class LogoutTests(AppHostFixture fixture)
         await revokeRequest;
 
         // Returning from Keycloak's logout reruns the bootstrap fetch, which can fail transiently.
-        try
-        {
-            await page.WaitForSelectorAsync("text=Couldn't reach the server", new PageWaitForSelectorOptions
-            {
-                Timeout = AppHostFixture.BootstrapFailureWindowMs
-            });
-            // Logout already happened; just reload.
-            await fixture.ReloadOnBootstrapFailureAsync(page, maxAttempts: 3);
-        }
-        catch (TimeoutException)
-        {
-            // No failure page appeared.
-        }
+        // Logout already happened by then, so a reload is enough to retry it.
+        var loggedOut = page.GetByText("You've been logged out.");
+        await fixture.AwaitBootstrapAsync(page, loggedOut);
 
-        await Assertions.Expect(page.GetByText("You've been logged out.")).ToBeVisibleAsync();
+        await Assertions.Expect(loggedOut).ToBeVisibleAsync();
 
         var persistedUserKeys = await page.EvaluateAsync<string[]>(
             "() => Object.keys(localStorage).filter(key => key.startsWith('puckdrop.oidc.'))");

@@ -17,10 +17,6 @@ public class AppHostFixture : IAsyncLifetime
     // emulator can be slow without anything being stuck.
     public const float DefaultTimeoutMs = 120_000;
 
-    // How long to watch for the "Couldn't reach the server" page after a navigation. It has to
-    // cover WASM boot plus the 10s auth-config timeout; 12s wasn't enough.
-    public const float BootstrapFailureWindowMs = 25_000;
-
     private DistributedApplication _app = null!;
     private IPlaywright _playwright = null!;
     private IBrowser _browser = null!;
@@ -135,6 +131,22 @@ public class AppHostFixture : IAsyncLifetime
         RetryOnBootstrapFailureAsync(page, () => page.ReloadAsync(), $"after reload at {page.Url}", maxAttempts);
 
     /// <summary>
+    /// For a bootstrap a click has already set off, such as returning from Keycloak's logout:
+    /// waits for <paramref name="booted"/>, reloading if the bootstrap failed instead.
+    /// </summary>
+    /// <remarks>
+    /// Takes its own success signal because the page being navigated away from may still show
+    /// the app shell, which would otherwise count as booted before the navigation starts.
+    /// </remarks>
+    public async Task AwaitBootstrapAsync(IPage page, ILocator booted, int maxReloads = 3)
+    {
+        if (!await BootstrapFailedAsync(page, booted))
+            return;
+
+        await RetryOnBootstrapFailureAsync(page, () => page.ReloadAsync(), $"after reload at {page.Url}", maxReloads);
+    }
+
+    /// <summary>
     /// The auth-config fetch at boot times out after 10s, and the busy Lambda emulator sometimes
     /// exceeds that, leaving the app on "Couldn't reach the server". Retry rather than change
     /// production behaviour for test-only slowness.
@@ -144,25 +156,31 @@ public class AppHostFixture : IAsyncLifetime
     {
         for (var attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber++)
         {
+            // GotoAsync/ReloadAsync wait for the new document, so nothing from the previous page
+            // can satisfy the check below.
             await attempt();
 
-            try
-            {
-                // A timeout here means no failure page appeared, so the bootstrap succeeded.
-                await page.WaitForSelectorAsync("text=Couldn't reach the server", new PageWaitForSelectorOptions
-                {
-                    Timeout = BootstrapFailureWindowMs
-                });
-            }
-            catch (TimeoutException)
-            {
+            // MainLayout's <main id="main"> only renders once auth-config has loaded (the failure
+            // screen has its own <main> without the id); an anonymous visit goes on to Keycloak.
+            var booted = page.Locator("main#main").Or(page.Locator("#kc-login"));
+            if (!await BootstrapFailedAsync(page, booted))
                 return;
-            }
 
             if (attemptNumber == maxAttempts)
                 throw new Exception(
                     $"App still showing \"Couldn't reach the server\" after {maxAttempts} attempts {attemptDescription}.");
         }
+    }
+
+    /// <summary>
+    /// Waits for whichever comes first, the failure page or <paramref name="booted"/>, rather than
+    /// sitting out a fixed window to prove the failure page never showed.
+    /// </summary>
+    private static async Task<bool> BootstrapFailedAsync(IPage page, ILocator booted)
+    {
+        var failure = page.GetByText("Couldn't reach the server");
+        await Assertions.Expect(failure.Or(booted).First).ToBeVisibleAsync();
+        return await failure.IsVisibleAsync();
     }
 
     /// <summary>
