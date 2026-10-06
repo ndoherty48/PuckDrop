@@ -34,6 +34,7 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
 {
     private const string ApiBehaviorPathPattern = "/puckdrop/*";
     private const string ApiBehaviorBasePath = "/puckdrop";
+    private const string FrameworkFolder = "_framework";
 
     public override string PublishTargetName => "S3 with CloudFront (Blazor)";
 
@@ -107,18 +108,41 @@ internal class BlazorStaticSitePublishTarget(ILogger<BlazorStaticSitePublishTarg
         FixCognitoCallbackUrls(stack, distribution);
 
         // --- Bucket deployment ---
-        var deploymentProps = new BucketDeploymentProps
+        // Two uploads, because a CloudFront invalidation empties CloudFront but not browsers: with
+        // no Cache-Control, a browser guesses how long to keep each file and can run yesterday's
+        // app after a deploy. Everything under _framework/ has a content hash in its name (see
+        // OverrideHtmlAssetPlaceholders in PuckDrop.Web.csproj), so it's cached for a year. The rest
+        // keeps its name across deploys, so browsers revalidate it on every load (a 304 when
+        // unchanged). Each upload's Exclude also stops it pruning the other's files.
+        var frameworkProps = new BucketDeploymentProps
         {
             Sources = [Source.Asset(buildOutputPath)],
             DestinationBucket = bucket,
-            Distribution = distribution,
-            DistributionPaths = ["/*"],
+            Exclude = ["*"],
+            Include = [$"{FrameworkFolder}/*"],
+            CacheControl = [CacheControl.FromString("public, max-age=31536000, immutable")],
             // The 128 MB default timed out syncing Blazor's hundreds of files; more memory
             // means more CPU and network.
             MemoryLimit = 1024,
         };
-        config.PropsBucketDeploymentCallback?.Invoke(context, deploymentProps);
-        _ = new BucketDeployment(stack, $"Project-{resource.Name}-Deployment", deploymentProps);
+        config.PropsBucketDeploymentCallback?.Invoke(context, frameworkProps);
+        var frameworkDeployment = new BucketDeployment(stack, $"Project-{resource.Name}-FrameworkDeployment", frameworkProps);
+
+        var siteProps = new BucketDeploymentProps
+        {
+            Sources = [Source.Asset(buildOutputPath)],
+            DestinationBucket = bucket,
+            Exclude = [$"{FrameworkFolder}/*"],
+            CacheControl = [CacheControl.NoCache()],
+            Distribution = distribution,
+            DistributionPaths = ["/*"],
+            MemoryLimit = 1024,
+        };
+        config.PropsBucketDeploymentCallback?.Invoke(context, siteProps);
+        var siteDeployment = new BucketDeployment(stack, $"Project-{resource.Name}-Deployment", siteProps);
+
+        // index.html names this build's hashed files, so they must be in the bucket before it is.
+        siteDeployment.Node.AddDependency(frameworkDeployment);
 
         ApplyAWSLinkedObjectsAnnotation(environment, resource, distribution, this);
         return Task.CompletedTask;

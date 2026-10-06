@@ -5,6 +5,10 @@
          opts out with -p:PublishForRootStaticWebAssets=true; overriding this property to empty
          doesn't work. -->
     <StaticWebAssetBasePath Condition="'$(PublishForRootStaticWebAssets)' != 'true'">web</StaticWebAssetBasePath>
+    <!-- Points index.html at the content-hashed blazor.webassembly.js and fills its importmap, so
+         everything under _framework/ changes name when its content does. That's what lets the S3
+         publish cache _framework/ for a year (see BlazorStaticSitePublishTarget). -->
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <!-- Enable WebAssembly diagnostics for OpenTelemetry tracing -->
     <MetricsSupport>true</MetricsSupport>
     <EventSourceSupport>true</EventSourceSupport>

@@ -259,7 +259,14 @@ ignores styles — and the Essentials feature plan or higher.
   with a `localhost` placeholder in `DeploymentStack` before the CloudFront domain exists — via
   the CDK "escape hatch" (`Node.DefaultChild` cast to `CfnUserPoolClient`, whose properties are
   `CallbackUrLs`/`LogoutUrLs` — note the unusual JSII-codegen casing) once the distribution is
-  built. Modeled closely on AWS's own unreleased `S3StaticWebsitePublishTarget` for JS apps
+  built. The site goes up as two `BucketDeployment`s with different `Cache-Control`, because a
+  CloudFront invalidation doesn't reach browsers, and with no header they guessed and kept running
+  a stale app after a deploy: `_framework/` (every file content-hashed, including
+  `blazor.webassembly.js` via `OverrideHtmlAssetPlaceholders` and the `#[.{fingerprint}]`
+  placeholder in `index.html`) is cached for a year as immutable, and everything else (`index.html`,
+  `appsettings.json`, the app's own css/js/fonts, which standalone WASM doesn't hash) is `no-cache`,
+  i.e. revalidated on every load. Anything new referenced from `index.html` outside `_framework/`
+  stays fresh automatically; anything put under `_framework/` must be hashed. Modeled closely on AWS's own unreleased `S3StaticWebsitePublishTarget` for JS apps
   (aws/integrations-on-dotnet-aspire-for-aws#203) for easy swap-out if that ships.
 - `PuckDrop.ServiceDefaults` / `PuckDrop.ClientServiceDefaults` hold shared OpenTelemetry/service
   discovery wiring for the server and Blazor WASM client respectively, added via
