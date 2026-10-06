@@ -315,11 +315,15 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await Task.WhenAll(LoadPollAsync(), LoadParticipationAsync());
+        await LoadPollAsync();
+
+        // A Draft shows no pick count, and creating a poll lands here as one, so it's skipped.
+        // One request at a time also keeps the page off the local Lambda emulator's queue, which
+        // runs one invocation at a time.
+        if (_poll is { Status: not "Draft" })
+            await LoadParticipationAsync();
     }
 
-    // Loaded whatever the status, so the count is already there if a Draft is published here. It
-    // doesn't change on publish (nobody has picked yet) or on close (no new picks).
     private async Task LoadParticipationAsync()
     {
         try
@@ -445,6 +449,9 @@ else
 
             // The Publish button is gone - the panel heading names the state that replaced it
             await _nextStepHeading.FocusAsync();
+
+            // Skipped on load while a Draft; now Open, the "Still to pick" card needs it
+            await LoadParticipationAsync();
         }
         catch (ApiException ex) when (ex.StatusCode == HttpStatusCode.BadRequest)
         {
