@@ -25,7 +25,7 @@ dotnet test PuckDrop.slnx         # Run all tests (xUnit v3 on Microsoft.Testing
 
 `API/tests/` and `UI/tests/` hold four xUnit v3 test projects — `PuckDrop.Domain.Tests`,
 `PuckDrop.Application.Tests`, `PuckDrop.Api.Tests` (all pure/fast, no external dependencies), and
-`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 391 tests total, covered in
+`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 392 tests total, covered in
 `docs/implementation-plan.md`'s Phase 7.
 
 A fifth project, `tests/PuckDrop.E2ETests/` (repo-root `tests/`, not under `API/`/`UI/` — it's

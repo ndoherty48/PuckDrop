@@ -168,6 +168,29 @@ public class HomeTests : BunitContext
     }
 
     [Fact]
+    public void AlsoOpen_ListsStillToPickFirst_ThenPicked_ThenPastDeadline()
+    {
+        var thirdPoll = SecondOpenPoll() with
+        {
+            PollId = "poll-3", Title = "Glasgow Clan vs Fife Flyers", Deadline = DateTime.UtcNow.AddDays(9)
+        };
+
+        // poll-1 is picked and closes soonest, so it would lead the list in plain deadline order
+        var cut = RenderHome(Routes(
+        [
+            (PastDeadlinePoll(), []), (OpenPoll(), SomePicks), (SecondOpenPoll(), []), (thirdPoll, [])
+        ]));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Sheffield Steelers vs Glasgow Clan", cut.Find("#next-game-title").TextContent.Trim());
+
+            var hrefs = cut.FindAll("a.home-also-row").Select(r => r.GetAttribute("href")).ToArray();
+            Assert.Equal(["poll/poll-3", "poll/poll-1", "poll/poll-0"], hrefs);
+        });
+    }
+
+    [Fact]
     public void OpenPollPastItsDeadline_NeverLeads_AndIsListedAsPicksClosed()
     {
         var cut = RenderHome(Routes([(PastDeadlinePoll(), []), (OpenPoll(), SomePicks)]));

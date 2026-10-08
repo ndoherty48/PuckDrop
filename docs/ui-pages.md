@@ -32,7 +32,8 @@
     still taking picks that the user hasn't picked, then the soonest still taking picks. An Open
     poll past its deadline (waiting to be closed) only leads when nothing else is open.
   - **Also open** — every other open poll as a compact row linking to `/poll/{pollId}`: title,
-    game date, time left, and "Not in yet" / "Picks in" / "Picks closed". Hidden when only one
+    game date, time left, and "Not in yet" / "Picks in" / "Picks closed", listed in that order
+    (soonest first within each). Hidden when only one
     poll is open.
 - **Quick Leaderboard** — Top 5 with user's own position highlighted
 - **Recent Results** — Last 2-3 scored polls with user's score
