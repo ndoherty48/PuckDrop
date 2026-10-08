@@ -75,6 +75,41 @@ else
                         <Icon Name="right" />
                     </a>
                 </div>
+
+                @if (otherPolls.Count > 0)
+                {
+                    <div class="home-also">
+                        <h3 id="also-open-title" class="pd-eyebrow home-also-title">Also open</h3>
+                        <ul class="pd-list-reset" aria-labelledby="also-open-title">
+                            @foreach (var poll in otherPolls)
+                            {
+                                <li>
+                                    <a href="poll/@poll.PollId" class="home-also-row">
+                                        <span class="home-also-main">
+                                            <span class="home-also-name">@poll.Title</span>
+                                            <span class="pd-muted home-also-when">
+                                                @poll.GameDate.ToString("ddd d MMM") · @AlsoOpenDeadlineText(poll)
+                                            </span>
+                                        </span>
+                                        @if (IsPastDeadline(poll))
+                                        {
+                                            <span class="pd-badge pd-badge-closed"><Icon Name="lock" Size="16" />Picks closed</span>
+                                        }
+                                        else if (pickedPollIds.Contains(poll.PollId))
+                                        {
+                                            <span class="pd-badge pd-badge-open"><Icon Name="check" Size="16" />Picks in</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="pd-badge pd-badge-pending"><Icon Name="alert" Size="16" />Not in yet</span>
+                                        }
+                                        <Icon Name="right" Size="18" />
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
             }
             else
             {
@@ -122,8 +157,11 @@ else
 
 @code {
     private PollModel? activePoll;
+    private List<PollModel> otherPolls = [];
+    private HashSet<string> pickedPollIds = [];
     private List<LeaderboardEntryModel>? topEntries;
     private bool hasPicked;
+    private DateTime now;
     private bool loading = true;
     private string? errorMessage;
     private string? seasonName;
@@ -143,13 +181,21 @@ else
             {
                 seasonName = season.Name;
 
-                var activePolls = await Api.GetActivePollsAsync(season.SeasonId);
-                activePoll = activePolls?.FirstOrDefault();
+                // Open polls arrive soonest deadline first
+                var activePolls = await Api.GetActivePollsAsync(season.SeasonId) ?? [];
+                now = DateTime.UtcNow;
 
+                var answers = await Task.WhenAll(activePolls.Select(p => Api.GetAnswersAsync(p.PollId)));
+                pickedPollIds = activePolls
+                    .Where((_, i) => answers[i] is { Count: > 0 })
+                    .Select(p => p.PollId)
+                    .ToHashSet();
+
+                activePoll = PickHeroPoll(activePolls);
                 if (activePoll is not null)
                 {
-                    var existingAnswers = await Api.GetAnswersAsync(activePoll.PollId);
-                    hasPicked = existingAnswers is { Count: > 0 };
+                    hasPicked = pickedPollIds.Contains(activePoll.PollId);
+                    otherPolls = activePolls.Where(p => p.PollId != activePoll.PollId).ToList();
                 }
 
                 var leaderboard = await Api.GetLeaderboardAsync(season.SeasonId);
@@ -165,4 +211,22 @@ else
             loading = false;
         }
     }
+
+    // The hero carries the page's one call to action, so it goes to the poll that most needs doing:
+    // the soonest still taking picks that you haven't picked, then the soonest still taking picks.
+    // An Open poll past its deadline is waiting on an admin to close it, so it only leads when
+    // nothing else is open.
+    private PollModel? PickHeroPoll(List<PollModel> polls)
+    {
+        var takingPicks = polls.Where(p => !IsPastDeadline(p)).ToList();
+
+        return takingPicks.FirstOrDefault(p => !pickedPollIds.Contains(p.PollId))
+            ?? takingPicks.FirstOrDefault()
+            ?? polls.FirstOrDefault();
+    }
+
+    private bool IsPastDeadline(PollModel poll) => poll.Deadline <= now;
+
+    private string AlsoOpenDeadlineText(PollModel poll) =>
+        IsPastDeadline(poll) ? "Awaiting results" : $"Closes {DisplayText.TimeUntilDeadline(poll.Deadline, now).ToLowerInvariant()}";
 }

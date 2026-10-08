@@ -17,6 +17,17 @@ public class HomeTests : BunitContext
         "poll-1", Season.SeasonId, new DateOnly(2026, 9, 19), "Belfast Giants vs Sheffield Steelers",
         DateTime.UtcNow.AddDays(5).AddHours(1), "Open", "admin", DateTime.UtcNow);
 
+    private static PollModel SecondOpenPoll() => new(
+        "poll-2", Season.SeasonId, new DateOnly(2026, 9, 20), "Sheffield Steelers vs Glasgow Clan",
+        DateTime.UtcNow.AddDays(6).AddHours(1), "Open", "admin", DateTime.UtcNow);
+
+    // Still Open, but its deadline has passed - waiting on an admin to close it
+    private static PollModel PastDeadlinePoll() => new(
+        "poll-0", Season.SeasonId, new DateOnly(2026, 9, 13), "Cardiff Devils vs Nottingham Panthers",
+        DateTime.UtcNow.AddHours(-3), "Open", "admin", DateTime.UtcNow);
+
+    private static readonly List<UserAnswerModel> SomePicks = [new UserAnswerModel("q-1", "o-1", DateTime.UtcNow, null)];
+
     private static LeaderboardModel BuildLeaderboard() => new(Season.SeasonId,
     [
         LeaderboardEntries.Entry("user-6", "Rory N.", 6, 12, 6),
@@ -27,17 +38,19 @@ public class HomeTests : BunitContext
         LeaderboardEntries.Entry("user-4", "Aoife B.", 7, 9, 4)
     ]);
 
-    private static RoutingHttpMessageHandler Routes(PollModel? activePoll, List<UserAnswerModel> existingAnswers)
-    {
-        var activePolls = activePoll is null ? new List<PollModel>() : new List<PollModel> { activePoll };
+    private static RoutingHttpMessageHandler Routes(PollModel? activePoll, List<UserAnswerModel> existingAnswers) =>
+        Routes(activePoll is null ? [] : [(activePoll, existingAnswers)]);
 
+    // Active polls in the order the API returns them: soonest deadline first
+    private static RoutingHttpMessageHandler Routes(List<(PollModel Poll, List<UserAnswerModel> Answers)> activePolls)
+    {
         var handler = new RoutingHttpMessageHandler()
             .MapJson(HttpMethod.Get, "seasons/current", Season)
-            .MapJson(HttpMethod.Get, $"polls/active?seasonId={Season.SeasonId}", activePolls)
+            .MapJson(HttpMethod.Get, $"polls/active?seasonId={Season.SeasonId}", activePolls.Select(p => p.Poll).ToList())
             .MapJson(HttpMethod.Get, $"leaderboard?seasonId={Season.SeasonId}", BuildLeaderboard());
 
-        if (activePoll is not null)
-            handler.MapJson(HttpMethod.Get, $"polls/{activePoll.PollId}/answers", existingAnswers);
+        foreach (var (poll, answers) in activePolls)
+            handler.MapJson(HttpMethod.Get, $"polls/{poll.PollId}/answers", answers);
 
         return handler;
     }
@@ -93,6 +106,93 @@ public class HomeTests : BunitContext
             Assert.Equal("Next game", cut.Find("#next-game-title").TextContent.Trim());
             Assert.Contains("No upcoming poll", cut.Markup);
             Assert.Empty(cut.FindAll("a.home-cta"));
+        });
+    }
+
+    [Fact]
+    public void OneOpenPoll_HasNoAlsoOpenList()
+    {
+        var cut = RenderHome(Routes(OpenPoll(), []));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Belfast Giants vs Sheffield Steelers", cut.Find("#next-game-title").TextContent.Trim());
+            Assert.DoesNotContain("Also open", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void TwoOpenPolls_NeitherPicked_HeroIsSoonest_OtherIsListedAsNotInYet()
+    {
+        var cut = RenderHome(Routes([(OpenPoll(), []), (SecondOpenPoll(), [])]));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Belfast Giants vs Sheffield Steelers", cut.Find("#next-game-title").TextContent.Trim());
+
+            var row = Assert.Single(cut.FindAll("a.home-also-row"));
+            Assert.Equal("poll/poll-2", row.GetAttribute("href"));
+            Assert.Contains("Sheffield Steelers vs Glasgow Clan", row.TextContent);
+            Assert.Contains("Closes in 6 days", row.TextContent);
+            Assert.Contains("Not in yet", row.TextContent);
+        });
+    }
+
+    [Fact]
+    public void SoonestAlreadyPicked_HeroMovesToThePollStillNeedingPicks()
+    {
+        var cut = RenderHome(Routes([(OpenPoll(), SomePicks), (SecondOpenPoll(), [])]));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Sheffield Steelers vs Glasgow Clan", cut.Find("#next-game-title").TextContent.Trim());
+            Assert.Equal("Make your picks", cut.Find("a.home-cta").TextContent.Trim());
+
+            var row = Assert.Single(cut.FindAll("a.home-also-row"));
+            Assert.Equal("poll/poll-1", row.GetAttribute("href"));
+            Assert.Contains("Picks in", row.TextContent);
+        });
+    }
+
+    [Fact]
+    public void AllPicked_HeroIsSoonest_WithUpdateYourPicks()
+    {
+        var cut = RenderHome(Routes([(OpenPoll(), SomePicks), (SecondOpenPoll(), SomePicks)]));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Belfast Giants vs Sheffield Steelers", cut.Find("#next-game-title").TextContent.Trim());
+            Assert.Equal("Update your picks", cut.Find("a.home-cta").TextContent.Trim());
+            Assert.Contains("Picks in", Assert.Single(cut.FindAll("a.home-also-row")).TextContent);
+        });
+    }
+
+    [Fact]
+    public void OpenPollPastItsDeadline_NeverLeads_AndIsListedAsPicksClosed()
+    {
+        var cut = RenderHome(Routes([(PastDeadlinePoll(), []), (OpenPoll(), SomePicks)]));
+
+        cut.WaitForAssertion(() =>
+        {
+            // Even though the past-deadline poll is unpicked, nothing can be done about it now
+            Assert.Equal("Belfast Giants vs Sheffield Steelers", cut.Find("#next-game-title").TextContent.Trim());
+
+            var row = Assert.Single(cut.FindAll("a.home-also-row"));
+            Assert.Equal("poll/poll-0", row.GetAttribute("href"));
+            Assert.Contains("Picks closed", row.TextContent);
+            Assert.Contains("Awaiting results", row.TextContent);
+        });
+    }
+
+    [Fact]
+    public void OnlyOpenPollIsPastItsDeadline_StillShownInTheHero()
+    {
+        var cut = RenderHome(Routes(PastDeadlinePoll(), []));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Cardiff Devils vs Nottingham Panthers", cut.Find("#next-game-title").TextContent.Trim());
+            Assert.Empty(cut.FindAll("a.home-also-row"));
         });
     }
 
