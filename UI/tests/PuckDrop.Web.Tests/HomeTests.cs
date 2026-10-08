@@ -139,18 +139,18 @@ public class HomeTests : BunitContext
     }
 
     [Fact]
-    public void SoonestAlreadyPicked_HeroMovesToThePollStillNeedingPicks()
+    public void SoonestAlreadyPicked_HeroStaysOnTheNextGame_AndTheOtherIsFlaggedNotInYet()
     {
         var cut = RenderHome(Routes([(OpenPoll(), SomePicks), (SecondOpenPoll(), [])]));
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal("Sheffield Steelers vs Glasgow Clan", cut.Find("#next-game-title").TextContent.Trim());
-            Assert.Equal("Make your picks", cut.Find("a.home-cta").TextContent.Trim());
+            Assert.Equal("Belfast Giants vs Sheffield Steelers", cut.Find("#next-game-title").TextContent.Trim());
+            Assert.Equal("Update your picks", cut.Find("a.home-cta").TextContent.Trim());
 
             var row = Assert.Single(cut.FindAll("a.home-also-row"));
-            Assert.Equal("poll/poll-1", row.GetAttribute("href"));
-            Assert.Contains("Picks in", row.TextContent);
+            Assert.Equal("poll/poll-2", row.GetAttribute("href"));
+            Assert.Contains("Not in yet", row.TextContent);
         });
     }
 
@@ -168,25 +168,24 @@ public class HomeTests : BunitContext
     }
 
     [Fact]
-    public void AlsoOpen_ListsStillToPickFirst_ThenPicked_ThenPastDeadline()
+    public void AlsoOpen_ListsInDateOrder_WhateverThePickStatus()
     {
         var thirdPoll = SecondOpenPoll() with
         {
             PollId = "poll-3", Title = "Glasgow Clan vs Fife Flyers", Deadline = DateTime.UtcNow.AddDays(9)
         };
 
-        // poll-1 is picked and closes soonest, so it would lead the list in plain deadline order
         var cut = RenderHome(Routes(
         [
-            (PastDeadlinePoll(), []), (OpenPoll(), SomePicks), (SecondOpenPoll(), []), (thirdPoll, [])
+            (PastDeadlinePoll(), []), (OpenPoll(), SomePicks), (SecondOpenPoll(), SomePicks), (thirdPoll, [])
         ]));
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal("Sheffield Steelers vs Glasgow Clan", cut.Find("#next-game-title").TextContent.Trim());
+            Assert.Equal("Belfast Giants vs Sheffield Steelers", cut.Find("#next-game-title").TextContent.Trim());
 
             var hrefs = cut.FindAll("a.home-also-row").Select(r => r.GetAttribute("href")).ToArray();
-            Assert.Equal(["poll/poll-3", "poll/poll-1", "poll/poll-0"], hrefs);
+            Assert.Equal(["poll/poll-0", "poll/poll-2", "poll/poll-3"], hrefs);
         });
     }
 
