@@ -195,7 +195,11 @@ else
                 if (activePoll is not null)
                 {
                     hasPicked = pickedPollIds.Contains(activePoll.PollId);
-                    otherPolls = activePolls.Where(p => p.PollId != activePoll.PollId).ToList();
+                    // Still to pick, then picked, then past deadline - soonest first within each
+                    otherPolls = activePolls
+                        .Where(p => p.PollId != activePoll.PollId)
+                        .OrderBy(p => IsPastDeadline(p) ? 2 : pickedPollIds.Contains(p.PollId) ? 1 : 0)
+                        .ToList();
                 }
 
                 var leaderboard = await Api.GetLeaderboardAsync(season.SeasonId);
