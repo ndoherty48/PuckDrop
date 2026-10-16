@@ -50,65 +50,60 @@ else if (_polls.Count == 0)
 }
 else
 {
-    <section class="pd-card polls-table-card">
-        <div class="pd-table-wrap">
-            <table class="pd-table polls-table">
-                <caption class="pd-sr-only">Polls this season, closest game first</caption>
-                <thead>
-                    <tr>
-                        <th scope="col" class="polls-date-col">Game date</th>
-                        <th scope="col">Poll</th>
-                        <th scope="col" class="polls-status-col">Status</th>
-                        @if (_participation is not null)
-                        {
-                            <th scope="col" class="polls-picks-col">Picks</th>
-                        }
-                        <th scope="col" class="polls-actions-col">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var poll in _polls)
-                    {
-                        <tr>
-                            <td class="pd-tnum">@poll.GameDate.ToString("ddd d MMM yyyy")</td>
-                            <th scope="row">@poll.Title</th>
-                            <td><PollStatusBadge Status="@poll.Status" /></td>
-                            @if (_participation is not null)
-                            {
-                                <td>@PickCount(poll)</td>
-                            }
-                            <td><div class="pd-btn-row polls-actions">@Actions(poll)</div></td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+    @* Split by status rather than date: anything still needing an admin action stays in Upcoming,
+       even a Closed poll whose game has been played (it sorts to the top, waiting to be scored). *@
+    <section class="polls-section" aria-labelledby="polls-upcoming">
+        <div class="polls-section-head">
+            <h2 id="polls-upcoming" class="pd-h2 polls-section-title">Upcoming</h2>
+            @if (_upcoming.Count > 0)
+            {
+                <p class="pd-muted polls-section-meta">@PollCount(_upcoming.Count) · oldest game first</p>
+            }
         </div>
+        @if (_upcoming.Count == 0)
+        {
+            <div class="pd-card polls-caught-up">
+                <p class="pd-h3">All caught up</p>
+                <p class="pd-muted">Nothing to publish, close or score. Set up the next game day when fixtures are out.</p>
+                <a href="admin/polls/import" class="pd-btn pd-btn-secondary pd-btn-sm">Import fixtures</a>
+            </div>
+        }
+        else
+        {
+            @PollList(_upcoming, "Upcoming polls, oldest game first", "Upcoming polls")
+        }
     </section>
 
-    @* Phones: the same polls and actions as cards (the table is hidden below 768px) *@
-    <ul class="pd-list-reset polls-cards" aria-label="Polls this season">
-        @foreach (var poll in _polls)
-        {
-            <li class="pd-card polls-card">
-                <div class="polls-card-top">
-                    <p class="pd-muted pd-tnum polls-card-date">@poll.GameDate.ToString("ddd d MMM yyyy")</p>
-                    <div class="polls-card-badges">
-                        <PollStatusBadge Status="@poll.Status" />
-                        @if (_participation is not null)
-                        {
-                            @PickCount(poll)
-                        }
-                    </div>
-                </div>
-                <h2 class="pd-h3 polls-card-title">@poll.Title</h2>
-                <div class="pd-btn-row polls-actions">@Actions(poll)</div>
-            </li>
-        }
-    </ul>
+    @* Left out entirely until something's been scored, e.g. at the start of a season *@
+    @if (_scored.Count > 0)
+    {
+        <section class="polls-section" aria-labelledby="polls-scored">
+            <div class="polls-section-head">
+                <h2 id="polls-scored" class="pd-h2 polls-section-title">Scored</h2>
+                <p class="pd-muted polls-section-meta">@PollCount(_scored.Count) · newest first</p>
+            </div>
+            @PollList(_showAllScored ? _scored : _scored.Take(ScoredShownByDefault).ToList(),
+                      "Scored polls, newest first", "Scored polls")
+            @if (_scored.Count > ScoredShownByDefault)
+            {
+                <button type="button" class="pd-btn pd-btn-quiet pd-btn-block polls-more" aria-expanded="@(_showAllScored ? "true" : "false")"
+                        @onclick="() => _showAllScored = !_showAllScored">
+                    <Icon Name="@(_showAllScored ? "up" : "down")" Size="20" />
+                    @(_showAllScored ? "Show fewer polls" : EarlierLabel(_scored.Count - ScoredShownByDefault))
+                </button>
+            }
+        </section>
+    }
 }
 
 @code {
+    // Enough to reach the last few games, the likely reason to re-score, without a whole season
+    private const int ScoredShownByDefault = 3;
+
     private List<PollModel>? _polls;
+    private List<PollModel> _upcoming = [];
+    private List<PollModel> _scored = [];
+    private bool _showAllScored;
     private SeasonParticipationModel? _participation;
     private string? _seasonName;
     private bool _loading = true;
@@ -131,8 +126,12 @@ else
             if (season is not null)
             {
                 _seasonName = season.Name;
-                var polls = await Api.GetPollsAsync(season.SeasonId);
-                _polls = polls?.OrderBy(p => p.GameDate).ToList() ?? [];
+                _polls = await Api.GetPollsAsync(season.SeasonId) ?? [];
+                // CreatedAt breaks ties between polls on the same date, so the order is stable
+                _upcoming = _polls.Where(p => p.Status != "Scored")
+                    .OrderBy(p => p.GameDate).ThenBy(p => p.CreatedAt).ToList();
+                _scored = _polls.Where(p => p.Status == "Scored")
+                    .OrderByDescending(p => p.GameDate).ThenByDescending(p => p.CreatedAt).ToList();
                 _participation = await LoadParticipationAsync(season.SeasonId);
             }
             else
@@ -162,6 +161,70 @@ else
             return null;
         }
     }
+
+    private static string PollCount(int count) => count == 1 ? "1 poll" : $"{count} polls";
+
+    private static string EarlierLabel(int count) => count == 1 ? "Show 1 earlier poll" : $"Show {count} earlier polls";
+
+    // One section's polls: a table on wider screens, the same polls and actions as cards on phones
+    // (the table is hidden below 768px).
+    private RenderFragment PollList(List<PollModel> polls, string caption, string label) =>
+        @<text>
+            <div class="pd-card polls-table-card">
+                <div class="pd-table-wrap">
+                    <table class="pd-table polls-table">
+                        <caption class="pd-sr-only">@caption</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col" class="polls-date-col">Game date</th>
+                                <th scope="col">Poll</th>
+                                <th scope="col" class="polls-status-col">Status</th>
+                                @if (_participation is not null)
+                                {
+                                    <th scope="col" class="polls-picks-col">Picks</th>
+                                }
+                                <th scope="col" class="polls-actions-col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var poll in polls)
+                            {
+                                <tr>
+                                    <td class="pd-tnum">@poll.GameDate.ToString("ddd d MMM yyyy")</td>
+                                    <th scope="row">@poll.Title</th>
+                                    <td><PollStatusBadge Status="@poll.Status" /></td>
+                                    @if (_participation is not null)
+                                    {
+                                        <td>@PickCount(poll)</td>
+                                    }
+                                    <td><div class="pd-btn-row polls-actions">@Actions(poll)</div></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <ul class="pd-list-reset polls-cards" aria-label="@label">
+                @foreach (var poll in polls)
+                {
+                    <li class="pd-card polls-card">
+                        <div class="polls-card-top">
+                            <p class="pd-muted pd-tnum polls-card-date">@poll.GameDate.ToString("ddd d MMM yyyy")</p>
+                            <div class="polls-card-badges">
+                                <PollStatusBadge Status="@poll.Status" />
+                                @if (_participation is not null)
+                                {
+                                    @PickCount(poll)
+                                }
+                            </div>
+                        </div>
+                        <h3 class="pd-h3 polls-card-title">@poll.Title</h3>
+                        <div class="pd-btn-row polls-actions">@Actions(poll)</div>
+                    </li>
+                }
+            </ul>
+        </text>;
 
     private RenderFragment PickCount(PollModel poll) =>
         @<PickCountBadge Status="@poll.Status"

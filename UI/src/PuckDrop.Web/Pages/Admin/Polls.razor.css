@@ -11,6 +11,44 @@
     padding: 1.25rem 1.75rem;
 }
 
+/* ─── Upcoming / Scored sections ────────────────────────────────────── */
+.polls-section + .polls-section {
+    margin-top: 2.5rem;
+}
+
+.polls-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
+    margin-bottom: 0.875rem;
+}
+
+.polls-section-title {
+    font-size: 1.75rem;
+}
+
+.polls-section-meta {
+    margin: 0;
+}
+
+.polls-caught-up {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1.375rem 1.75rem;
+}
+
+.polls-caught-up p {
+    margin: 0;
+}
+
+.polls-more {
+    margin-top: 0.75rem;
+}
+
 .polls-date-col {
     width: 12rem;
 }
@@ -37,8 +75,17 @@
 }
 
 @media (max-width: 767.98px) {
-    .polls-empty {
+    .polls-empty,
+    .polls-caught-up {
         padding: 1rem 1.25rem;
+    }
+
+    .polls-section + .polls-section {
+        margin-top: 2rem;
+    }
+
+    .polls-section-title {
+        font-size: 1.625rem;
     }
 
     .polls-table-card {
