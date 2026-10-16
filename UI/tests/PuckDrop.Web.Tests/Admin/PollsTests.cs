@@ -90,8 +90,13 @@ public class PollsTests : BunitContext
         Assert.False(closeCalled);
     }
 
+    // The rows of the section headed by the given heading, as row-header text, top to bottom
+    private static string[] SectionRows(IRenderedComponent<Polls> cut, string headingId) =>
+        cut.Find($"section[aria-labelledby={headingId}]").QuerySelectorAll(".polls-table tbody th")
+            .Select(th => th.TextContent.Trim()).ToArray();
+
     [Fact]
-    public void Rows_AreClosestGameFirst_WithActionsForEachStatus_NamingThePoll()
+    public void Polls_SplitIntoUpcomingOldestFirst_AndScoredNewestFirst_WithActionsForEachStatus_NamingThePoll()
     {
         var handler = new RoutingHttpMessageHandler()
             .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", new List<PollModel>
@@ -99,7 +104,8 @@ public class PollsTests : BunitContext
                 BuildPoll("scored", "Scored", new DateOnly(2026, 1, 10)),
                 BuildPoll("draft", "Draft", new DateOnly(2026, 1, 24)),
                 BuildPoll("closed", "Closed", new DateOnly(2026, 1, 12)),
-                BuildPoll("open", "Open", new DateOnly(2026, 1, 17))
+                BuildPoll("open", "Open", new DateOnly(2026, 1, 17)),
+                BuildPoll("scored-newer", "Scored", new DateOnly(2026, 1, 11))
             });
         var cut = RenderWithHandler(handler);
 
@@ -115,23 +121,112 @@ public class PollsTests : BunitContext
 
         cut.WaitForAssertion(() =>
         {
-            var rows = cut.FindAll(".polls-table tbody tr");
-            Assert.Equal(
-                new[] { "Poll scored", "Poll closed", "Poll open", "Poll draft" },
-                rows.Select(row => row.QuerySelector("th")!.TextContent.Trim()));
+            Assert.Equal(new[] { "Upcoming", "Scored" }, cut.FindAll("h2").Select(h => h.TextContent.Trim()));
 
+            // A Closed poll's game has been played, so it leads Upcoming, waiting to be scored
+            Assert.Equal(new[] { "Poll closed", "Poll open", "Poll draft" }, SectionRows(cut, "polls-upcoming"));
+            Assert.Equal(new[] { "Poll scored-newer", "Poll scored" }, SectionRows(cut, "polls-scored"));
+            Assert.Equal(
+                new[] { "Upcoming polls, oldest game first", "Scored polls, newest first" },
+                cut.FindAll(".polls-table caption").Select(c => c.TextContent));
+            Assert.Equal(
+                new[] { "Upcoming polls", "Scored polls" },
+                cut.FindAll(".polls-cards").Select(list => list.GetAttribute("aria-label")));
+
+            var rows = cut.FindAll(".polls-table tbody tr");
             // Re-score is offered on a Scored poll so a wrong correct option can be fixed, or a
             // partly scored poll finished.
-            Assert.Equal(new[] { "View results", "Re-score" }, Controls(rows[0], "Poll scored"));
-            Assert.Equal(new[] { "Score" }, Controls(rows[1], "Poll closed"));
-            Assert.Equal(new[] { "Edit", "Close voting" }, Controls(rows[2], "Poll open"));
-            Assert.Equal(new[] { "Edit", "Publish" }, Controls(rows[3], "Poll draft"));
+            Assert.Equal(new[] { "Score" }, Controls(rows[0], "Poll closed"));
+            Assert.Equal(new[] { "Edit", "Close voting" }, Controls(rows[1], "Poll open"));
+            Assert.Equal(new[] { "Edit", "Publish" }, Controls(rows[2], "Poll draft"));
+            Assert.Equal(new[] { "View results", "Re-score" }, Controls(rows[4], "Poll scored"));
 
-            Assert.Equal("results/scored", rows[0].QuerySelector("a")!.GetAttribute("href"));
-            Assert.Equal("admin/polls/closed/score", rows[1].QuerySelector("a")!.GetAttribute("href"));
-            Assert.Equal("admin/polls/draft/edit", rows[3].QuerySelector("a")!.GetAttribute("href"));
+            Assert.Equal("admin/polls/closed/score", rows[0].QuerySelector("a")!.GetAttribute("href"));
+            Assert.Equal("admin/polls/draft/edit", rows[2].QuerySelector("a")!.GetAttribute("href"));
+            Assert.Equal("results/scored", rows[4].QuerySelector("a")!.GetAttribute("href"));
 
-            Assert.Equal(4, cut.FindAll(".polls-cards > li").Count);
+            Assert.Equal(5, cut.FindAll(".polls-cards > li").Count);
+            Assert.Empty(cut.FindAll(".polls-more"));
+        });
+    }
+
+    [Fact]
+    public void PollsOnTheSameDate_KeepTheOrderTheyWereCreatedIn_NewestFirstOnceScored()
+    {
+        var date = new DateOnly(2026, 1, 10);
+        var handler = new RoutingHttpMessageHandler()
+            .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", new List<PollModel>
+            {
+                BuildPoll("open-later", "Open", date) with { CreatedAt = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc) },
+                BuildPoll("open-earlier", "Open", date) with { CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                BuildPoll("scored-earlier", "Scored", date) with { CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                BuildPoll("scored-later", "Scored", date) with { CreatedAt = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc) }
+            });
+        var cut = RenderWithHandler(handler);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(new[] { "Poll open-earlier", "Poll open-later" }, SectionRows(cut, "polls-upcoming"));
+            Assert.Equal(new[] { "Poll scored-later", "Poll scored-earlier" }, SectionRows(cut, "polls-scored"));
+        });
+    }
+
+    [Fact]
+    public void ManyScoredPolls_ShowTheNewestThree_UntilExpanded()
+    {
+        var polls = Enumerable.Range(1, 5)
+            .Select(day => BuildPoll($"scored-{day}", "Scored", new DateOnly(2026, 1, day)))
+            .ToList();
+        var cut = RenderWithHandler(new RoutingHttpMessageHandler()
+            .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", polls));
+
+        cut.WaitForAssertion(() =>
+            Assert.Equal(new[] { "Poll scored-5", "Poll scored-4", "Poll scored-3" }, SectionRows(cut, "polls-scored")));
+        Assert.Equal(3, cut.FindAll(".polls-cards > li").Count);
+        Assert.Contains("5 polls · newest first", cut.Find(".polls-section-meta").TextContent);
+
+        var toggle = cut.Find(".polls-more");
+        Assert.Equal("false", toggle.GetAttribute("aria-expanded"));
+        Assert.Equal("Show 2 earlier polls", toggle.TextContent.Trim());
+
+        toggle.Click();
+
+        Assert.Equal(5, SectionRows(cut, "polls-scored").Length);
+        Assert.Equal("true", cut.Find(".polls-more").GetAttribute("aria-expanded"));
+        Assert.Equal("Show fewer polls", cut.Find(".polls-more").TextContent.Trim());
+
+        cut.Find(".polls-more").Click();
+
+        Assert.Equal(3, SectionRows(cut, "polls-scored").Length);
+    }
+
+    [Fact]
+    public void NothingUpcoming_SaysAllCaughtUp_AndOffersToImportFixtures()
+    {
+        var cut = RenderWithHandler(new RoutingHttpMessageHandler()
+            .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", new List<PollModel> { BuildPoll(status: "Scored") }));
+
+        cut.WaitForAssertion(() =>
+        {
+            var upcoming = cut.Find("section[aria-labelledby=polls-upcoming]");
+            Assert.Contains("All caught up", upcoming.TextContent);
+            Assert.Empty(upcoming.QuerySelectorAll("table"));
+            Assert.Equal("admin/polls/import", upcoming.QuerySelector("a")!.GetAttribute("href"));
+            Assert.Single(SectionRows(cut, "polls-scored"));
+        });
+    }
+
+    [Fact]
+    public void NothingScoredYet_LeavesOutTheScoredSection()
+    {
+        var cut = RenderWithHandler(new RoutingHttpMessageHandler()
+            .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", new List<PollModel> { BuildPoll(status: "Open") }));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(SectionRows(cut, "polls-upcoming"));
+            Assert.Equal(new[] { "Upcoming" }, cut.FindAll("h2").Select(h => h.TextContent.Trim()));
+            Assert.Empty(cut.FindAll("section[aria-labelledby=polls-scored]"));
         });
     }
 
@@ -167,15 +262,18 @@ public class PollsTests : BunitContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Picks", cut.Find(".polls-table thead").TextContent);
-            var picks = cut.FindAll(".polls-table tbody tr").Select(row => row.QuerySelectorAll("td")[2]).ToList();
+            Assert.Equal(4, cut.FindAll(".polls-table tbody tr").Count);
+            // Keyed by poll, since Scored polls sit in their own section after the upcoming ones
+            var picks = cut.FindAll(".polls-table tbody tr")
+                .ToDictionary(row => row.QuerySelector("th")!.TextContent.Trim(), row => row.QuerySelectorAll("td")[2]);
 
-            Assert.Equal("8 of 9 players picked", picks[0].QuerySelector(".pd-sr-only")!.TextContent);
-            Assert.Contains("pd-badge-draft", picks[0].QuerySelector(".pd-badge")!.ClassList);
-            Assert.Contains("pd-badge-open", picks[1].QuerySelector(".pd-badge")!.ClassList);
-            Assert.Equal("5 / 9", picks[2].QuerySelector("[aria-hidden=true]:not(svg)")!.TextContent);
-            Assert.Contains("pd-badge-closed", picks[2].QuerySelector(".pd-badge")!.ClassList);
-            Assert.Null(picks[3].QuerySelector(".pd-badge"));
-            Assert.Equal("No picks until published", picks[3].QuerySelector(".pd-sr-only")!.TextContent);
+            Assert.Equal("8 of 9 players picked", picks["Poll scored"].QuerySelector(".pd-sr-only")!.TextContent);
+            Assert.Contains("pd-badge-draft", picks["Poll scored"].QuerySelector(".pd-badge")!.ClassList);
+            Assert.Contains("pd-badge-open", picks["Poll closed"].QuerySelector(".pd-badge")!.ClassList);
+            Assert.Equal("5 / 9", picks["Poll open"].QuerySelector("[aria-hidden=true]:not(svg)")!.TextContent);
+            Assert.Contains("pd-badge-closed", picks["Poll open"].QuerySelector(".pd-badge")!.ClassList);
+            Assert.Null(picks["Poll draft"].QuerySelector(".pd-badge"));
+            Assert.Equal("No picks until published", picks["Poll draft"].QuerySelector(".pd-sr-only")!.TextContent);
         });
     }
 

@@ -91,11 +91,19 @@
 
 ### Admin: Polls (`/admin/polls`)
 
-**Layout:** Table of all polls.
+**Layout:** The season's polls in two sections, split by status rather than date, so the page opens
+on what still needs doing rather than on the season's finished polls.
 
-- **Columns:** Game date, title, status, # questions, actions
-- **Actions:** Edit, Publish, Close, Score (contextual by status)
-- **Create button** at top
+- **Upcoming:** `Draft`, `Open` and `Closed` polls, oldest game first, so a `Closed` poll waiting to be
+  scored sits at the top once its game has been played. When it's empty it says "All caught up" and
+  links to Import fixtures.
+- **Scored:** newest game first, the three most recent shown and the rest behind a "Show N earlier
+  polls" toggle, since a recent game is the likely reason to re-score. Left out entirely until
+  something has been scored.
+- Polls on the same date keep the order they were created in (newest first under Scored).
+- **Columns:** Game date, title, status, picks (picked / players this season), actions
+- **Actions:** Edit, Publish, Close voting, Score, View results, Re-score (contextual by status)
+- **Create poll, Import fixtures and Point adjustments** buttons at top
 
 ### Admin: Create Poll (`/admin/polls/create`)
 
