@@ -333,3 +333,17 @@ shared `TargetFramework` (`net10.0`), nullable, and implicit usings for every pr
   admin-assist features (draft poll questions, auto-suggested scoring), ranked by fit and cost
 - `docs/eihl-gamesheet-schema.md` — reference for `ai-features.md`'s auto-suggested-scoring idea;
   field-level schema of the official EIHL gamesheet data source, verified against the live site
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues for ndoherty48/PuckDrop, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
