@@ -107,6 +107,14 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
         await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, baseline + 1);
         await Assertions.Expect(LeaderboardAssertions.RowFor(admin, TestData.FriendDisplayName).GetByText("Picked after puck drop")).Not.ToBeVisibleAsync();
 
+        // The friend's "N of M correct · X%" as it stands now. Accuracy is season-wide, so its
+        // value depends on whatever else this run has scored for them - only "unchanged by the
+        // deduction" is this test's to assert. TextContent, not InnerText: that line is only
+        // displayed below 768px, and the inner text of a hidden element is empty.
+        var accuracy = LeaderboardAssertions.RowFor(admin, TestData.FriendDisplayName).Locator(".lb-sub");
+        var accuracyBeforeDeduction = (await accuracy.TextContentAsync())?.Trim();
+        Assert.Contains("correct", accuracyBeforeDeduction);
+
         // ── Deduct enough to land on exactly -5, whatever the baseline was ─────────────────
         var deduction = -(baseline + 6);
 
@@ -125,8 +133,8 @@ public class ScoringCorrectionsTests(AppHostFixture fixture)
         await LeaderboardAssertions.ExpectPointsAsync(admin, TestData.FriendDisplayName, -5);
         await Assertions.Expect(LeaderboardAssertions.RowFor(admin, TestData.FriendDisplayName).GetByText("Cause i can")).ToBeVisibleAsync();
 
-        // Accuracy is measured on points earned, so a deduction must not touch it: 1 of 2 correct.
-        await Assertions.Expect(LeaderboardAssertions.RowFor(admin, TestData.FriendDisplayName)).ToContainTextAsync("50.0%");
+        // Accuracy is measured on points earned, so a deduction must not touch it.
+        await Assertions.Expect(accuracy).ToHaveTextAsync(accuracyBeforeDeduction!);
 
         // ── Re-read everything from the API: the facts are really in DynamoDB ──────────────
         await fixture.ReloadOnBootstrapFailureAsync(admin);
