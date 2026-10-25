@@ -126,3 +126,11 @@
         font-size: 1.1875rem;
     }
 }
+
+/* A cancelled poll's reason, under its title in the table and the phone card */
+.polls-reason {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.9375rem;
+    font-weight: 400;
+}

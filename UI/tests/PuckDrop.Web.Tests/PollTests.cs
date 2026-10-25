@@ -47,6 +47,35 @@ public class PollTests : BunitContext
         cut.FindAll("button").FirstOrDefault(b => b.TextContent.Trim() == "Submit picks");
 
     [Fact]
+    public void CancelledPoll_ShowsOnlyWhyItWasCancelled_WithNoQuestionsPicksOrSubmit()
+    {
+        var cancelled = BuildPoll(DateTime.UtcNow.AddDays(1)) with
+        {
+            Status = "Cancelled",
+            Cancellation = new PollCancellationModel("Postponed: storm.", "Open", null, null)
+        };
+        var handler = new RoutingHttpMessageHandler()
+            .MapJson(HttpMethod.Get, $"polls/{PollId}", cancelled)
+            .MapJson(HttpMethod.Get, $"polls/{PollId}/answers", new List<UserAnswerModel> { new("q1", "o1", DateTime.UtcNow, null) });
+        Services.AddSingleton(handler.BuildClient());
+        Services.AddSingleton(TimeZoneInfo.FindSystemTimeZoneById("Europe/London"));
+
+        var cut = Render<Poll>(parameters => parameters.Add(p => p.PollId, PollId));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Cancelled", cut.Find(".pd-badge").TextContent);
+            Assert.Contains("This game day was cancelled", cut.Find("h2").TextContent);
+            Assert.Contains("Postponed: storm.", cut.Find("blockquote").TextContent);
+            // Picks may still have been hidden when it was cancelled - not even your own is shown
+            Assert.Empty(cut.FindAll("input[type=radio]"));
+            Assert.DoesNotContain("Who scores first?", cut.Markup);
+            Assert.DoesNotContain("Your pick", cut.Markup);
+            Assert.Null(FindSubmitButton(cut));
+        });
+    }
+
+    [Fact]
     public void ExistingAnswers_ArePreselected_AndCounted()
     {
         var cut = RenderPoll(

@@ -392,6 +392,170 @@ public class EditPollTests : BunitContext
         Assert.Contains(_currentPoll.GameDate.ToString("ddd d MMM yyyy"), cut.Markup);
     }
 
+    // ─── Cancel / restore ───────────────────────────────────────────────────
+
+    // A Modal's markup stays in the page while it's closed, so the page's own Cancel game button
+    // has to be told apart from the confirm button inside the dialog that carries the same label.
+    private static IEnumerable<IElement> PageButtons(IRenderedComponent<EditPoll> cut) =>
+        cut.FindAll("button").Where(b => b.Closest(".pd-dialog") is null);
+
+    private static IElement CancelGameTrigger(IRenderedComponent<EditPoll> cut) =>
+        PageButtons(cut).First(b => b.TextContent.Trim() == "Cancel game");
+
+    private static PollDetailModel BuildCancelledPoll(string cancelledFrom = "Open") =>
+        BuildPoll("Cancelled", Question("q1", "Who wins?", 1, "Belfast Giants", "Guildford Flames")) with
+        {
+            Cancellation = new PollCancellationModel(
+                "Postponed: storm.", cancelledFrom, "Ciara D.", new DateTime(2026, 9, 16, 9, 30, 0, DateTimeKind.Utc))
+        };
+
+    [Fact]
+    public void CancelledPoll_ShowsTheReasonAndWhoCancelledIt_OffersRestore_AndLocksTheQuestions()
+    {
+        _currentPoll = BuildCancelledPoll();
+
+        var cut = RenderEditPoll();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Cancelled", cut.Find(".edit-head .pd-badge").TextContent);
+            Assert.Equal("Cancelled", cut.Find("#next-step-title").TextContent.Trim());
+            Assert.Contains("Postponed: storm.", cut.Find(".edit-next blockquote").TextContent);
+            Assert.Contains("Cancelled by Ciara D. · Wed 16 Sep 2026", cut.Find(".edit-next").TextContent);
+            Assert.NotNull(Button(cut, "Restore poll"));
+            Assert.Empty(cut.FindAll("#add-question-title"));
+            Assert.Empty(cut.FindAll("button").Where(b => b.TextContent.Trim().StartsWith("Delete")));
+            Assert.Empty(PageButtons(cut).Where(b => b.TextContent.Trim() == "Cancel game"));
+        });
+    }
+
+    [Theory]
+    [InlineData("Draft", true)]
+    [InlineData("Open", true)]
+    [InlineData("Closed", true)]
+    [InlineData("Scored", false)]
+    public void CancelGame_IsOfferedUntilThePollIsScored(string status, bool offered)
+    {
+        _currentPoll = BuildPoll(status, Question("q1", "Who wins?", 1, "Belfast Giants", "Guildford Flames"));
+
+        var cut = RenderEditPoll();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("#next-step-title"));
+            Assert.Equal(offered, PageButtons(cut).Any(b => b.TextContent.Trim() == "Cancel game"));
+        });
+    }
+
+    [Fact]
+    public void CancelGame_WithNoReason_SaysSoInsideTheModal_WithoutCallingTheApi()
+    {
+        JSInterop.SetupVoid("puckDropDialog.show", _ => true).SetVoidResult();
+        JSInterop.SetupVoid("puckDropDialog.close", _ => true).SetVoidResult();
+        _currentPoll = BuildPoll("Open", Question("q1", "Who wins?", 1, "Belfast Giants", "Guildford Flames"));
+        var cancelCalled = false;
+        var handler = new RoutingHttpMessageHandler()
+            .Map(HttpMethod.Post, $"polls/{PollId}/cancel", _ => { cancelCalled = true; return new HttpResponseMessage(HttpStatusCode.OK); });
+        var cut = RenderEditPoll(handler);
+        cut.WaitForAssertion(() => CancelGameTrigger(cut));
+
+        CancelGameTrigger(cut).Click();
+        cut.Find("#cancelReason").Input("   ");
+        cut.FindAll(".pd-dialog button").Single(b => b.TextContent.Trim() == "Cancel game").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Enter a reason", cut.Find("#cancelReason").Closest(".pd-dialog")!.TextContent);
+            Assert.Equal("true", cut.Find("#cancelReason").GetAttribute("aria-invalid"));
+        });
+        Assert.False(cancelCalled);
+    }
+
+    [Fact]
+    public void CancelGame_WithAReason_SendsItTrimmed_AnnouncesIt_AndShowsTheCancelledPoll()
+    {
+        JSInterop.SetupVoid("puckDropDialog.show", _ => true).SetVoidResult();
+        JSInterop.SetupVoid("puckDropDialog.close", _ => true).SetVoidResult();
+        _currentPoll = BuildPoll("Open", Question("q1", "Who wins?", 1, "Belfast Giants", "Guildford Flames"));
+        string? submittedBody = null;
+        var handler = new RoutingHttpMessageHandler()
+            .Map(HttpMethod.Post, $"polls/{PollId}/cancel", request =>
+            {
+                submittedBody = request.Content!.ReadAsStringAsync().Result;
+                var cancelled = BuildCancelledPoll();
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = JsonContent.Create(new PollModel(
+                        PollId, cancelled.SeasonId, cancelled.GameDate, cancelled.Title, cancelled.Deadline,
+                        "Cancelled", "admin", DateTime.UtcNow, cancelled.Cancellation))
+                };
+            });
+        var cut = RenderEditPoll(handler);
+        cut.WaitForAssertion(() => CancelGameTrigger(cut));
+
+        CancelGameTrigger(cut).Click();
+        cut.Find("#cancelReason").Input("  Postponed: storm.  ");
+        cut.FindAll(".pd-dialog button").Single(b => b.TextContent.Trim() == "Cancel game").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Game cancelled.", cut.Find("[role=status]").TextContent);
+            Assert.Equal("Cancelled", cut.Find("#next-step-title").TextContent.Trim());
+            Assert.Contains("Postponed: storm.", cut.Find(".edit-next blockquote").TextContent);
+            Assert.Empty(cut.FindAll("#add-question-title"));
+        });
+        Assert.Contains("\"reason\":\"Postponed: storm.\"", submittedBody);
+    }
+
+    [Fact]
+    public void Restore_UserConfirms_PutsThePollBackToWhatItWasCancelledFrom_AndAnnouncesIt()
+    {
+        _currentPoll = BuildCancelledPoll(cancelledFrom: "Open");
+        var restoreCalled = false;
+        var handler = new RoutingHttpMessageHandler()
+            .Map(HttpMethod.Post, $"polls/{PollId}/restore", _ =>
+            {
+                restoreCalled = true;
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = JsonContent.Create(new PollModel(
+                        PollId, _currentPoll.SeasonId, _currentPoll.GameDate, _currentPoll.Title, _currentPoll.Deadline,
+                        "Open", "admin", DateTime.UtcNow))
+                };
+            });
+        var cut = RenderEditPoll(handler, confirmResult: true);
+        cut.WaitForAssertion(() => Button(cut, "Restore poll"));
+
+        Button(cut, "Restore poll").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("“Belfast Giants vs Guildford Flames” is back to Open.", cut.Find("[role=status]").TextContent);
+            Assert.Equal("Open for picks", cut.Find("#next-step-title").TextContent.Trim());
+            Assert.Empty(cut.FindAll(".edit-next blockquote"));
+            Assert.NotNull(CancelGameTrigger(cut));
+        });
+        Assert.True(restoreCalled);
+        Assert.Equal("Restore this poll?", Confirm.LastRequest?.Title);
+        Assert.Contains("goes back to Open", Confirm.LastRequest?.Message);
+    }
+
+    [Fact]
+    public void Restore_UserDeclinesConfirm_DoesNotCallTheApi()
+    {
+        _currentPoll = BuildCancelledPoll();
+        var restoreCalled = false;
+        var handler = new RoutingHttpMessageHandler()
+            .Map(HttpMethod.Post, $"polls/{PollId}/restore", _ => { restoreCalled = true; return new HttpResponseMessage(HttpStatusCode.OK); });
+        var cut = RenderEditPoll(handler, confirmResult: false);
+        cut.WaitForAssertion(() => Button(cut, "Restore poll"));
+
+        Button(cut, "Restore poll").Click();
+
+        Assert.False(restoreCalled);
+        Assert.Equal("Cancelled", cut.Find("#next-step-title").TextContent.Trim());
+    }
+
     [Fact]
     public void ClosedPoll_OffersScoring_AndDropsTheQuestionEditor()
     {

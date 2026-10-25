@@ -63,6 +63,20 @@ public class PuckDropApiClient(HttpClient httpClient)
         return await response.Content.ReadFromJsonAsync<PollModel>();
     }
 
+    public async Task<PollModel?> CancelPollAsync(string pollId, CancelPollRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync($"polls/{pollId}/cancel", request);
+        await EnsureSuccessAsync(response);
+        return await response.Content.ReadFromJsonAsync<PollModel>();
+    }
+
+    public async Task<PollModel?> RestorePollAsync(string pollId)
+    {
+        var response = await httpClient.PostAsync($"polls/{pollId}/restore", null);
+        await EnsureSuccessAsync(response);
+        return await response.Content.ReadFromJsonAsync<PollModel>();
+    }
+
     // ─── Questions ────────────────────────────────────────────────────────────
 
     public async Task<QuestionModel?> AddQuestionAsync(string pollId, CreateQuestionRequest request)

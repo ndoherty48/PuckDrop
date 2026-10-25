@@ -25,7 +25,7 @@ dotnet test PuckDrop.slnx         # Run all tests (xUnit v3 on Microsoft.Testing
 
 `API/tests/` and `UI/tests/` hold four xUnit v3 test projects — `PuckDrop.Domain.Tests`,
 `PuckDrop.Application.Tests`, `PuckDrop.Api.Tests` (all pure/fast, no external dependencies), and
-`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 396 tests total, covered in
+`PuckDrop.Web.Tests` (unit tests plus bUnit component tests) — 431 tests total, covered in
 `docs/implementation-plan.md`'s Phase 7.
 
 A fifth project, `tests/PuckDrop.E2ETests/` (repo-root `tests/`, not under `API/`/`UI/` — it's
@@ -35,11 +35,13 @@ headless Chromium browser via Playwright against it — real DynamoDB Local, rea
 Lambda-hosted API, the real Blazor WASM app, nothing mocked. Needs a container runtime (same as `aspire start` - Docker or
 Podman), the `Amazon.Lambda.TestTool` global tool (`dotnet tool install --global
 Amazon.Lambda.TestTool`), which `AddAWSLambdaFunction` shells out to and which also provides the
-API Gateway emulator, plus a one-time
+API Gateway emulator, the AWS CLI (`aws` on the PATH - the AppHost's `create-table` resource runs
+`aws dynamodb create-table` against DynamoDB Local, so `aspire start` needs it too), plus a one-time
 `pwsh tests/PuckDrop.E2ETests/bin/Debug/net10.0/playwright.ps1 install chromium` after first build
-to fetch Playwright's browser binary. All three are easy to forget because a dev machine acquires
-them once: a fresh CI runner has none of them, and missing the Lambda tool shows up as `api-gateway`
-never becoming healthy rather than as anything mentioning Lambda. Meaningfully slower than the four fast
+to fetch Playwright's browser binary. All four are easy to forget because a dev machine acquires
+them once: a fresh CI runner has none of them. Missing the Lambda tool shows up as `api-gateway`
+never becoming healthy rather than as anything mentioning Lambda, and missing the AWS CLI as `api`
+failing to start because it "stopped waiting for dependency resource 'create-table'". Meaningfully slower than the four fast
 projects above (real container boots, real cold WASM loads, real AWS Lambda Service Emulator round
 trips) — for routine local iteration, run the fast subset (`dotnet test` against each of the four
 projects above individually — `dotnet test PuckDrop.slnx` runs everything, this project included,

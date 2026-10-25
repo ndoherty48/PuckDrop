@@ -56,7 +56,12 @@ public static class DynamoDbMapper
         Deadline = poll.Deadline,
         Status = poll.Status.ToString(),
         CreatedBy = poll.CreatedBy,
-        CreatedAt = poll.CreatedAt
+        CreatedAt = poll.CreatedAt,
+        CancelledFromStatus = poll.CancelledFromStatus?.ToString(),
+        CancellationReason = poll.CancellationReason,
+        CancelledBy = poll.CancelledBy,
+        CancelledByName = poll.CancelledByName,
+        CancelledAt = poll.CancelledAt
     };
 
     public static PollItem ToSeasonCollectionItem(GameDayPoll poll) => new()
@@ -70,7 +75,12 @@ public static class DynamoDbMapper
         Deadline = poll.Deadline,
         Status = poll.Status.ToString(),
         CreatedBy = poll.CreatedBy,
-        CreatedAt = poll.CreatedAt
+        CreatedAt = poll.CreatedAt,
+        CancelledFromStatus = poll.CancelledFromStatus?.ToString(),
+        CancellationReason = poll.CancellationReason,
+        CancelledBy = poll.CancelledBy,
+        CancelledByName = poll.CancelledByName,
+        CancelledAt = poll.CancelledAt
     };
 
     public static GameDayPoll ToDomain(PollItem item) => new()
@@ -93,7 +103,7 @@ public static class DynamoDbMapper
         var poll = ToDomain(item);
         // Use reflection or a dedicated internal method to hydrate status from persistence.
         // For now, we use an internal hydration approach.
-        HydrateStatus(poll, item.Status);
+        HydrateStatus(poll, item);
         return poll;
     }
 
@@ -270,10 +280,24 @@ public static class DynamoDbMapper
     /// This works around the private setter by using the domain transition methods
     /// to reach the target state from the default (Draft).
     /// </summary>
-    private static void HydrateStatus(GameDayPoll poll, string status)
+    private static void HydrateStatus(GameDayPoll poll, PollItem item)
     {
-        var targetStatus = Enum.Parse<PollStatus>(status);
+        var targetStatus = Enum.Parse<PollStatus>(item.Status);
 
+        // A cancelled poll is replayed to the status it was cancelled from, then cancelled again
+        // with its stored reason, canceller and time - so Restore has the same status to go back to.
+        if (targetStatus == PollStatus.Cancelled)
+        {
+            HydrateTo(poll, Enum.Parse<PollStatus>(item.CancelledFromStatus!));
+            poll.Cancel(item.CancellationReason!, item.CancelledBy!, item.CancelledByName ?? item.CancelledBy!, item.CancelledAt!.Value);
+            return;
+        }
+
+        HydrateTo(poll, targetStatus);
+    }
+
+    private static void HydrateTo(GameDayPoll poll, PollStatus targetStatus)
+    {
         switch (targetStatus)
         {
             case PollStatus.Draft:

@@ -90,6 +90,20 @@ public class AnswerServiceTests
     }
 
     [Fact]
+    public async Task SubmitAnswersAsync_PollCancelled_ThrowsSayingItWasCancelled_AndSavesNothing()
+    {
+        // Past the deadline too, so this can't pass by falling into the "voting has closed" branch.
+        var pollData = BuildOpenPoll(DateTime.UtcNow.AddMinutes(-1));
+        pollData.Poll.Cancel("Postponed: storm.", "admin-user", "Ciara D.", DateTime.UtcNow);
+        var (service, answerRepository, _) = CreateService(pollData);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SubmitAnswersAsync("user-1", "Nathan", PollId, [new AnswerSubmission(QuestionId, OptionId)], TestContext.Current.CancellationToken));
+        Assert.Contains("cancelled", ex.Message, StringComparison.OrdinalIgnoreCase);
+        await answerRepository.DidNotReceiveWithAnyArgs().SaveAnswersAsync(default!, default);
+    }
+
+    [Fact]
     public async Task SubmitAnswersAsync_UnknownQuestionId_ThrowsArgumentException()
     {
         var pollData = BuildOpenPoll(DateTime.UtcNow.AddDays(1));

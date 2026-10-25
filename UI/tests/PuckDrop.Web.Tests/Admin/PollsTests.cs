@@ -18,6 +18,12 @@ public class PollsTests : BunitContext
         pollId, "2025-26", gameDate ?? new DateOnly(2026, 1, 15), $"Poll {pollId}",
         DateTime.UtcNow.AddDays(1), status, "admin-user", DateTime.UtcNow);
 
+    private static PollModel BuildCancelledPoll(string pollId, DateOnly gameDate) =>
+        BuildPoll(pollId, "Cancelled", gameDate) with
+        {
+            Cancellation = new PollCancellationModel("Postponed: storm.", "Open", "Ciara D.", DateTime.UtcNow)
+        };
+
     private ConfirmDialogStub Confirm { get; set; } = null!;
 
     private IRenderedComponent<Polls> RenderWithHandler(RoutingHttpMessageHandler handler, bool confirmResult = true)
@@ -96,7 +102,7 @@ public class PollsTests : BunitContext
             .Select(th => th.TextContent.Trim()).ToArray();
 
     [Fact]
-    public void Polls_SplitIntoUpcomingOldestFirst_AndScoredNewestFirst_WithActionsForEachStatus_NamingThePoll()
+    public void Polls_SplitIntoUpcomingOldestFirst_AndPastNewestFirst_WithActionsForEachStatus_NamingThePoll()
     {
         var handler = new RoutingHttpMessageHandler()
             .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", new List<PollModel>
@@ -105,7 +111,8 @@ public class PollsTests : BunitContext
                 BuildPoll("draft", "Draft", new DateOnly(2026, 1, 24)),
                 BuildPoll("closed", "Closed", new DateOnly(2026, 1, 12)),
                 BuildPoll("open", "Open", new DateOnly(2026, 1, 17)),
-                BuildPoll("scored-newer", "Scored", new DateOnly(2026, 1, 11))
+                BuildPoll("scored-newer", "Scored", new DateOnly(2026, 1, 11)),
+                BuildCancelledPoll("cancelled", new DateOnly(2026, 1, 18))
             });
         var cut = RenderWithHandler(handler);
 
@@ -121,31 +128,39 @@ public class PollsTests : BunitContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal(new[] { "Upcoming", "Scored" }, cut.FindAll("h2").Select(h => h.TextContent.Trim()));
+            Assert.Equal(new[] { "Upcoming", "Past" }, cut.FindAll("h2").Select(h => h.TextContent.Trim()));
 
             // A Closed poll's game has been played, so it leads Upcoming, waiting to be scored
             Assert.Equal(new[] { "Poll closed", "Poll open", "Poll draft" }, SectionRows(cut, "polls-upcoming"));
-            Assert.Equal(new[] { "Poll scored-newer", "Poll scored" }, SectionRows(cut, "polls-scored"));
+            // Past holds everything with nothing left to do: Scored and Cancelled alike
+            Assert.Equal(new[] { "Poll cancelled", "Poll scored-newer", "Poll scored" }, SectionRows(cut, "polls-past"));
             Assert.Equal(
-                new[] { "Upcoming polls, oldest game first", "Scored polls, newest first" },
+                new[] { "Upcoming polls, oldest game first", "Past polls, newest first" },
                 cut.FindAll(".polls-table caption").Select(c => c.TextContent));
             Assert.Equal(
-                new[] { "Upcoming polls", "Scored polls" },
+                new[] { "Upcoming polls", "Past polls" },
                 cut.FindAll(".polls-cards").Select(list => list.GetAttribute("aria-label")));
 
             var rows = cut.FindAll(".polls-table tbody tr");
             // Re-score is offered on a Scored poll so a wrong correct option can be fixed, or a
             // partly scored poll finished.
-            Assert.Equal(new[] { "Score" }, Controls(rows[0], "Poll closed"));
+            // Edit is offered on a Closed poll too, since cancelling a game day lives on Edit poll,
+            // and on a Cancelled one, which is where it's restored.
+            Assert.Equal(new[] { "Edit", "Score" }, Controls(rows[0], "Poll closed"));
             Assert.Equal(new[] { "Edit", "Close voting" }, Controls(rows[1], "Poll open"));
             Assert.Equal(new[] { "Edit", "Publish" }, Controls(rows[2], "Poll draft"));
-            Assert.Equal(new[] { "View results", "Re-score" }, Controls(rows[4], "Poll scored"));
+            Assert.Equal(new[] { "Edit" }, Controls(rows[3], "Poll cancelled"));
+            Assert.Equal(new[] { "View results", "Re-score" }, Controls(rows[5], "Poll scored"));
 
-            Assert.Equal("admin/polls/closed/score", rows[0].QuerySelector("a")!.GetAttribute("href"));
+            Assert.Equal("admin/polls/closed/edit", rows[0].QuerySelector("a")!.GetAttribute("href"));
             Assert.Equal("admin/polls/draft/edit", rows[2].QuerySelector("a")!.GetAttribute("href"));
-            Assert.Equal("results/scored", rows[4].QuerySelector("a")!.GetAttribute("href"));
+            Assert.Equal("admin/polls/cancelled/edit", rows[3].QuerySelector("a")!.GetAttribute("href"));
+            Assert.Equal("results/scored", rows[5].QuerySelector("a")!.GetAttribute("href"));
 
-            Assert.Equal(5, cut.FindAll(".polls-cards > li").Count);
+            // The reason sits with the cancelled poll, so it's clear why it's in Past unscored
+            Assert.Contains("Postponed: storm.", rows[3].TextContent);
+
+            Assert.Equal(6, cut.FindAll(".polls-cards > li").Count);
             Assert.Empty(cut.FindAll(".polls-more"));
         });
     }
@@ -167,7 +182,7 @@ public class PollsTests : BunitContext
         cut.WaitForAssertion(() =>
         {
             Assert.Equal(new[] { "Poll open-earlier", "Poll open-later" }, SectionRows(cut, "polls-upcoming"));
-            Assert.Equal(new[] { "Poll scored-later", "Poll scored-earlier" }, SectionRows(cut, "polls-scored"));
+            Assert.Equal(new[] { "Poll scored-later", "Poll scored-earlier" }, SectionRows(cut, "polls-past"));
         });
     }
 
@@ -181,7 +196,7 @@ public class PollsTests : BunitContext
             .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", polls));
 
         cut.WaitForAssertion(() =>
-            Assert.Equal(new[] { "Poll scored-5", "Poll scored-4", "Poll scored-3" }, SectionRows(cut, "polls-scored")));
+            Assert.Equal(new[] { "Poll scored-5", "Poll scored-4", "Poll scored-3" }, SectionRows(cut, "polls-past")));
         Assert.Equal(3, cut.FindAll(".polls-cards > li").Count);
         Assert.Contains("5 polls · newest first", cut.Find(".polls-section-meta").TextContent);
 
@@ -191,13 +206,13 @@ public class PollsTests : BunitContext
 
         toggle.Click();
 
-        Assert.Equal(5, SectionRows(cut, "polls-scored").Length);
+        Assert.Equal(5, SectionRows(cut, "polls-past").Length);
         Assert.Equal("true", cut.Find(".polls-more").GetAttribute("aria-expanded"));
         Assert.Equal("Show fewer polls", cut.Find(".polls-more").TextContent.Trim());
 
         cut.Find(".polls-more").Click();
 
-        Assert.Equal(3, SectionRows(cut, "polls-scored").Length);
+        Assert.Equal(3, SectionRows(cut, "polls-past").Length);
     }
 
     [Fact]
@@ -212,12 +227,12 @@ public class PollsTests : BunitContext
             Assert.Contains("All caught up", upcoming.TextContent);
             Assert.Empty(upcoming.QuerySelectorAll("table"));
             Assert.Equal("admin/polls/import", upcoming.QuerySelector("a")!.GetAttribute("href"));
-            Assert.Single(SectionRows(cut, "polls-scored"));
+            Assert.Single(SectionRows(cut, "polls-past"));
         });
     }
 
     [Fact]
-    public void NothingScoredYet_LeavesOutTheScoredSection()
+    public void NothingScoredOrCancelledYet_LeavesOutThePastSection()
     {
         var cut = RenderWithHandler(new RoutingHttpMessageHandler()
             .MapJson(HttpMethod.Get, "polls?seasonId=2025-26", new List<PollModel> { BuildPoll(status: "Open") }));
@@ -226,7 +241,7 @@ public class PollsTests : BunitContext
         {
             Assert.Single(SectionRows(cut, "polls-upcoming"));
             Assert.Equal(new[] { "Upcoming" }, cut.FindAll("h2").Select(h => h.TextContent.Trim()));
-            Assert.Empty(cut.FindAll("section[aria-labelledby=polls-scored]"));
+            Assert.Empty(cut.FindAll("section[aria-labelledby=polls-past]"));
         });
     }
 
@@ -249,7 +264,8 @@ public class PollsTests : BunitContext
                 BuildPoll("scored", "Scored", new DateOnly(2026, 1, 1)),
                 BuildPoll("closed", "Closed", new DateOnly(2026, 1, 2)),
                 BuildPoll("open", "Open", new DateOnly(2026, 1, 3)),
-                BuildPoll("draft", "Draft", new DateOnly(2026, 1, 4))
+                BuildPoll("draft", "Draft", new DateOnly(2026, 1, 4)),
+                BuildCancelledPoll("cancelled", new DateOnly(2026, 1, 5))
             })
             .MapJson(HttpMethod.Get, "polls/participation?seasonId=2025-26", new SeasonParticipationModel(9,
             [
@@ -262,8 +278,8 @@ public class PollsTests : BunitContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Picks", cut.Find(".polls-table thead").TextContent);
-            Assert.Equal(4, cut.FindAll(".polls-table tbody tr").Count);
-            // Keyed by poll, since Scored polls sit in their own section after the upcoming ones
+            Assert.Equal(5, cut.FindAll(".polls-table tbody tr").Count);
+            // Keyed by poll, since Scored and Cancelled polls sit in their own section after the upcoming ones
             var picks = cut.FindAll(".polls-table tbody tr")
                 .ToDictionary(row => row.QuerySelector("th")!.TextContent.Trim(), row => row.QuerySelectorAll("td")[2]);
 
@@ -274,6 +290,9 @@ public class PollsTests : BunitContext
             Assert.Contains("pd-badge-closed", picks["Poll open"].QuerySelector(".pd-badge")!.ClassList);
             Assert.Null(picks["Poll draft"].QuerySelector(".pd-badge"));
             Assert.Equal("No picks until published", picks["Poll draft"].QuerySelector(".pd-sr-only")!.TextContent);
+            // A cancelled poll's picks count for nothing, so it gets no count at all
+            Assert.Null(picks["Poll cancelled"].QuerySelector(".pd-badge"));
+            Assert.Equal("Cancelled, so picks don't count", picks["Poll cancelled"].QuerySelector(".pd-sr-only")!.TextContent);
         });
     }
 

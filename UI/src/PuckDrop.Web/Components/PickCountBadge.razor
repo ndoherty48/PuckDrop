@@ -4,6 +4,10 @@
 {
     <span class="pd-muted" aria-hidden="true">—</span><span class="pd-sr-only">No picks until published</span>
 }
+else if (Status == "Cancelled")
+{
+    <span class="pd-muted" aria-hidden="true">—</span><span class="pd-sr-only">Cancelled, so picks don't count</span>
+}
 else
 {
     <span class="pd-badge @BadgeClass"><Icon Name="@IconName" Size="16" /><span aria-hidden="true">@Picked / @Players</span><span class="pd-sr-only">@Picked of @Players players picked</span></span>

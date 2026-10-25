@@ -259,6 +259,11 @@ public class DynamoDbPollRepository(IAmazonDynamoDB dynamoDb) : IPollRepository
         if (item.GSI1SK is not null) attrs["GSI1SK"] = new(item.GSI1SK);
         if (item.GSI2PK is not null) attrs["GSI2PK"] = new(item.GSI2PK);
         if (item.GSI2SK is not null) attrs["GSI2SK"] = new(item.GSI2SK);
+        if (item.CancelledFromStatus is not null) attrs["cancelledFromStatus"] = new(item.CancelledFromStatus);
+        if (item.CancellationReason is not null) attrs["cancellationReason"] = new(item.CancellationReason);
+        if (item.CancelledBy is not null) attrs["cancelledBy"] = new(item.CancelledBy);
+        if (item.CancelledByName is not null) attrs["cancelledByName"] = new(item.CancelledByName);
+        if (item.CancelledAt is not null) attrs["cancelledAt"] = new(item.CancelledAt.Value.ToString());
 
         return attrs;
     }
@@ -313,7 +318,12 @@ public class DynamoDbPollRepository(IAmazonDynamoDB dynamoDb) : IPollRepository
             Deadline = DateTime.Parse(attrs["deadline"].S),
             Status = attrs["status"].S,
             CreatedBy = attrs["createdBy"].S,
-            CreatedAt = DateTime.Parse(attrs["createdAt"].S)
+            CreatedAt = DateTime.Parse(attrs["createdAt"].S),
+            CancelledFromStatus = attrs.GetValueOrDefault("cancelledFromStatus")?.S,
+            CancellationReason = attrs.GetValueOrDefault("cancellationReason")?.S,
+            CancelledBy = attrs.GetValueOrDefault("cancelledBy")?.S,
+            CancelledByName = attrs.GetValueOrDefault("cancelledByName")?.S,
+            CancelledAt = attrs.TryGetValue("cancelledAt", out var cancelledAt) ? DateTime.Parse(cancelledAt.S) : null
         };
         return DynamoDbMapper.ToDomainWithStatus(item);
     }

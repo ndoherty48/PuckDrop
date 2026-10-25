@@ -1,11 +1,12 @@
 namespace PuckDrop.Domain.Entities;
 
 /// <summary>
-/// The reason text attached to an admin sanction - a voided poll or a point adjustment.
+/// The reason text attached to an admin sanction - a voided poll or a point adjustment - and to a
+/// cancelled poll, which follows the same rules.
 /// </summary>
 /// <remarks>
-/// Shown publicly on the leaderboard, so it is required and trimmed: a blank or whitespace-only
-/// reason renders as an unexplained penalty next to someone's name.
+/// Shown publicly, so it is required and trimmed: a blank or whitespace-only reason renders as an
+/// unexplained penalty next to someone's name, or an unexplained cancelled game day.
 /// </remarks>
 public static class SanctionReason
 {

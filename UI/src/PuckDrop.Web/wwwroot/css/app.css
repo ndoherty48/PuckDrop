@@ -821,7 +821,8 @@ html {
 }
 
 .pd-badge-error,
-.pd-badge-voided {
+.pd-badge-voided,
+.pd-badge-cancelled {
   background: var(--pd-miss-tint);
   color: var(--pd-miss);
 }

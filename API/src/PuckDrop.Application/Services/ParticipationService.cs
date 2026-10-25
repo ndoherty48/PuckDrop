@@ -9,7 +9,8 @@ public class ParticipationService(IPollRepository pollRepository, IUserAnswerRep
     /// <summary>
     /// How many players have picked in each published poll this season, out of everyone who has
     /// picked in any of them. There's no member list, so the season's pickers are the roster: a
-    /// brand-new player counts from their first pick. Drafts can't have picks, so they're skipped.
+    /// brand-new player counts from their first pick. Drafts can't have picks, so they're skipped,
+    /// and so are cancelled polls.
     /// </summary>
     public async Task<SeasonParticipation> GetSeasonParticipationAsync(
         string seasonId, CancellationToken cancellationToken = default)
@@ -60,7 +61,9 @@ public class ParticipationService(IPollRepository pollRepository, IUserAnswerRep
         string seasonId, CancellationToken cancellationToken)
     {
         var polls = await pollRepository.ListBySeasonAsync(seasonId, cancellationToken);
-        var published = polls.Where(p => p.Status != PollStatus.Draft).ToList();
+        // Cancelled polls are left out too: their picks count for nothing else, so they shouldn't
+        // put someone on the roster either. A restore brings them back in.
+        var published = polls.Where(p => p.Status is not (PollStatus.Draft or PollStatus.Cancelled)).ToList();
 
         var answers = await Task.WhenAll(published.Select(p =>
             answerRepository.GetAllAnswersForPollAsync(p.PollId, cancellationToken)));

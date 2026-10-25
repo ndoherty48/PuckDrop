@@ -205,3 +205,26 @@
     color: var(--pd-draft);
     font-size: 0.9375rem;
 }
+
+/* ---------- Cancelled ---------- */
+.edit-cancel-label {
+    margin: 0;
+}
+
+.edit-cancel-reason {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-left: 4px solid var(--pd-miss);
+    border-radius: 0 var(--pd-radius) var(--pd-radius) 0;
+    background: var(--pd-ice);
+}
+
+.edit-cancel-open {
+    margin-top: 1rem;
+}
+
+.edit-cancel-input {
+    min-height: 6.5rem;
+    padding-block: 0.75rem;
+    resize: vertical;
+}
