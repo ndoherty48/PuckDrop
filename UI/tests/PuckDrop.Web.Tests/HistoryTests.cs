@@ -66,6 +66,49 @@ public class HistoryTests : BunitContext
         });
     }
 
+    private static PollModel BuildCancelledPoll(string pollId, DateOnly gameDate, string cancelledFrom) =>
+        BuildPoll(pollId, gameDate, "Cancelled") with
+        {
+            Cancellation = new PollCancellationModel("Postponed: storm.", cancelledFrom, null, null)
+        };
+
+    [Fact]
+    public void ListsAPollCancelledAfterPublishing_InDateOrder_WithItsReasonAndALinkToItsDetails()
+    {
+        var cut = RenderHistory(
+        [
+            BuildPoll("scored", new DateOnly(2026, 9, 12), "Scored"),
+            BuildCancelledPoll("cancelled", new DateOnly(2026, 9, 19), cancelledFrom: "Open")
+        ]);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(
+                new[] { "Poll cancelled", "Poll scored" },
+                cut.FindAll(".history-title").Select(t => t.TextContent.Trim()));
+
+            var row = cut.FindAll(".history-row")[0];
+            Assert.Contains("Cancelled", row.QuerySelector(".pd-badge")!.TextContent);
+            Assert.Contains("Postponed: storm.", row.TextContent);
+            var link = row.QuerySelector("a")!;
+            Assert.Equal("poll/cancelled", link.GetAttribute("href"));
+            Assert.Contains("View details for Poll cancelled", link.TextContent);
+        });
+    }
+
+    [Fact]
+    public void LeavesOutAPollCancelledWhileStillADraft_SincePlayersNeverSawIt()
+    {
+        var cut = RenderHistory(
+        [
+            BuildPoll("scored", new DateOnly(2026, 9, 12), "Scored"),
+            BuildCancelledPoll("cancelled-draft", new DateOnly(2026, 9, 19), cancelledFrom: "Draft")
+        ]);
+
+        cut.WaitForAssertion(() =>
+            Assert.Equal(new[] { "Poll scored" }, cut.FindAll(".history-title").Select(t => t.TextContent.Trim())));
+    }
+
     [Fact]
     public void NoPastPolls_ShowsEmptyMessage()
     {

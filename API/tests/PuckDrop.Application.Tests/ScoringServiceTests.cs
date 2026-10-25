@@ -123,6 +123,18 @@ public class ScoringServiceTests
     }
 
     [Fact]
+    public async Task ScorePollAsync_PollCancelled_Throws_AndWritesNoScoresSoTheLeaderboardIsUntouched()
+    {
+        var poll = BuildClosedPoll();
+        poll.Cancel("Postponed: storm.", "admin-user", "Ciara D.", DateTime.UtcNow);
+        var fixture = CreateFixture(new PollWithQuestions(poll, BuildTwoQuestions(), []), BuildAnswersForTwoUsers());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Service.ScorePollAsync(PollId, [new QuestionScore(Question1Id, Q1CorrectOptionId)], TestContext.Current.CancellationToken));
+        await fixture.LeaderboardRepository.DidNotReceiveWithAnyArgs().SavePollScoresAsync(default!, default);
+    }
+
+    [Fact]
     public async Task ScorePollAsync_UnknownQuestionIdInCorrectAnswers_ThrowsArgumentException()
     {
         var pollData = new PollWithQuestions(BuildClosedPoll(), BuildTwoQuestions(), []);

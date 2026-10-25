@@ -57,6 +57,14 @@ RESTful API served via AWS Lambda behind API Gateway (HTTP API v2). All endpoint
 | PUT | `/polls/{pollId}` | Admin | Update poll (title, deadline) |
 | POST | `/polls/{pollId}/publish` | Admin | Move from Draft → Open |
 | POST | `/polls/{pollId}/close` | Admin | Manually close voting |
+| POST | `/polls/{pollId}/cancel` | Admin | Cancel a Draft/Open/Closed poll whose game didn't go ahead. Body: `{ "reason": "..." }` (required) |
+| POST | `/polls/{pollId}/restore` | Admin | Return a cancelled poll to the status it was cancelled from |
+
+A cancelled poll's responses carry a `cancellation` object (null otherwise):
+`{ "reason", "cancelledFromStatus", "cancelledByName", "cancelledAt" }`. `reason` and
+`cancelledFromStatus` are for everyone; `cancelledByName` and `cancelledAt` are filled in only for
+callers who meet the admin policy. A cancelled poll drops out of `/polls/active` (it no longer has
+the Open GSI2 key) and out of both participation counts.
 
 ### Questions (nested under polls)
 
@@ -230,6 +238,7 @@ All errors follow a consistent shape:
 | Code | HTTP Status | When |
 |------|-------------|------|
 | POLL_CLOSED | 400 | Submitting answers after deadline |
+| INVALID_OPERATION | 400 | A transition the poll's status doesn't allow — cancelling a Scored poll, restoring one that isn't cancelled, or picks on a cancelled poll ("This game day was cancelled, so it isn't taking picks.") |
 | POLL_NOT_FOUND | 404 | Invalid pollId |
 | FORBIDDEN | 403 | User attempting admin action |
 | VALIDATION_ERROR | 400 | Invalid request body |

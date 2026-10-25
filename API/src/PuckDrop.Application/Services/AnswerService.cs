@@ -1,4 +1,5 @@
 using PuckDrop.Domain.Entities;
+using PuckDrop.Domain.Enums;
 using PuckDrop.Application.Models;
 using PuckDrop.Application.Repositories;
 
@@ -41,6 +42,10 @@ public class AnswerService(IUserAnswerRepository answerRepository, IPollReposito
         var utcNow = DateTime.UtcNow;
         if (!poll.IsAcceptingAnswers(utcNow))
         {
+            // Checked first: a cancelled poll is often past its deadline as well, and "voting has
+            // closed" would suggest the picks still count for something.
+            if (poll.Status == PollStatus.Cancelled)
+                throw new InvalidOperationException("This game day was cancelled, so it isn't taking picks.");
             if (utcNow >= poll.Deadline)
                 throw new InvalidOperationException("Voting has closed for this poll.");
             else

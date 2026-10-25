@@ -34,4 +34,22 @@ public class PollItem : DynamoDbItem
 
     [DynamoDBProperty("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // The cancellation attributes are only written while the poll is Cancelled. Saves are
+    // whole-item Puts, so restoring a poll drops them again.
+
+    [DynamoDBProperty("cancelledFromStatus")]
+    public string? CancelledFromStatus { get; set; }
+
+    [DynamoDBProperty("cancellationReason")]
+    public string? CancellationReason { get; set; }
+
+    [DynamoDBProperty("cancelledBy")]
+    public string? CancelledBy { get; set; }
+
+    [DynamoDBProperty("cancelledByName")]
+    public string? CancelledByName { get; set; }
+
+    [DynamoDBProperty("cancelledAt")]
+    public DateTime? CancelledAt { get; set; }
 }

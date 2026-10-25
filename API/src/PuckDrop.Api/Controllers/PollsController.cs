@@ -4,20 +4,26 @@ using PuckDrop.Api.Auth;
 using PuckDrop.Api.Contracts;
 using PuckDrop.Api.Mappings;
 using PuckDrop.Application.Services;
+using PuckDrop.Application.Services.Abstractions;
 
 namespace PuckDrop.Api.Controllers;
 
 [Authorize]
 [ApiController]
 [Route("polls")]
-public class PollsController(PollService pollService, ParticipationService participationService) : ControllerBase
+public class PollsController(
+    PollService pollService,
+    ParticipationService participationService,
+    IUserProfileService userProfileService,
+    IAuthorizationService authorizationService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<PollResponse>>> ListPolls(
         [FromQuery] string seasonId, CancellationToken ct)
     {
         var polls = await pollService.ListPollsAsync(seasonId, ct);
-        return Ok(polls.Select(p => p.ToResponse()).ToList());
+        var isAdmin = await IsAdminAsync();
+        return Ok(polls.Select(p => p.ToResponse(isAdmin)).ToList());
     }
 
     [HttpGet("active")]
@@ -44,7 +50,7 @@ public class PollsController(PollService pollService, ParticipationService parti
         if (result is null)
             return NotFound(new ErrorResponse("POLL_NOT_FOUND", $"Poll '{pollId}' not found."));
 
-        return Ok(result.Poll.ToDetailResponse(result.Questions, result.Options));
+        return Ok(result.Poll.ToDetailResponse(result.Questions, result.Options, await IsAdminAsync()));
     }
 
     [Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
@@ -113,5 +119,32 @@ public class PollsController(PollService pollService, ParticipationService parti
         var poll = await pollService.ClosePollAsync(pollId, ct);
         return Ok(poll.ToResponse());
     }
+
+    [Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
+    [HttpPost("{pollId}/cancel")]
+    public async Task<ActionResult<PollResponse>> CancelPoll(
+        string pollId, [FromBody] CancelPollRequest request, CancellationToken ct)
+    {
+        // The name is captured now, as answers capture the picker's, since there's no user
+        // directory to look the canceller up in later.
+        var displayName = await userProfileService.GetDisplayNameAsync(ct);
+        var poll = await pollService.CancelPollAsync(pollId, request.Reason, User.GetUserId(), displayName, ct);
+        return Ok(poll.ToResponse(includeAdminDetail: true));
+    }
+
+    [Authorize(Policy = ApiServiceCollectionExtensions.AdminPolicy)]
+    [HttpPost("{pollId}/restore")]
+    public async Task<ActionResult<PollResponse>> RestorePoll(string pollId, CancellationToken ct)
+    {
+        var poll = await pollService.RestorePollAsync(pollId, ct);
+        return Ok(poll.ToResponse(includeAdminDetail: true));
+    }
+
+    /// <summary>
+    /// Whether the caller meets the same <see cref="ApiServiceCollectionExtensions.AdminPolicy"/>
+    /// the admin endpoints require - so who cancelled a poll is shown to exactly those callers.
+    /// </summary>
+    private async Task<bool> IsAdminAsync() =>
+        (await authorizationService.AuthorizeAsync(User, ApiServiceCollectionExtensions.AdminPolicy)).Succeeded;
 
 }

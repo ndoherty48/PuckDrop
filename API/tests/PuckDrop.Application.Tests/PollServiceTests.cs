@@ -232,6 +232,64 @@ public class PollServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.ClosePollAsync(PollId, TestContext.Current.CancellationToken));
     }
 
+    // ─── CancelPollAsync / RestorePollAsync ─────────────────────────────────
+
+    [Fact]
+    public async Task CancelPollAsync_Open_SavesTheCancelledPollWithReasonAndCanceller()
+    {
+        var (service, pollRepository, _) = CreateService(BuildPoll(PollStatus.Open));
+
+        var poll = await service.CancelPollAsync(PollId, "Postponed: storm.", "admin-2", "Ciara D.", TestContext.Current.CancellationToken);
+
+        Assert.Equal(PollStatus.Cancelled, poll.Status);
+        Assert.Equal("Postponed: storm.", poll.CancellationReason);
+        Assert.Equal("admin-2", poll.CancelledBy);
+        Assert.Equal("Ciara D.", poll.CancelledByName);
+        await pollRepository.Received(1).SavePollAsync(
+            Arg.Is<GameDayPoll>(p => p.Status == PollStatus.Cancelled), Arg.Any<DateOnly?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CancelPollAsync_PollNotFound_ThrowsKeyNotFoundException()
+    {
+        var (service, _, _) = CreateService(poll: null);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            service.CancelPollAsync(PollId, "Postponed: storm.", "admin-2", "Ciara D.", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task CancelPollAsync_Scored_PropagatesInvalidOperationException_AndSavesNothing()
+    {
+        var (service, pollRepository, _) = CreateService(BuildPoll(PollStatus.Scored));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CancelPollAsync(PollId, "Postponed: storm.", "admin-2", "Ciara D.", TestContext.Current.CancellationToken));
+        await pollRepository.DidNotReceiveWithAnyArgs().SavePollAsync(default!, default, default);
+    }
+
+    [Fact]
+    public async Task RestorePollAsync_Cancelled_SavesThePollBackInTheStatusItWasCancelledFrom()
+    {
+        var cancelled = BuildPoll(PollStatus.Closed);
+        cancelled.Cancel("Postponed: storm.", "admin-2", "Ciara D.", DateTime.UtcNow);
+        var (service, pollRepository, _) = CreateService(cancelled);
+
+        var poll = await service.RestorePollAsync(PollId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(PollStatus.Closed, poll.Status);
+        await pollRepository.Received(1).SavePollAsync(
+            Arg.Is<GameDayPoll>(p => p.Status == PollStatus.Closed), Arg.Any<DateOnly?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RestorePollAsync_PollNotFound_ThrowsKeyNotFoundException()
+    {
+        var (service, _, _) = CreateService(poll: null);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.RestorePollAsync(PollId, TestContext.Current.CancellationToken));
+    }
+
     // ─── AddQuestionAsync / DeleteQuestionAsync ─────────────────────────────
 
     [Fact]

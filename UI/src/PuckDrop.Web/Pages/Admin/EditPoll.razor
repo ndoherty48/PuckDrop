@@ -68,6 +68,41 @@ else
         </FooterContent>
     </Modal>
 
+    @* Same component as Edit date and time: a confirmation that also holds the required reason *@
+    <Modal Title="Cancel this game?" Open="@_cancelling" OnDismiss="CloseCancel">
+        <ChildContent>
+            @if (_poll.Status == "Draft")
+            {
+                <p>It was never published, so players won't see it. It moves to Past on Manage polls, where it can be restored.</p>
+            }
+            else
+            {
+                <p>It comes off everyone's home screen straight away and will never be scored. @PicksKeptText You can restore it.</p>
+            }
+            <div class="pd-field">
+                <label for="cancelReason" class="pd-label">Reason</label>
+                <p id="cancel-reason-hint" class="pd-hint">
+                    @(_poll.Status == "Draft" ? "Required. Only admins see it." : "Required. Every player sees it.")
+                </p>
+                @if (_cancelError is not null)
+                {
+                    <p id="cancel-reason-error" class="pd-error-msg" role="alert"><Icon Name="alert" Size="18" />@_cancelError</p>
+                }
+                <textarea id="cancelReason" class="pd-input edit-cancel-input" rows="3" maxlength="200"
+                          @bind="_cancelReason" @bind:event="oninput"
+                          aria-invalid="@(_cancelError is null ? null : "true")"
+                          aria-describedby="@(_cancelError is null ? "cancel-reason-hint" : "cancel-reason-hint cancel-reason-error")"></textarea>
+            </div>
+            <p class="pd-hint">Rearranged? Create a new poll for the new date.</p>
+        </ChildContent>
+        <FooterContent>
+            <button type="button" class="pd-btn pd-btn-quiet" @onclick="CloseCancel">Keep game</button>
+            <button type="button" class="pd-btn pd-btn-danger" disabled="@_cancelSaving" @onclick="CancelGameAsync">
+                @(_cancelSaving ? "Cancelling…" : "Cancel game")
+            </button>
+        </FooterContent>
+    </Modal>
+
     @* Always rendered, so screen readers announce additions and deletions *@
     <div role="status">
         @if (_statusMessage is not null)
@@ -156,6 +191,23 @@ else
                     </div>
                     <p class="pd-hint edit-next-hint">Set the correct answer for each question to mark everyone's picks and update the leaderboard.</p>
                 }
+                else if (_poll.Cancellation is { } cancellation)
+                {
+                    <p class="pd-label edit-cancel-label">Reason players see</p>
+                    <blockquote class="edit-cancel-reason">@cancellation.Reason</blockquote>
+                    @if (cancellation.CancelledByName is not null && cancellation.CancelledAt is { } cancelledAt)
+                    {
+                        <p class="pd-hint">Cancelled by @cancellation.CancelledByName · @TimeZoneInfo.ConvertTimeFromUtc(cancelledAt, LocalTimeZone).ToString("ddd d MMM yyyy")</p>
+                    }
+                    <p class="pd-hint">To change the reason, restore the poll and cancel it again.</p>
+                    <div class="edit-next-actions">
+                        <button type="button" class="pd-btn pd-btn-secondary pd-btn-lg pd-btn-block" disabled="@Busy"
+                                @onclick="RestoreAsync">
+                            <Icon Name="restore" />@(_restoring ? "Restoring…" : "Restore poll")
+                        </button>
+                    </div>
+                    <p class="pd-hint edit-next-hint">Goes back to @cancellation.CancelledFromStatus, as it was, with every pick already in. You'll be asked to confirm first.</p>
+                }
                 else
                 {
                     <div class="edit-next-actions">
@@ -164,6 +216,14 @@ else
                     <p class="pd-hint edit-next-hint">This poll is scored. Its questions can't be changed.</p>
                 }
             </section>
+
+            @* The rare path, so it sits under the next step rather than in it *@
+            @if (_poll.Status is "Draft" or "Open" or "Closed")
+            {
+                <button type="button" class="pd-btn pd-btn-danger pd-btn-block edit-cancel-open" disabled="@Busy" @onclick="OpenCancel">
+                    <Icon Name="cancel" />Cancel game
+                </button>
+            }
 
             @* Who to chase before puck drop. Only while Open: after that it's too late to pick. *@
             @if (_poll.Status == "Open")
@@ -285,6 +345,11 @@ else
     private string? _questionError;
     private string? _optionsError;
     private string? _rescheduleError;
+    private bool _cancelling;
+    private bool _restoring;
+    private bool _cancelSaving;
+    private string _cancelReason = "";
+    private string? _cancelError;
 
     private DateOnly _rescheduleGameDate;
     private DateTime _rescheduleDeadline;
@@ -297,7 +362,11 @@ else
     private ElementReference _questionInput;
     private readonly Dictionary<int, ElementReference> _optionInputs = new();
 
-    private bool Busy => _addingQuestion || _deleting || _publishing || _closing || _reschedulingSaving;
+    private bool Busy => _addingQuestion || _deleting || _publishing || _closing || _reschedulingSaving || _cancelSaving || _restoring;
+
+    private string PicksKeptText => _participation is { PickedCount: var picked }
+        ? $"The {picked} {(picked == 1 ? "set" : "sets")} of picks are kept but hidden."
+        : "Any picks are kept but hidden.";
 
     // The API rejects question edits once voting has closed
     private bool CanEditQuestions => _poll?.Status is "Draft" or "Open";
@@ -307,6 +376,7 @@ else
         "Draft" => "Ready to publish?",
         "Open" => "Open for picks",
         "Closed" => "Voting closed",
+        "Cancelled" => "Cancelled",
         _ => "Poll scored"
     };
 
@@ -477,6 +547,99 @@ else
         _rescheduleDeadline = TimeZoneInfo.ConvertTimeFromUtc(_poll.Deadline, LocalTimeZone);
         _rescheduleError = null;
         _rescheduling = true;
+    }
+
+    private void OpenCancel()
+    {
+        _cancelReason = "";
+        _cancelError = null;
+        _cancelling = true;
+    }
+
+    private void CloseCancel()
+    {
+        _cancelling = false;
+        _cancelError = null;
+    }
+
+    private async Task CancelGameAsync()
+    {
+        if (_cancelSaving || _poll is null) return;
+
+        var reason = _cancelReason.Trim();
+        if (reason.Length == 0)
+        {
+            _cancelError = "Enter a reason";
+            return;
+        }
+
+        _cancelError = null;
+        _cancelSaving = true;
+
+        try
+        {
+            var updated = await Api.CancelPollAsync(PollId, new CancelPollRequest(reason));
+
+            _poll = _poll with { Status = updated?.Status ?? "Cancelled", Cancellation = updated?.Cancellation };
+            _statusMessage = "Game cancelled. It's off players' home screens and listed under Past.";
+            _cancelling = false;
+
+            // The Cancel game button is gone - the panel heading names the state that replaced it
+            await _nextStepHeading.FocusAsync();
+        }
+        catch (ApiException ex) when (ex.StatusCode == HttpStatusCode.BadRequest)
+        {
+            // Inside the still-open modal, like Edit date and time - the admin is mid-edit
+            _cancelError = ex.ApiMessage ?? "This game couldn't be cancelled. Reload the page to see its current status.";
+        }
+        catch (Exception)
+        {
+            _cancelError = "Failed to cancel. Please try again.";
+        }
+        finally
+        {
+            _cancelSaving = false;
+        }
+    }
+
+    private async Task RestoreAsync()
+    {
+        if (Busy || _poll?.Cancellation is not { } cancellation) return;
+
+        _statusMessage = null;
+        _error = null;
+
+        var backTo = cancellation.CancelledFromStatus;
+        if (!await ConfirmDialog.ShowAsync(
+                $"\"{_poll.Title}\" goes back to {backTo}, as it was before it was cancelled, with every pick already in."
+                    + (backTo == "Draft" ? "" : " Players see it again."),
+                title: "Restore this poll?",
+                confirmLabel: "Restore poll",
+                cancelLabel: "Keep it cancelled"))
+            return;
+
+        _restoring = true;
+
+        try
+        {
+            var updated = await Api.RestorePollAsync(PollId);
+            _poll = _poll with { Status = updated?.Status ?? backTo, Cancellation = null };
+            _statusMessage = $"“{_poll.Title}” is back to {_poll.Status}.";
+
+            await _nextStepHeading.FocusAsync();
+
+            // Back to Open means "Still to pick" is shown again, and it was never loaded for a Draft
+            if (_participation is null && _poll.Status != "Draft")
+                await LoadParticipationAsync();
+        }
+        catch (Exception)
+        {
+            _error = "Failed to restore the poll. Please try again.";
+        }
+        finally
+        {
+            _restoring = false;
+        }
     }
 
     private void CancelReschedule()

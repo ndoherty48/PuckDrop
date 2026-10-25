@@ -47,6 +47,10 @@
     margin: 0.125rem 0 0;
 }
 
+.history-reason {
+    margin: 0.25rem 0 0;
+}
+
 .history-action {
     justify-self: end;
 }

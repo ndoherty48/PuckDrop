@@ -65,6 +65,25 @@ public class ParticipationServiceTests
     }
 
     [Fact]
+    public async Task GetSeasonParticipationAsync_LeavesOutCancelledPolls_AndPlayersWhoOnlyPickedInThem()
+    {
+        var cancelled = BuildPoll("poll-2", published: true);
+        cancelled.Cancel("Postponed: storm.", "admin-user", "Ciara D.", DateTime.UtcNow);
+        var (service, _) = CreateService(
+            [BuildPoll("poll-1", published: true), cancelled],
+            new()
+            {
+                ["poll-1"] = [Answer("alice", "poll-1")],
+                ["poll-2"] = [Answer("alice", "poll-2"), Answer("dave", "poll-2")]
+            });
+
+        var result = await service.GetSeasonParticipationAsync(SeasonId, TestContext.Current.CancellationToken);
+
+        Assert.Equal("poll-1", Assert.Single(result.Polls).PollId);
+        Assert.Equal(1, result.PlayerCount);
+    }
+
+    [Fact]
     public async Task GetSeasonParticipationAsync_PlayerCountIsDistinctPickersAcrossTheSeason()
     {
         var (service, _) = CreateService(

@@ -28,6 +28,8 @@
   - If poll is Open: "Make your picks →" button
   - If poll is Closed/Scored: "View results →" button
   - If no active poll: "No upcoming poll" message
+  - A cancelled poll is never shown here: it drops off the card and "Also open" the moment it's
+    cancelled. Players find out from History (below).
   - With several polls open, the card is the next game: the soonest poll still taking picks,
     whether or not the user has picked it. An Open poll past its deadline (waiting to be closed)
     only leads when nothing else is open.
@@ -52,6 +54,10 @@
 - **State handling:**
   - Before deadline: editable, submit enabled
   - After deadline: read-only, shows what user picked
+  - Cancelled: the title, game date, a "Cancelled" badge and the reason, and nothing else — no
+    questions, no picks (not even the viewer's own) and no submit. Picks may still have been hidden
+    when it was cancelled, and with nothing to score they mean nothing. This is where History's
+    "View details" lands, and where an old link to the poll ends up.
 
 ### Results (`/results/{pollId}`)
 
@@ -63,7 +69,8 @@
   - Correct answer highlighted in green
   - Each user's pick shown (green tick / red cross)
 - **Summary** — Points scored this game day per user
-- **Only visible** when poll status is `Scored`
+- **Only visible** when poll status is `Scored` — so a cancelled poll, never scored, has no results
+  page to explain itself on; that's the Poll page's job (above)
 
 ### Leaderboard (`/leaderboard`)
 
@@ -87,6 +94,9 @@
 
 - **Grouped by month** (or just a reverse-chronological list)
 - **Per item:** Game title, date, user's score, link to full results
+- **Cancelled polls** are listed in date order with the rest: a "Cancelled" badge and the reason in
+  place of a score, and a "View details" link to the Poll page. Only polls cancelled after being published
+  appear — a Draft that was cancelled was never seen by players, so it isn't here either.
 - **Filtered to current season** (with season selector)
 
 ### Admin: Polls (`/admin/polls`)
@@ -97,12 +107,18 @@ on what still needs doing rather than on the season's finished polls.
 - **Upcoming:** `Draft`, `Open` and `Closed` polls, oldest game first, so a `Closed` poll waiting to be
   scored sits at the top once its game has been played. When it's empty it says "All caught up" and
   links to Import fixtures.
-- **Scored:** newest game first, the three most recent shown and the rest behind a "Show N earlier
-  polls" toggle, since a recent game is the likely reason to re-score. Left out entirely until
-  something has been scored.
-- Polls on the same date keep the order they were created in (newest first under Scored).
+- **Past:** `Scored` and `Cancelled` polls — both have nothing left to do. Newest game first, the
+  three most recent shown and the rest behind a "Show N earlier polls" toggle, since a recent game is
+  the likely reason to re-score. Left out entirely until something has been scored or cancelled.
+  A cancelled poll carries a "Cancelled" badge in the status column and its reason, with no picks
+  count; a cancelled Draft is listed here too, since this is the only place it can be seen.
+- **Players this season** (the picks column's denominator) counts only picks on polls that aren't
+  cancelled, so someone whose only picks were on a cancelled game isn't counted.
+- Polls on the same date keep the order they were created in (newest first under Past).
 - **Columns:** Game date, title, status, picks (picked / players this season), actions
-- **Actions:** Edit, Publish, Close voting, Score, View results, Re-score (contextual by status)
+- **Actions:** Edit, Publish, Close voting, Score, View results, Re-score (contextual by status).
+  Edit is offered on Draft, Open, Closed and Cancelled polls: cancelling isn't a row action — it lives
+  on Edit Poll, where the reason is entered — and neither is restoring.
 - **Create poll, Import fixtures and Point adjustments** buttons at top
 
 ### Admin: Create Poll (`/admin/polls/create`)
@@ -132,10 +148,23 @@ on what still needs doing rather than on the season's finished polls.
   - Open → **Close voting** (Open → Closed) + a link to the live poll
   - Closed → link to **Score poll**
   - Scored → link to the results
+  - Cancelled → the reason, who cancelled it and when (admins only — players see just the reason),
+    and **Restore poll**, which puts it back to the status it was cancelled from (Draft, Open or
+    Closed) with its questions and picks untouched. Confirmed first, through the shared
+    `ConfirmDialogService`. A poll restored to Open after
+    its deadline is simply an Open poll past its deadline. The reason can't be edited: restore and
+    cancel again to change it.
+- **Cancel game** — offered while Draft, Open or Closed, as a secondary destructive button below
+  the next step panel (it's the rare path). Opens a `Modal` (the same component as Edit date and
+  time) that says the poll will drop off players' home screens and never be scored, and holds the
+  reason field: required, and shown to every player (except for a Draft, which players never saw). "Cancel game" / "Keep
+  game", never a bare OK/Cancel. Not offered once `Scored` — a game that didn't count must be
+  cancelled before it's scored.
+- Cancelling and restoring keep the admin on the page, like publishing and closing
 - Publishing and closing keep the admin on the page: the status badge changes and the change is
   announced, rather than navigating away
 - **Only editable** while Draft or Open — the question editor and Delete buttons go once voting
-  has closed
+  has closed, and while Cancelled (restore first to edit)
 
 ### Admin: Score Poll (`/admin/polls/{pollId}/score`)
 
@@ -150,7 +179,7 @@ on what still needs doing rather than on the season's finished polls.
   answers the poll already has, so correcting one question doesn't blank the rest, and a partly
   scored poll shows exactly which questions are still unset. Wording switches to "Ready to
   re-score?" / "Update scores", and the confirm warns the leaderboard is recalculated.
-- **Reachable** when poll status is `Closed` (score) or `Scored` (re-score)
+- **Reachable** when poll status is `Closed` (score) or `Scored` (re-score) — never `Cancelled`
 
 ### Admin: Point Adjustments (`/admin/leaderboard`)
 
@@ -207,3 +236,27 @@ themselves are visible.
 1. After scoring, user opens app → Home shows "View results" for last game
 2. Taps through → sees per-question breakdown
 3. Can also check Leaderboard for updated standings
+
+### Flow 5: Admin cancels a game day
+
+The game doesn't go ahead (postponed, ice problem, travel) after its poll is published.
+
+1. Admin opens Admin: Polls → taps "Edit" on the poll (it's under Upcoming: Open, or Closed if the
+   deadline has already passed)
+2. Taps "Cancel game" → a confirmation modal opens → enters a reason, e.g. "Postponed — Steelers
+   travel issues, rearranged for 14 Jan" → taps "Cancel game"
+3. The poll's badge changes to Cancelled; it moves to Past on Admin: Polls
+4. Players: the poll is gone from Home; History lists it as Cancelled with the reason. Any picks
+   made are kept but shown to nobody, and nothing reaches the leaderboard
+5. If the game is rearranged, the admin creates a new poll for the new date (Flow 2) — friends pick
+   again. The cancelled poll stays cancelled
+
+### Flow 6: Admin restores a cancelled poll
+
+The wrong game was cancelled, or the game goes ahead after all.
+
+1. Admin opens Admin: Polls → finds the poll under Past → taps "Edit"
+2. Taps "Restore poll" → confirms
+3. The poll returns to the status it was cancelled from, with its picks intact: back on Home if
+   Open, back under Upcoming ready to score if Closed
+

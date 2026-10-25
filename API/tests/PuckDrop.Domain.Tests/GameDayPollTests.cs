@@ -267,4 +267,138 @@ public class GameDayPollTests
 
         Assert.False(poll.IsAcceptingAnswers(DateTime.UtcNow));
     }
+
+    // ─── Cancel ─────────────────────────────────────────────────────────────
+
+    private const string CancelReason = "Postponed: Steelers' travel cancelled by the storm.";
+    private static readonly DateTime CancelledAt = new(2026, 10, 16, 9, 30, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public void Cancel_FromOpen_TransitionsToCancelledAndRecordsWhoWhenWhyAndWhatFrom()
+    {
+        var poll = CreatePoll(FutureDeadline);
+        poll.Publish();
+
+        poll.Cancel(CancelReason, "admin-2", "Ciara D.", CancelledAt);
+
+        Assert.Equal(PollStatus.Cancelled, poll.Status);
+        Assert.Equal(PollStatus.Open, poll.CancelledFromStatus);
+        Assert.Equal(CancelReason, poll.CancellationReason);
+        Assert.Equal("admin-2", poll.CancelledBy);
+        Assert.Equal("Ciara D.", poll.CancelledByName);
+        Assert.Equal(CancelledAt, poll.CancelledAt);
+    }
+
+    [Fact]
+    public void Cancel_FromScored_Throws_SoCancellingNeverChangesTheLeaderboard()
+    {
+        var poll = CreatePoll(PastDeadline);
+        poll.Publish();
+        poll.MarkScored(DateTime.UtcNow);
+
+        Assert.Throws<InvalidOperationException>(() => poll.Cancel(CancelReason, "admin-2", "Ciara D.", CancelledAt));
+        Assert.Equal(PollStatus.Scored, poll.Status);
+    }
+
+    [Fact]
+    public void Cancel_WhenAlreadyCancelled_Throws_AndKeepsWhatItWasCancelledFrom()
+    {
+        var poll = CreatePoll(FutureDeadline);
+        poll.Publish();
+        poll.Cancel(CancelReason, "admin-2", "Ciara D.", CancelledAt);
+
+        Assert.Throws<InvalidOperationException>(() => poll.Cancel("Another reason", "admin-3", "Ciara D.", CancelledAt));
+        Assert.Equal(PollStatus.Open, poll.CancelledFromStatus);
+        Assert.Equal(CancelReason, poll.CancellationReason);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Cancel_WithBlankReason_Throws_BecausePlayersWouldSeeAnUnexplainedCancellation(string reason)
+    {
+        var poll = CreatePoll(FutureDeadline);
+        poll.Publish();
+
+        Assert.Throws<ArgumentException>(() => poll.Cancel(reason, "admin-2", "Ciara D.", CancelledAt));
+        Assert.Equal(PollStatus.Open, poll.Status);
+    }
+
+    [Fact]
+    public void Cancel_TrimsTheReason()
+    {
+        var poll = CreatePoll(FutureDeadline);
+        poll.Publish();
+
+        poll.Cancel("  Ice plant failure  ", "admin-2", "Ciara D.", CancelledAt);
+
+        Assert.Equal("Ice plant failure", poll.CancellationReason);
+    }
+
+    // ─── Restore ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Restore_ReturnsToTheStatusItWasCancelledFrom_AndClearsTheCancellation()
+    {
+        var poll = CreatePoll(FutureDeadline);
+        poll.Publish();
+        poll.Close();
+        poll.Cancel(CancelReason, "admin-2", "Ciara D.", CancelledAt);
+
+        poll.Restore();
+
+        Assert.Equal(PollStatus.Closed, poll.Status);
+        Assert.Null(poll.CancelledFromStatus);
+        Assert.Null(poll.CancellationReason);
+        Assert.Null(poll.CancelledBy);
+        Assert.Null(poll.CancelledByName);
+        Assert.Null(poll.CancelledAt);
+    }
+
+    [Fact]
+    public void Restore_WhenNotCancelled_Throws()
+    {
+        var poll = CreatePoll(FutureDeadline);
+        poll.Publish();
+
+        Assert.Throws<InvalidOperationException>(() => poll.Restore());
+        Assert.Equal(PollStatus.Open, poll.Status);
+    }
+
+    // ─── A cancelled poll refuses everything but Restore ────────────────────
+
+    private static GameDayPoll CreateCancelledPoll(DateTime deadline)
+    {
+        var poll = CreatePoll(deadline);
+        poll.Publish();
+        poll.Cancel(CancelReason, "admin-2", "Ciara D.", CancelledAt);
+        return poll;
+    }
+
+    [Fact]
+    public void IsAcceptingAnswers_CancelledBeforeDeadline_ReturnsFalse()
+    {
+        var poll = CreateCancelledPoll(FutureDeadline);
+
+        Assert.False(poll.IsAcceptingAnswers(DateTime.UtcNow));
+    }
+
+    [Fact]
+    public void EnsureCanBeScored_WhenCancelled_Throws_EvenWithTheDeadlinePassed()
+    {
+        var poll = CreateCancelledPoll(PastDeadline);
+
+        Assert.Throws<InvalidOperationException>(() => poll.EnsureCanBeScored(DateTime.UtcNow));
+    }
+
+    [Fact]
+    public void PublishCloseAndReschedule_WhenCancelled_AllThrow()
+    {
+        var poll = CreateCancelledPoll(FutureDeadline);
+
+        Assert.Throws<InvalidOperationException>(() => poll.Publish());
+        Assert.Throws<InvalidOperationException>(() => poll.Close());
+        Assert.Throws<InvalidOperationException>(() => poll.Reschedule(DateOnly.FromDateTime(FutureDeadline), FutureDeadline));
+        Assert.Equal(PollStatus.Cancelled, poll.Status);
+    }
 }

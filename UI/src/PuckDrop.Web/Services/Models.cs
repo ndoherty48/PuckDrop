@@ -8,7 +8,15 @@ public record SeasonModel(string SeasonId, string Name, DateOnly StartDate, Date
 
 public record PollModel(
     string PollId, string SeasonId, DateOnly GameDate, string Title,
-    DateTime Deadline, string Status, string CreatedBy, DateTime CreatedAt);
+    DateTime Deadline, string Status, string CreatedBy, DateTime CreatedAt,
+    PollCancellationModel? Cancellation = null);
+
+/// <summary>
+/// Why a cancelled poll's game day didn't count. CancelledByName and CancelledAt only come back
+/// for admins; CancelledFromStatus is what Restore returns the poll to.
+/// </summary>
+public record PollCancellationModel(
+    string Reason, string CancelledFromStatus, string? CancelledByName, DateTime? CancelledAt);
 
 /// <summary>
 /// Admin-only: players who've picked per published poll, out of everyone who's picked this season.
@@ -28,7 +36,7 @@ public record PlayerModel(string UserId, string DisplayName);
 public record PollDetailModel(
     string PollId, string SeasonId, DateOnly GameDate, string Title,
     DateTime Deadline, string Status, string CreatedBy, DateTime CreatedAt,
-    List<QuestionModel> Questions);
+    List<QuestionModel> Questions, PollCancellationModel? Cancellation = null);
 
 public record QuestionModel(
     string QuestionId, string Text, int SortOrder,
@@ -83,6 +91,8 @@ public record AuthConfigModel(string Authority, string ClientId, string Response
 public record CreatePollRequest(string Title, DateOnly GameDate, DateTime Deadline);
 
 public record RescheduleRequest(DateOnly GameDate, DateTime Deadline);
+
+public record CancelPollRequest(string Reason);
 
 public record CreateQuestionRequest(string Text, int SortOrder, List<CreateOptionRequest> Options);
 

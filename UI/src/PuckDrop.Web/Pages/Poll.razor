@@ -17,6 +17,27 @@ else if (poll is null)
 {
     <p class="pd-muted" role="status">Loading poll…</p>
 }
+else if (poll.Cancellation is { } cancellation)
+{
+    @* Reason only: picks may still have been hidden when it was cancelled, and with nothing to
+       score they mean nothing - so not even the player's own are shown *@
+    <div class="poll-head">
+        <a class="pd-back-link" href="history"><Icon Name="left" />Back to History</a>
+        <p class="pd-eyebrow poll-eyebrow">Game day poll · @poll.GameDate.ToString("ddd d MMM yyyy")</p>
+        <h1 class="pd-page-title">@poll.Title</h1>
+        <div class="pd-meta-row">
+            <PollStatusBadge Status="@poll.Status" />
+        </div>
+    </div>
+
+    <section class="pd-card poll-cancelled" aria-labelledby="poll-cancelled-title">
+        <h2 id="poll-cancelled-title" class="pd-h2">This game day was cancelled</h2>
+        <p class="pd-label poll-cancelled-label">Reason</p>
+        <blockquote class="poll-cancelled-reason">@cancellation.Reason</blockquote>
+        <p>It won't be scored and doesn't count towards the leaderboard. Picks made for it aren't shown.</p>
+        <p class="pd-muted">If the game is rearranged, it'll be a new poll on Home.</p>
+    </section>
+}
 else
 {
     <div class="poll-head">
@@ -202,6 +223,9 @@ else
             }
 
             questions = poll.Questions.OrderBy(q => q.SortOrder).ToList();
+
+            if (poll.Status == "Cancelled")
+                return;
 
             // Pre-populate from existing answers
             var existingAnswers = await Api.GetAnswersAsync(PollId);

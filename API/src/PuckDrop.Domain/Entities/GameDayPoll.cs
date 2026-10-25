@@ -38,6 +38,34 @@ public class GameDayPoll
     public PollStatus Status { get; private set; } = PollStatus.Draft;
 
     /// <summary>
+    /// The status the poll was in when it was cancelled - what <see cref="Restore"/> returns it to.
+    /// Null unless the poll is Cancelled.
+    /// </summary>
+    public PollStatus? CancelledFromStatus { get; private set; }
+
+    /// <summary>
+    /// Why the game day was cancelled. Shown to every player. Null unless the poll is Cancelled.
+    /// </summary>
+    public string? CancellationReason { get; private set; }
+
+    /// <summary>
+    /// Admin user ID who cancelled the poll. Null unless the poll is Cancelled.
+    /// </summary>
+    public string? CancelledBy { get; private set; }
+
+    /// <summary>
+    /// The canceller's display name as it was when they cancelled, so admins can see who did it
+    /// without a user directory - the same way answers capture the picker's name. Null unless the
+    /// poll is Cancelled.
+    /// </summary>
+    public string? CancelledByName { get; private set; }
+
+    /// <summary>
+    /// When the poll was cancelled (UTC). Null unless the poll is Cancelled.
+    /// </summary>
+    public DateTime? CancelledAt { get; private set; }
+
+    /// <summary>
     /// Admin user ID who created this poll.
     /// </summary>
     public required string CreatedBy { get; set; }
@@ -127,5 +155,49 @@ public class GameDayPoll
 
         GameDate = gameDate;
         Deadline = deadline;
+    }
+
+    /// <summary>
+    /// Cancels the poll because its game didn't go ahead. It will never be scored, so it never
+    /// reaches the leaderboard.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if the poll is Scored or already Cancelled.</exception>
+    /// <exception cref="ArgumentException">Thrown if the reason is blank or too long.</exception>
+    public void Cancel(string reason, string cancelledBy, string cancelledByName, DateTime utcNow)
+    {
+        // Not once Scored: a game that didn't count must be cancelled before it's scored, which is
+        // what keeps a cancel from ever changing anyone's total. Not twice either, or the status
+        // Restore goes back to would be overwritten with Cancelled.
+        if (Status is PollStatus.Scored or PollStatus.Cancelled)
+            throw new InvalidOperationException(
+                $"Cannot cancel a poll with status '{Status}'. Poll must be Draft, Open or Closed.");
+
+        var normalisedReason = SanctionReason.Normalise(reason, nameof(reason));
+
+        CancelledFromStatus = Status;
+        CancellationReason = normalisedReason;
+        CancelledBy = cancelledBy;
+        CancelledByName = cancelledByName;
+        CancelledAt = utcNow;
+        Status = PollStatus.Cancelled;
+    }
+
+    /// <summary>
+    /// Undoes <see cref="Cancel"/>, returning the poll to exactly the status it was cancelled from.
+    /// Its questions and picks were never touched, so nothing else needs putting back.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if the poll is not Cancelled.</exception>
+    public void Restore()
+    {
+        if (Status != PollStatus.Cancelled || CancelledFromStatus is not { } previousStatus)
+            throw new InvalidOperationException(
+                $"Cannot restore a poll with status '{Status}'. Poll must be Cancelled.");
+
+        Status = previousStatus;
+        CancelledFromStatus = null;
+        CancellationReason = null;
+        CancelledBy = null;
+        CancelledByName = null;
+        CancelledAt = null;
     }
 }

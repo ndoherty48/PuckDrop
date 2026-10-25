@@ -59,6 +59,11 @@ GSI2SK: DEADLINE#{deadline}
 ```
 Attributes: `pollId`, `seasonId`, `gameDate`, `title`, `deadline`, `status`, `createdBy`, `createdAt`
 
+While `status` is `Cancelled`, also `cancelledFromStatus`, `cancellationReason`, `cancelledBy`,
+`cancelledByName` and `cancelledAt`. Saves are whole-item Puts, so a restore drops them again.
+Cancelling moves `GSI2PK` to `SEASON#{seasonId}#STATUS#Cancelled`, which is what takes the poll off
+the active-polls query (access pattern 10) with no extra filtering.
+
 Also written to the season's poll collection:
 ```
 PK: SEASON#{seasonId}

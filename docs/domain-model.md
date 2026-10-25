@@ -24,9 +24,14 @@ A poll tied to a specific game day. Contains one or more questions.
 | GameDate | date | The game date |
 | Title | string | e.g. "Belfast Giants vs Sheffield Steelers" |
 | Deadline | datetime (UTC) | Voting closes at this time (typically 19:00 local) |
-| Status | enum | Draft, Open, Closed, Scored |
+| Status | enum | Draft, Open, Closed, Scored, Cancelled |
 | CreatedBy | string | Admin user ID |
 | CreatedAt | datetime | |
+| CancelledFromStatus | enum? | What Restore returns it to. Set only while Cancelled |
+| CancellationReason | string? | Shown to every player (trimmed, required, ≤200). Set only while Cancelled |
+| CancelledBy | string? | Admin user ID. Set only while Cancelled |
+| CancelledByName | string? | Admin's display name at the time, for admins to see. Set only while Cancelled |
+| CancelledAt | datetime? | Set only while Cancelled |
 
 **Status transitions:**
 - Draft → Open (admin publishes)
@@ -36,6 +41,11 @@ A poll tied to a specific game day. Contains one or more questions.
 - Scored → Scored (admin **re-scores**: fixes a wrong correct option, finishes a partly scored poll,
   or retries a pass that failed halfway). Safe to repeat, because a poll's scoring facts are
   overwritten rather than accumulated.
+- Draft / Open / Closed → Cancelled (admin cancels, with a reason, because the game didn't go ahead).
+  Never from Scored, so cancelling can't change the leaderboard; a cancelled poll can't be scored,
+  published, closed, rescheduled, edited or take picks. A rearranged game is a new poll.
+- Cancelled → whatever it was cancelled from (admin restores). Picks were never touched, so they
+  come back as they were.
 
 ### Question
 

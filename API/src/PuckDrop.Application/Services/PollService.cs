@@ -122,6 +122,35 @@ public class PollService(IPollRepository pollRepository, SeasonService seasonSer
     }
 
     /// <summary>
+    /// Cancels a poll whose game didn't go ahead (Draft, Open or Closed → Cancelled). Picks are
+    /// left where they are, so a restore needs to put nothing back.
+    /// </summary>
+    public async Task<GameDayPoll> CancelPollAsync(
+        string pollId, string reason, string cancelledBy, string cancelledByName,
+        CancellationToken cancellationToken = default)
+    {
+        var poll = await GetPollOrThrowAsync(pollId, cancellationToken);
+
+        poll.Cancel(reason, cancelledBy, cancelledByName, DateTime.UtcNow);
+
+        await pollRepository.SavePollAsync(poll, cancellationToken: cancellationToken);
+        return poll;
+    }
+
+    /// <summary>
+    /// Restores a cancelled poll to the status it was cancelled from.
+    /// </summary>
+    public async Task<GameDayPoll> RestorePollAsync(string pollId, CancellationToken cancellationToken = default)
+    {
+        var poll = await GetPollOrThrowAsync(pollId, cancellationToken);
+
+        poll.Restore();
+
+        await pollRepository.SavePollAsync(poll, cancellationToken: cancellationToken);
+        return poll;
+    }
+
+    /// <summary>
     /// Gets a poll by ID.
     /// </summary>
     public async Task<GameDayPoll?> GetPollAsync(string pollId, CancellationToken cancellationToken = default)

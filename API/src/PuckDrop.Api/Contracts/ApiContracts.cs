@@ -24,6 +24,8 @@ public record UpdatePollRequest(string? Title, string? Deadline);
 /// <summary>Draft-only: see PollService.RescheduleAsync.</summary>
 public record RescheduleRequest(string GameDate, string Deadline);
 
+public record CancelPollRequest(string Reason);
+
 public record PollResponse(
     string PollId,
     string SeasonId,
@@ -32,7 +34,8 @@ public record PollResponse(
     string Deadline,
     string Status,
     string CreatedBy,
-    string CreatedAt);
+    string CreatedAt,
+    PollCancellationResponse? Cancellation = null);
 
 public record PollDetailResponse(
     string PollId,
@@ -43,7 +46,18 @@ public record PollDetailResponse(
     string Status,
     string CreatedBy,
     string CreatedAt,
-    IReadOnlyList<QuestionResponse> Questions);
+    IReadOnlyList<QuestionResponse> Questions,
+    PollCancellationResponse? Cancellation = null);
+
+/// <summary>
+/// Why a cancelled poll's game day didn't count, and what Restore puts it back to.
+/// CancelledByName and CancelledAt are only filled in for admins; players see just the reason.
+/// </summary>
+public record PollCancellationResponse(
+    string Reason,
+    string CancelledFromStatus,
+    string? CancelledByName,
+    string? CancelledAt);
 
 // ─── Fixture import ───────────────────────────────────────────────────────────
 

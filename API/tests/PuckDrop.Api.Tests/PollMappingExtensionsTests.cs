@@ -72,4 +72,54 @@ public class PollMappingExtensionsTests
 
         Assert.Empty(response.Questions.Single().Options);
     }
+
+    // ─── Cancellation ───────────────────────────────────────────────────────
+
+    private static readonly DateTime CancelledAt = new(2026, 1, 14, 9, 30, 0, DateTimeKind.Utc);
+
+    private static GameDayPoll BuildCancelledPoll()
+    {
+        var poll = BuildPoll();
+        poll.Publish();
+        poll.Cancel("Postponed: storm.", "admin-2", "Ciara D.", CancelledAt);
+        return poll;
+    }
+
+    [Fact]
+    public void ToResponse_PollNotCancelled_HasNoCancellation()
+    {
+        Assert.Null(BuildPoll().ToResponse().Cancellation);
+    }
+
+    [Fact]
+    public void ToResponse_Cancelled_ForAPlayer_GivesTheReasonAndWhatItWasCancelledFrom_ButNotWhoOrWhen()
+    {
+        var response = BuildCancelledPoll().ToResponse();
+
+        Assert.Equal("Cancelled", response.Status);
+        var cancellation = Assert.IsType<Contracts.PollCancellationResponse>(response.Cancellation);
+        Assert.Equal("Postponed: storm.", cancellation.Reason);
+        Assert.Equal("Open", cancellation.CancelledFromStatus);
+        Assert.Null(cancellation.CancelledByName);
+        Assert.Null(cancellation.CancelledAt);
+    }
+
+    [Fact]
+    public void ToResponse_Cancelled_ForAnAdmin_AlsoGivesWhoCancelledItAndWhen()
+    {
+        var response = BuildCancelledPoll().ToResponse(includeAdminDetail: true);
+
+        var cancellation = Assert.IsType<Contracts.PollCancellationResponse>(response.Cancellation);
+        Assert.Equal("Ciara D.", cancellation.CancelledByName);
+        Assert.Equal(CancelledAt, DateTime.Parse(cancellation.CancelledAt!).ToUniversalTime());
+    }
+
+    [Fact]
+    public void ToDetailResponse_Cancelled_CarriesTheSameCancellation()
+    {
+        var response = BuildCancelledPoll().ToDetailResponse([], [], includeAdminDetail: true);
+
+        Assert.Equal("Postponed: storm.", response.Cancellation?.Reason);
+        Assert.Equal("Ciara D.", response.Cancellation?.CancelledByName);
+    }
 }

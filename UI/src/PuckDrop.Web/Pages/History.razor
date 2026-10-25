@@ -44,6 +44,10 @@ else if (_polls is not null)
                         <div class="history-main">
                             <h2 class="pd-h3 history-title">@poll.Title</h2>
                             <p class="pd-muted history-when">@poll.GameDate.ToString("ddd d MMM yyyy")</p>
+                            @if (poll.Cancellation is { } cancellation)
+                            {
+                                <p class="history-reason"><span class="pd-sr-only">Reason: </span>@cancellation.Reason</p>
+                            }
                         </div>
 
                         <div class="history-status">
@@ -56,6 +60,13 @@ else if (_polls is not null)
                                 @* Hidden text keeps each "View results" link distinct out of context *@
                                 <a href="results/@poll.PollId" class="pd-btn pd-btn-secondary pd-btn-sm">
                                     View results<span class="pd-sr-only"> for @poll.Title</span>
+                                    <Icon Name="right" Size="18" />
+                                </a>
+                            }
+                            else if (poll.Status == "Cancelled")
+                            {
+                                <a href="poll/@poll.PollId" class="pd-btn pd-btn-secondary pd-btn-sm">
+                                    View details<span class="pd-sr-only"> for @poll.Title</span>
                                     <Icon Name="right" Size="18" />
                                 </a>
                             }
@@ -92,7 +103,9 @@ else if (_polls is not null)
 
             var allPolls = await Api.GetPollsAsync(season.SeasonId);
             _polls = allPolls?
-                .Where(p => p.Status is "Closed" or "Scored")
+                // A poll cancelled while still a Draft was never seen by players, so it stays out
+                .Where(p => p.Status is "Closed" or "Scored"
+                    || (p.Status == "Cancelled" && p.Cancellation?.CancelledFromStatus != "Draft"))
                 .OrderByDescending(p => p.GameDate)
                 .ToList() ?? [];
         }
