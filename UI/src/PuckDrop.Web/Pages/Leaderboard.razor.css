@@ -63,6 +63,15 @@
     color: var(--pd-slate);
 }
 
+/* What separated players level on points. Every width, for the same reason as sanctions: two
+   players on 14 ranked 3rd and 4th with no visible reason looks like a bug. */
+.lb-tiebreak {
+    display: block;
+    font-size: 0.9375rem;
+    font-weight: 400;
+    color: var(--pd-slate);
+}
+
 @media (max-width: 767.98px) {
     .lb-rule {
         margin: 0;

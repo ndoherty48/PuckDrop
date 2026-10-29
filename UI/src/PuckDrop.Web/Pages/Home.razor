@@ -136,7 +136,7 @@ else
                     {
                         var isYou = entry.UserId == currentUserId;
                         <li class="pd-rank-row @(isYou ? "pd-row-you" : null)">
-                            <span class="pd-rank"><span class="pd-sr-only">Rank </span>@entry.Rank</span>
+                            <span class="pd-rank"><RankNumber Rank="entry.Rank" IsShared="entry.IsRankShared" ScreenReaderPrefix="Rank " /></span>
                             <span class="home-rank-name">
                                 @entry.DisplayName
                                 @if (isYou)

@@ -208,15 +208,6 @@ public class SeasonStandingsTests
     }
 
     [Fact]
-    public void Build_Ties_BreakOnUserIdSoOrderIsStable()
-    {
-        var entries = SeasonStandings.Build(
-            SeasonId, [Score("charlie", "p1", 5, 5), Score("alice", "p1", 5, 5), Score("bob", "p1", 5, 5)], [], []);
-
-        Assert.Equal(["alice", "bob", "charlie"], entries.Select(e => e.UserId));
-    }
-
-    [Fact]
     public void Build_IsIndependentOfTheOrderFactsArriveIn()
     {
         // The property the whole design rests on: facts can be written in any order - a void before
@@ -232,6 +223,234 @@ public class SeasonStandingsTests
         Assert.Equal(
             forwards.Select(e => (e.UserId, e.TotalPoints, e.TotalAnswered)),
             backwards.Select(e => (e.UserId, e.TotalPoints, e.TotalAnswered)));
+    }
+
+    // ─── Tie-break ──────────────────────────────────────────────────────────
+
+    private static IReadOnlyList<(string UserId, int Rank, bool Shared)> Ranks(IReadOnlyList<LeaderboardEntry> entries) =>
+        entries.Select(e => (e.UserId, e.Rank, e.IsRankShared)).ToList();
+
+    private static LeaderboardEntry For(IReadOnlyList<LeaderboardEntry> entries, string userId) =>
+        entries.Single(e => e.UserId == userId);
+
+    [Fact]
+    public void Build_NoOneElseOnTheSameTotal_HasNoTieBreakAndAnUnsharedRank()
+    {
+        var entries = SeasonStandings.Build(
+            SeasonId, [Score("a", "p1", 2, 2), Score("b", "p1", 1, 2), Score("c", "p1", 0, 2)], [], []);
+
+        Assert.Equal([("a", 1, false), ("b", 2, false), ("c", 3, false)], Ranks(entries));
+        Assert.All(entries, e => Assert.Null(e.TieBreak));
+    }
+
+    [Fact]
+    public void Build_LevelOnPoints_MoreGameDaysPlayedRanksHigher()
+    {
+        // The same 2 points, but "regular" turned up for three game days and "occasional" for two.
+        var entries = SeasonStandings.Build(SeasonId, [
+            Score("occasional", "p1", 1, 1), Score("occasional", "p2", 1, 1),
+            Score("regular", "p1", 1, 1), Score("regular", "p2", 0, 1), Score("regular", "p3", 1, 1)
+        ], [], []);
+
+        Assert.Equal([("regular", 1, false), ("occasional", 2, false)], Ranks(entries));
+
+        var tieBreak = For(entries, "occasional").TieBreak!;
+        Assert.True(tieBreak.SplitOnGameDaysPlayed);
+        Assert.Null(tieBreak.HeadToHead); // no one was level on game days too
+        Assert.Equal([("regular", 3)], tieBreak.LevelOnPointsWith.Select(r => (r.UserId, r.GameDaysPlayed)));
+    }
+
+    [Fact]
+    public void Build_LevelOnPointsAndGameDays_HeadToHeadDecides()
+    {
+        // Both on 2 points from 4 game days, three of them shared. On those three Sam took p1, and
+        // p2 and p3 were draws - so Sam is ahead 1-0. p4 and p5 weren't shared, so don't count.
+        var entries = SeasonStandings.Build(SeasonId, [
+            Score("nick", "p1", 0, 1), Score("nick", "p2", 0, 1), Score("nick", "p3", 1, 1), Score("nick", "p4", 1, 1),
+            Score("sam", "p1", 1, 1), Score("sam", "p2", 0, 1), Score("sam", "p3", 1, 1), Score("sam", "p5", 0, 1)
+        ], [], []);
+
+        Assert.Equal([("sam", 1, false), ("nick", 2, false)], Ranks(entries));
+
+        var sam = For(entries, "sam").TieBreak!;
+        Assert.False(sam.SplitOnGameDaysPlayed);
+        Assert.True(sam.SplitOnHeadToHead);
+        Assert.Equal(new HeadToHeadRecord(Won: 1, Lost: 0, Drawn: 2), sam.HeadToHead);
+        Assert.Equal(new HeadToHeadRecord(Won: 0, Lost: 1, Drawn: 2), For(entries, "nick").TieBreak!.HeadToHead);
+    }
+
+    [Fact]
+    public void Build_LevelOnPoints_WithExactlyTheSameGameDays_StaysLevel()
+    {
+        // The accepted limitation: one point per game day, the same days played and the same total
+        // means every day one of them took is matched by one the other took.
+        var entries = SeasonStandings.Build(SeasonId, [
+            Score("nick", "p1", 1, 1), Score("nick", "p2", 0, 1),
+            Score("sam", "p1", 0, 1), Score("sam", "p2", 1, 1)
+        ], [], []);
+
+        Assert.Equal([("nick", 1, true), ("sam", 1, true)], Ranks(entries));
+        Assert.Equal(new HeadToHeadRecord(1, 1, 0), For(entries, "nick").TieBreak!.HeadToHead);
+        Assert.False(For(entries, "nick").TieBreak!.SplitOnHeadToHead);
+    }
+
+    [Fact]
+    public void Build_ThreeWayMiniLeague_SeparatesEveryone()
+    {
+        // All on 2 points from 3 game days. a beats b and c; b beats c.
+        var entries = SeasonStandings.Build(SeasonId, [
+            Score("a", "ab", 1, 1), Score("a", "ac", 1, 1), Score("a", "a-only", 0, 1),
+            Score("b", "ab", 0, 1), Score("b", "bc", 1, 1), Score("b", "b-only", 1, 1),
+            Score("c", "ac", 0, 1), Score("c", "bc", 0, 1), Score("c", "c-only", 2, 2)
+        ], [], []);
+
+        Assert.Equal([("a", 1, false), ("b", 2, false), ("c", 3, false)], Ranks(entries));
+        Assert.Equal(new HeadToHeadRecord(2, 0, 0), For(entries, "a").TieBreak!.HeadToHead);
+        Assert.Equal(new HeadToHeadRecord(1, 1, 0), For(entries, "b").TieBreak!.HeadToHead);
+        Assert.Equal(new HeadToHeadRecord(0, 2, 0), For(entries, "c").TieBreak!.HeadToHead);
+    }
+
+    [Fact]
+    public void Build_MiniLeagueThatOnlyPartlySeparates_LeavesTheRestSharingARank()
+    {
+        // a beats both; b and c draw with each other. No second mini-league between b and c.
+        var entries = SeasonStandings.Build(SeasonId, [
+            Score("a", "ab", 1, 1), Score("a", "ac", 1, 1), Score("a", "a-only", 0, 1),
+            Score("b", "ab", 0, 1), Score("b", "bc", 1, 1), Score("b", "b-only", 1, 1),
+            Score("c", "ac", 0, 1), Score("c", "bc", 1, 1), Score("c", "c-only", 1, 1)
+        ], [], []);
+
+        Assert.Equal([("a", 1, false), ("b", 2, true), ("c", 2, true)], Ranks(entries));
+        // b was still split from a on head-to-head, even though not from c.
+        Assert.True(For(entries, "b").TieBreak!.SplitOnHeadToHead);
+    }
+
+    [Fact]
+    public void Build_CircularHeadToHead_EveryoneSharesARank()
+    {
+        // a beats b, b beats c, c beats a. A per-pair comparer would give an unstable sort here.
+        var entries = SeasonStandings.Build(SeasonId, [
+            Score("a", "ab", 1, 1), Score("a", "ca", 0, 1), Score("a", "a-only", 1, 1),
+            Score("b", "ab", 0, 1), Score("b", "bc", 1, 1), Score("b", "b-only", 1, 1),
+            Score("c", "bc", 0, 1), Score("c", "ca", 1, 1), Score("c", "c-only", 1, 1)
+        ], [], []);
+
+        Assert.Equal([("a", 1, true), ("b", 1, true), ("c", 1, true)], Ranks(entries));
+        Assert.All(entries, e => Assert.False(e.TieBreak!.SplitOnHeadToHead));
+    }
+
+    [Fact]
+    public void Build_LevelPlayersWhoNeverSharedAGameDay_ShareARank()
+    {
+        var entries = SeasonStandings.Build(SeasonId, [Score("x", "p1", 1, 1), Score("y", "p2", 1, 1)], [], []);
+
+        Assert.Equal([("x", 1, true), ("y", 1, true)], Ranks(entries));
+        Assert.Equal(HeadToHeadRecord.None, For(entries, "x").TieBreak!.HeadToHead);
+    }
+
+    [Fact]
+    public void Build_SharedRank_UsesCompetitionNumbering()
+    {
+        var entries = SeasonStandings.Build(SeasonId, [
+            Score("top", "p1", 3, 3),
+            Score("x", "p1", 1, 3), Score("y", "p1", 1, 3),
+            Score("last", "p1", 0, 3)
+        ], [], []);
+
+        Assert.Equal([("top", 1, false), ("x", 2, true), ("y", 2, true), ("last", 4, false)], Ranks(entries));
+    }
+
+    [Fact]
+    public void Build_VoidedGameDay_IsNotAGameDayPlayed()
+    {
+        // Both on 1 point. "voided" played two game days, but one was voided, so it counts one.
+        var entries = SeasonStandings.Build(
+            SeasonId,
+            [
+                Score("voided", "p1", 1, 1), Score("voided", "p2", 0, 1),
+                Score("clean", "p1", 1, 1), Score("clean", "p3", 0, 1)
+            ],
+            [Void("voided", "p2")],
+            []);
+
+        Assert.Equal(1, For(entries, "voided").GameDaysPlayed);
+        Assert.Equal([("clean", 1, false), ("voided", 2, false)], Ranks(entries));
+    }
+
+    [Fact]
+    public void Build_VoidedGameDay_DoesNotCountInHeadToHead()
+    {
+        // a beat b on p1, but a's p1 was voided - so the only shared day left is p2, a draw.
+        var entries = SeasonStandings.Build(
+            SeasonId,
+            [
+                Score("a", "p1", 1, 1), Score("a", "p2", 0, 1), Score("a", "p3", 1, 1), Score("a", "p5", 0, 1),
+                Score("b", "p1", 0, 1), Score("b", "p2", 0, 1), Score("b", "p4", 1, 1)
+            ],
+            [Void("a", "p1")],
+            []);
+
+        Assert.Equal(new HeadToHeadRecord(0, 0, 1), For(entries, "a").TieBreak!.HeadToHead);
+    }
+
+    [Fact]
+    public void Build_Adjustment_MovesTheTotalButNotTheTieBreak()
+    {
+        // Sanctioned earned 3 from 3 game days and was docked 1; clean earned 2 from 2. Level on 2,
+        // and the sanctioned player's playing record still wins the tie-break.
+        var entries = SeasonStandings.Build(
+            SeasonId,
+            [
+                Score("sanctioned", "p1", 1, 1), Score("sanctioned", "p2", 1, 1), Score("sanctioned", "p3", 1, 1),
+                Score("clean", "p1", 1, 1), Score("clean", "p2", 1, 1)
+            ],
+            [],
+            [Adjustment("sanctioned", -1)]);
+
+        Assert.Equal(3, For(entries, "sanctioned").GameDaysPlayed);
+        Assert.Equal([("sanctioned", 1, false), ("clean", 2, false)], Ranks(entries));
+    }
+
+    [Fact]
+    public void Build_GameDayWithNothingGraded_IsNotAGameDayPlayed()
+    {
+        var entries = SeasonStandings.Build(
+            SeasonId, [Score("u1", "ungraded", 0, 0), Score("u1", "p2", 1, 1)], [], []);
+
+        Assert.Equal(1, Single(entries).GameDaysPlayed);
+    }
+
+    [Fact]
+    public void Build_LevelOnANegativeTotal_TieBreakStillApplies()
+    {
+        var entries = SeasonStandings.Build(
+            SeasonId,
+            [Score("more", "p1", 1, 1), Score("more", "p2", 0, 1), Score("fewer", "p1", 1, 1)],
+            [],
+            [Adjustment("more", -3), Adjustment("fewer", -3)]);
+
+        Assert.All(entries, e => Assert.Equal(-2, e.TotalPoints));
+        Assert.Equal([("more", 1, false), ("fewer", 2, false)], Ranks(entries));
+    }
+
+    [Fact]
+    public void Build_TieBreak_IsIndependentOfTheOrderFactsArriveIn()
+    {
+        PollScore[] scores =
+        [
+            Score("a", "ab", 1, 1), Score("a", "ac", 1, 1), Score("a", "a-only", 0, 1),
+            Score("b", "ab", 0, 1), Score("b", "bc", 1, 1), Score("b", "b-only", 1, 1),
+            Score("c", "ac", 0, 1), Score("c", "bc", 1, 1), Score("c", "c-only", 1, 1),
+            Score("d", "p9", 2, 2)
+        ];
+
+        var forwards = SeasonStandings.Build(SeasonId, scores, [], []);
+        var backwards = SeasonStandings.Build(SeasonId, scores.Reverse(), [], []);
+
+        Assert.Equal(Ranks(forwards), Ranks(backwards));
+        Assert.Equal(
+            forwards.Select(e => e.TieBreak?.HeadToHead),
+            backwards.Select(e => e.TieBreak?.HeadToHead));
     }
 
     // ─── Display name and timestamps ────────────────────────────────────────

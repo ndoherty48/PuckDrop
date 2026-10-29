@@ -5,7 +5,7 @@
 
 <div class="pd-page-head">
     <h1 class="pd-page-title">Leaderboard</h1>
-    <p class="pd-muted lb-rule">1 point per correct pick · updated after each scored game</p>
+    <p class="pd-muted lb-rule">1 point per correct pick · ties split by game days played, then head-to-head</p>
 </div>
 
 @if (_loading)
@@ -43,8 +43,9 @@ else
                 @foreach (var entry in _leaderboard.Entries.OrderBy(e => e.Rank))
                 {
                     var isYou = entry.UserId == _currentUserId;
+                    var tieBreakNote = TieBreakText.Note(entry);
                     <tr class="@(isYou ? "pd-row-you" : null)">
-                        <td class="pd-rank lb-rank">@entry.Rank</td>
+                        <td class="pd-rank lb-rank"><RankNumber Rank="entry.Rank" IsShared="entry.IsRankShared" /></td>
                         <th scope="row">
                             <span class="lb-name">
                                 @entry.DisplayName
@@ -54,6 +55,10 @@ else
                                 }
                             </span>
                             <span class="pd-muted pd-tnum lb-sub">@entry.EarnedPoints of @entry.TotalAnswered correct · @CalculateAccuracy(entry)</span>
+                            @if (tieBreakNote is not null)
+                            {
+                                <span class="lb-tiebreak">@tieBreakNote</span>
+                            }
                             @foreach (var pollVoid in entry.Voids)
                             {
                                 <span class="lb-sanction">Voided: @pollVoid.PollTitle · @pollVoid.Reason</span>

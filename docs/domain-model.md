@@ -144,6 +144,10 @@ by `SeasonStandings.Build`.
 | AdjustmentPoints | int | Net of all adjustments; negative when deductions outweigh awards |
 | TotalPoints | int | `EarnedPoints + AdjustmentPoints`. **Can be negative** |
 | TotalAnswered | int | Graded questions answered, excluding voided polls |
+| GameDaysPlayed | int | Scored polls with at least one graded pick, excluding voided ones. First tie-break |
+| Rank | int | Competition ranking (1, 2, 2, 4) after the tie-break |
+| IsRankShared | bool | Another player holds the same rank — shown as "=3" |
+| TieBreak | object? | Who the player is level on points with, whether game days played and/or head-to-head separated them, and their head-to-head record. Null when no one shares their total |
 | Adjustments | list | For public display, oldest first |
 | Voids | list | For public display, oldest first |
 | LastUpdated | datetime | The most recent contributing fact |
@@ -167,7 +171,11 @@ answer, and must not rewrite a hit rate or produce a negative percentage.
 8. A user can only select one option per question.
 9. Seasons are not overlapping — a game date belongs to exactly one season.
 10. Users cannot see other users' picks until the poll is Closed or Scored.
-11. Tie-breaking: users with the same points share the same rank.
+11. Tie-breaking: players level on total points are separated by most game days played, then
+    head-to-head — over the game days each pair both played, whoever scored more takes the day;
+    among three or more, one mini-league ranked on net days taken (won minus lost). Anyone still
+    level shares a rank. A point adjustment never affects the tie-break; a void removes that game
+    day from it. See `GLOSSARY.md` for the terms.
 12. Late joiners start from zero — no backfilling of scores.
 13. Multiple users can have the admin role (managed via Cognito group/claim).
 
@@ -177,7 +185,7 @@ answer, and must not rewrite a hit rate or produce a negative percentage.
 |----------|--------|-------|
 | Multi-tenancy (groups) | Single group for v1 | Can add GroupId later as a partition prefix |
 | Notifications | Future enhancement | Web Push via service worker, not in v1 |
-| Tie-breaking | Same rank | Can be changed later — just display logic. Other options: most games answered, first to reach score, accuracy % |
+| Tie-breaking | Game days played, then head-to-head, then shared rank | Derived on read, nothing stored, so cheap to change. Rejected: accuracy (with one question per poll, on equal points it just means fewer game days played), game-day wins and best game day (meaningless when a game day is worth 0 or 1), first to reach the score and recent form (need facts in time order, which re-scoring breaks). Known limit: with one question per poll, players level on points who played exactly the same game days are always level on head-to-head too |
 | Pick visibility | Hidden until closed | API won't return others' answers before deadline |
 | Late joiners | Start from zero | No backfill |
 | Admin model | Multiple admins | Role-based via Cognito |

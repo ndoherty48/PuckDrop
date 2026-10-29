@@ -1,0 +1,25 @@
+@* A standings position: "3", or "=3" for a shared one, which a screen reader hears as "Tied 3rd"
+   rather than "equals 3". *@
+@if (IsShared)
+{
+    <span aria-hidden="true">@TieBreakText.Rank(Rank, isShared: true)</span><span class="pd-sr-only">@TieBreakText.SharedRankForScreenReader(Rank)</span>
+}
+else
+{
+    @if (ScreenReaderPrefix is not null)
+    {
+        <span class="pd-sr-only">@ScreenReaderPrefix</span>
+    }
+    @Rank
+}
+
+@code {
+    [Parameter, EditorRequired] public int Rank { get; set; }
+
+    [Parameter] public bool IsShared { get; set; }
+
+    /// <summary>
+    /// Read before an unshared rank where nothing else on screen says it's a rank (e.g. "Rank ").
+    /// </summary>
+    [Parameter] public string? ScreenReaderPrefix { get; set; }
+}
