@@ -54,7 +54,7 @@ public class LeaderboardServiceTests
 
         Assert.Equal(
             [("a", 1), ("b", 2), ("c", 2), ("d", 4)],
-            result.Entries.Select(e => (e.Entry.UserId, e.Rank)));
+            result.Entries.Select(e => (e.UserId, e.Rank)));
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class LeaderboardServiceTests
 
         Assert.Equal(
             [("a", 1), ("b", 1), ("c", 1)],
-            result.Entries.Select(e => (e.Entry.UserId, e.Rank)));
+            result.Entries.Select(e => (e.UserId, e.Rank)));
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class LeaderboardServiceTests
 
         Assert.Equal(
             [("a", 1), ("b", 2), ("c", 3)],
-            result.Entries.Select(e => (e.Entry.UserId, e.Rank)));
+            result.Entries.Select(e => (e.UserId, e.Rank)));
     }
 
     [Fact]

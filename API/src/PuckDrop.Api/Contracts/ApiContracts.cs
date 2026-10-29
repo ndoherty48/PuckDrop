@@ -147,7 +147,27 @@ public record LeaderboardEntryResponse(
     int EarnedPoints,
     int AdjustmentPoints,
     IReadOnlyList<LeaderboardAdjustmentResponse> Adjustments,
-    IReadOnlyList<LeaderboardVoidResponse> Voids);
+    IReadOnlyList<LeaderboardVoidResponse> Voids,
+    int GameDaysPlayed,
+    bool IsRankShared,
+    LeaderboardTieBreakResponse? TieBreak);
+
+/// <summary>
+/// How a player level on points with others was separated from them. Null on the entry when no one
+/// else is on the same total. Structured, not worded: the UI owns the phrasing.
+/// </summary>
+public record LeaderboardTieBreakResponse(
+    IReadOnlyList<LeaderboardRivalResponse> LevelOnPointsWith,
+    bool SplitOnGameDaysPlayed,
+    LeaderboardHeadToHeadResponse? HeadToHead,
+    bool SplitOnHeadToHead);
+
+public record LeaderboardRivalResponse(string UserId, string DisplayName, int GameDaysPlayed);
+
+/// <summary>
+/// Game days taken, lost and drawn against the other players level on points and game days played.
+/// </summary>
+public record LeaderboardHeadToHeadResponse(int Won, int Lost, int Drawn);
 
 /// <summary>
 /// Applies a signed points adjustment. Negative deducts, positive awards; the reason is public.

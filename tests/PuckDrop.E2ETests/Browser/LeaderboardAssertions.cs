@@ -12,8 +12,15 @@ namespace PuckDrop.E2ETests.Browser;
 /// </remarks>
 internal static class LeaderboardAssertions
 {
+    /// <summary>
+    /// The player's own row - matched on the name cell, because a tie-break note on another row
+    /// names the players it was level with.
+    /// </summary>
     public static ILocator RowFor(IPage page, string displayName) =>
-        page.Locator("tr", new PageLocatorOptions { HasText = displayName });
+        page.Locator("tr", new PageLocatorOptions
+        {
+            Has = page.Locator(".lb-name", new PageLocatorOptions { HasText = displayName })
+        });
 
     /// <summary>
     /// Goes to the leaderboard and waits for the player's points cell to read <paramref name="expected"/>.

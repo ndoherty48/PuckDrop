@@ -34,8 +34,9 @@ public class HomeTests : BunitContext
         LeaderboardEntries.Entry("user-1", "Ciara D.", 10, 12, 1),
         LeaderboardEntries.Entry("user-3", "Sam R.", 8, 12, 3),
         LeaderboardEntries.Entry("user-2", "Jonny M.", 9, 12, 2),
-        LeaderboardEntries.Entry("user-5", "Mark K.", 7, 12, 5),
-        LeaderboardEntries.Entry("user-4", "Aoife B.", 7, 9, 4)
+        // Level on everything the tie-break looks at, so they share 4th.
+        LeaderboardEntries.Entry("user-4", "Aoife B.", 7, 12, 4, isRankShared: true),
+        LeaderboardEntries.Entry("user-5", "Mark K.", 7, 12, 4, isRankShared: true)
     ]);
 
     private static RoutingHttpMessageHandler Routes(PollModel? activePoll, List<UserAnswerModel> existingAnswers) =>
@@ -235,6 +236,19 @@ public class HomeTests : BunitContext
             var youRow = Assert.Single(cut.FindAll(".pd-rank-row.pd-row-you"));
             Assert.Contains("Sam R.", youRow.TextContent);
             Assert.Single(cut.FindAll(".pd-badge-you"));
+        });
+    }
+
+    [Fact]
+    public void QuickLeaderboard_SharedRank_ShowsEqualsSign_AndReadsAsTied()
+    {
+        var cut = RenderHome(Routes(OpenPoll(), []));
+
+        cut.WaitForAssertion(() =>
+        {
+            var rank = cut.FindAll(".pd-rank-row")[3].QuerySelector(".pd-rank")!;
+            Assert.Equal("=4", rank.QuerySelector("[aria-hidden='true']")!.TextContent);
+            Assert.Equal("Tied 4th", rank.QuerySelector(".pd-sr-only")!.TextContent);
         });
     }
 

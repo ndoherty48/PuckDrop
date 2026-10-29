@@ -204,14 +204,22 @@ three and there is no index on the id alone. Removing one restores the total exa
       "userId": "...", "displayName": "Nick", "rank": 1,
       "totalPoints": 12, "totalAnswered": 15,
       "earnedPoints": 12, "adjustmentPoints": 0,
-      "adjustments": [], "voids": []
+      "adjustments": [], "voids": [],
+      "gameDaysPlayed": 15, "isRankShared": false, "tieBreak": null
     },
     {
       "userId": "...", "displayName": "Dave", "rank": 2,
       "totalPoints": 5, "totalAnswered": 11,
       "earnedPoints": 10, "adjustmentPoints": -5,
       "adjustments": [{ "adjustmentId": "...", "points": -5, "reason": "Picked after puck drop" }],
-      "voids": [{ "pollId": "...", "pollTitle": "Giants vs Steelers", "reason": "No-show" }]
+      "voids": [{ "pollId": "...", "pollTitle": "Giants vs Steelers", "reason": "No-show" }],
+      "gameDaysPlayed": 10, "isRankShared": false,
+      "tieBreak": {
+        "levelOnPointsWith": [{ "userId": "...", "displayName": "Sam", "gameDaysPlayed": 10 }],
+        "splitOnGameDaysPlayed": false,
+        "headToHead": { "won": 2, "lost": 1, "drawn": 4 },
+        "splitOnHeadToHead": true
+      }
     }
   ]
 }
@@ -220,6 +228,10 @@ three and there is no index on the id alone. Removing one restores the total exa
 `totalPoints` is `earnedPoints + adjustmentPoints` and **may be negative**. `adjustments` and `voids`
 are public: every player sees why a penalty was applied. Who applied it stays internal. Accuracy is
 computed from `earnedPoints`, not `totalPoints` — a sanction is not a wrong answer.
+
+Entries arrive ranked, tie-break applied. `tieBreak` is null unless another player is on the same
+total; `headToHead` is null unless someone is also level on `gameDaysPlayed`. It's structured rather
+than worded so the UI owns the phrasing.
 
 There is no stored total: the whole season is folded from its scoring facts in one query on each
 read. See `docs/dynamodb-design.md`.

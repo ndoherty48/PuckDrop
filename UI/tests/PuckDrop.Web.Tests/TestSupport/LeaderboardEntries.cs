@@ -20,12 +20,17 @@ public static class LeaderboardEntries
         int rank,
         int? earnedPoints = null,
         List<LeaderboardAdjustmentModel>? adjustments = null,
-        List<LeaderboardVoidModel>? voids = null)
+        List<LeaderboardVoidModel>? voids = null,
+        int? gameDaysPlayed = null,
+        bool isRankShared = false,
+        LeaderboardTieBreakModel? tieBreak = null)
     {
         var earned = earnedPoints ?? totalPoints;
 
         return new LeaderboardEntryModel(
             userId, displayName, totalPoints, totalAnswered, rank,
-            earned, totalPoints - earned, adjustments ?? [], voids ?? []);
+            earned, totalPoints - earned, adjustments ?? [], voids ?? [],
+            // One question per game day is the norm, so answered doubles as game days played.
+            gameDaysPlayed ?? totalAnswered, isRankShared, tieBreak);
     }
 }

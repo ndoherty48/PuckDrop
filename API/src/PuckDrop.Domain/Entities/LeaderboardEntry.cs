@@ -49,6 +49,28 @@ public class LeaderboardEntry
     public int TotalAnswered { get; set; }
 
     /// <summary>
+    /// Scored game days where at least one of the player's picks was graded, excluding any that
+    /// were voided. The first tie-break.
+    /// </summary>
+    public int GameDaysPlayed { get; set; }
+
+    /// <summary>
+    /// Standings position, competition-style (1, 2, 2, 4) - players the tie-break can't separate
+    /// share one.
+    /// </summary>
+    public int Rank { get; set; }
+
+    /// <summary>
+    /// Whether another player holds the same <see cref="Rank"/>.
+    /// </summary>
+    public bool IsRankShared { get; set; }
+
+    /// <summary>
+    /// How this player was separated from others on the same total, or null if no one else is.
+    /// </summary>
+    public Standings.TieBreak? TieBreak { get; set; }
+
+    /// <summary>
     /// Last time any of the underlying facts changed (UTC).
     /// </summary>
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;

@@ -15,12 +15,12 @@ namespace PuckDrop.Domain.Standings;
 public static class SeasonStandings
 {
     /// <summary>
-    /// Builds the standings for a season, ordered by effective points descending.
+    /// Builds the ranked standings for a season.
     /// </summary>
     /// <remarks>
-    /// Ties break on user ID, matching the byte order DynamoDB returned when the score was part of
-    /// the sort key, so an existing leaderboard doesn't reshuffle. Ranking itself is applied by
-    /// the application layer.
+    /// Ordered by effective points, then the tie-break: most game days played, then head-to-head
+    /// among the players still level. Anyone the tie-break can't separate shares a rank (1, 2, 2,
+    /// 4), and is listed by user ID within it so the order is stable.
     /// </remarks>
     public static IReadOnlyList<LeaderboardEntry> Build(
         string seasonId,
@@ -37,6 +37,7 @@ public static class SeasonStandings
         var userIds = scoresByUser.Keys.Concat(adjustmentsByUser.Keys).Distinct();
 
         var entries = new List<LeaderboardEntry>();
+        var gameDaysByUser = new Dictionary<string, IReadOnlyDictionary<string, int>>();
 
         foreach (var userId in userIds)
         {
@@ -57,6 +58,10 @@ public static class SeasonStandings
             var latestScore = userScores.OrderByDescending(s => s.ScoredAt).FirstOrDefault();
             var orderedAdjustments = userAdjustments.OrderBy(a => a.CreatedAt).ToList();
 
+            // A game day with nothing graded wasn't played: there was nothing to get right or wrong.
+            var gameDays = counted.Where(s => s.Answered > 0).ToDictionary(s => s.PollId, s => s.Points);
+            gameDaysByUser[userId] = gameDays;
+
             var timestamps = counted.Select(s => s.ScoredAt)
                 .Concat(orderedAdjustments.Select(a => a.CreatedAt))
                 .Concat(appliedVoids.Select(v => v.VoidedAt))
@@ -74,15 +79,103 @@ public static class SeasonStandings
                 EarnedPoints = counted.Sum(s => s.Points),
                 AdjustmentPoints = orderedAdjustments.Sum(a => a.Points),
                 TotalAnswered = counted.Sum(s => s.Answered),
+                GameDaysPlayed = gameDays.Count,
                 Adjustments = orderedAdjustments,
                 Voids = appliedVoids,
                 LastUpdated = timestamps.Count > 0 ? timestamps.Max() : DateTime.UtcNow
             });
         }
 
-        return entries
+        return Rank(entries, gameDaysByUser);
+    }
+
+    /// <summary>
+    /// Orders the entries, applies the tie-break and assigns ranks.
+    /// </summary>
+    /// <remarks>
+    /// Head-to-head only exists relative to the players level with you, and it can be circular (A
+    /// beats B, B beats C, C beats A), so it is not a per-pair comparer handed to a sort - that
+    /// would break the sort. Each group still level on points and game days played instead gets one
+    /// mini-league, scored once; its net record is then just another sort key. No second pass: if
+    /// the mini-league leaves some still level, they share a rank.
+    /// </remarks>
+    private static List<LeaderboardEntry> Rank(
+        List<LeaderboardEntry> entries, IReadOnlyDictionary<string, IReadOnlyDictionary<string, int>> gameDaysByUser)
+    {
+        var headToHead = new Dictionary<string, HeadToHeadRecord>();
+
+        foreach (var group in entries.GroupBy(e => (e.TotalPoints, e.GameDaysPlayed)).Where(g => g.Count() > 1))
+        {
+            foreach (var entry in group)
+            {
+                headToHead[entry.UserId] = group
+                    .Where(rival => rival.UserId != entry.UserId)
+                    .Select(rival => HeadToHead(gameDaysByUser[entry.UserId], gameDaysByUser[rival.UserId]))
+                    .Aggregate(HeadToHeadRecord.None, (total, record) => total.Plus(record));
+            }
+        }
+
+        int Net(LeaderboardEntry e) => headToHead.GetValueOrDefault(e.UserId)?.Net ?? 0;
+
+        var ordered = entries
             .OrderByDescending(e => e.TotalPoints)
+            .ThenByDescending(e => e.GameDaysPlayed)
+            .ThenByDescending(Net)
             .ThenBy(e => e.UserId, StringComparer.Ordinal)
             .ToList();
+
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            var entry = ordered[i];
+            var previous = i > 0 ? ordered[i - 1] : null;
+
+            entry.Rank = previous is not null
+                && previous.TotalPoints == entry.TotalPoints
+                && previous.GameDaysPlayed == entry.GameDaysPlayed
+                && Net(previous) == Net(entry)
+                    ? previous.Rank
+                    : i + 1;
+        }
+
+        foreach (var entry in ordered)
+        {
+            entry.IsRankShared = ordered.Any(e => e != entry && e.Rank == entry.Rank);
+
+            var levelOnPoints = ordered.Where(e => e != entry && e.TotalPoints == entry.TotalPoints).ToList();
+            if (levelOnPoints.Count == 0)
+                continue;
+
+            var levelOnGameDays = levelOnPoints.Where(e => e.GameDaysPlayed == entry.GameDaysPlayed).ToList();
+
+            entry.TieBreak = new TieBreak(
+                levelOnPoints.Select(e => new TieBreakRival(e.UserId, e.DisplayName, e.GameDaysPlayed)).ToList(),
+                SplitOnGameDaysPlayed: levelOnGameDays.Count < levelOnPoints.Count,
+                HeadToHead: levelOnGameDays.Count > 0 ? headToHead[entry.UserId] : null,
+                SplitOnHeadToHead: levelOnGameDays.Any(e => Net(e) != Net(entry)));
+        }
+
+        return ordered;
+    }
+
+    /// <summary>
+    /// One player's record against another over the game days they both played. Earned points
+    /// only - an adjustment isn't tied to a game day, so it can't take or lose one.
+    /// </summary>
+    private static HeadToHeadRecord HeadToHead(
+        IReadOnlyDictionary<string, int> player, IReadOnlyDictionary<string, int> rival)
+    {
+        int won = 0, lost = 0, drawn = 0;
+
+        foreach (var (pollId, points) in player)
+        {
+            if (!rival.TryGetValue(pollId, out var rivalPoints))
+                continue;
+
+            if (points > rivalPoints) won++;
+            else if (points < rivalPoints) lost++;
+            else drawn++;
+        }
+
+        return new HeadToHeadRecord(won, lost, drawn);
     }
 }

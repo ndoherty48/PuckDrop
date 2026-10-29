@@ -157,4 +157,77 @@ public class LeaderboardTests : BunitContext
             Assert.Equal("Friend", rows[1].QuerySelector(".lb-name")!.TextContent.Trim());
         });
     }
+
+    private IRenderedComponent<Leaderboard> Render(LeaderboardModel leaderboard)
+    {
+        var handler = new RoutingHttpMessageHandler().MapJson(HttpMethod.Get, "leaderboard", leaderboard);
+        Services.AddSingleton(handler.BuildClient());
+
+        var authContext = AddAuthorization();
+        authContext.SetAuthorized("Test User");
+
+        return Render<Leaderboard>();
+    }
+
+    [Fact]
+    public void SharedRank_ShowsEqualsSign_AndReadsAsTiedForScreenReaders()
+    {
+        var cut = Render(new LeaderboardModel("2025-26",
+        [
+            LeaderboardEntries.Entry("user-1", "Nathan", 5, 5, 1, isRankShared: true),
+            LeaderboardEntries.Entry("user-2", "Friend", 5, 5, 1, isRankShared: true),
+            LeaderboardEntries.Entry("user-3", "Rory", 2, 5, 3)
+        ]));
+
+        cut.WaitForAssertion(() =>
+        {
+            var rows = cut.FindAll("tbody tr");
+            var shared = rows[0].QuerySelector(".lb-rank")!;
+            Assert.Equal("=1", shared.QuerySelector("[aria-hidden='true']")!.TextContent);
+            Assert.Equal("Tied 1st", shared.QuerySelector(".pd-sr-only")!.TextContent);
+            Assert.Equal("3", rows[2].QuerySelector(".lb-rank")!.TextContent.Trim());
+        });
+    }
+
+    [Fact]
+    public void TieBreakNote_IsShownOnBothRowsItSeparated()
+    {
+        // The player placed lower is the one who'll wonder why, so the note goes on their row too.
+        var cut = Render(new LeaderboardModel("2025-26",
+        [
+            LeaderboardEntries.Entry("user-1", "Sam", 6, 8, 1, tieBreak: new(
+                [new LeaderboardRivalModel("user-2", "Nick", 8)], false, new(2, 1, 5), true)),
+            LeaderboardEntries.Entry("user-2", "Nick", 6, 8, 2, tieBreak: new(
+                [new LeaderboardRivalModel("user-1", "Sam", 8)], false, new(1, 2, 5), true))
+        ]));
+
+        cut.WaitForAssertion(() =>
+        {
+            var notes = cut.FindAll(".lb-tiebreak").Select(n => n.TextContent).ToList();
+            Assert.Equal(
+                ["Level on points with Nick · split on head-to-head (2\u20131)",
+                 "Level on points with Sam · split on head-to-head (1\u20132)"],
+                notes);
+        });
+    }
+
+    [Fact]
+    public void NoOneLevelOnPoints_ShowsNoTieBreakNote()
+    {
+        var cut = RenderWithCurrentUser(currentUserSub: null);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(2, cut.FindAll("tbody tr").Count);
+            Assert.Empty(cut.FindAll(".lb-tiebreak"));
+        });
+    }
+
+    [Fact]
+    public void Subtitle_StatesTheTieBreakRule()
+    {
+        var cut = RenderWithCurrentUser(currentUserSub: null);
+
+        Assert.Contains("ties split by game days played, then head-to-head", cut.Find(".lb-rule").TextContent);
+    }
 }
