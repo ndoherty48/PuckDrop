@@ -138,21 +138,7 @@ public static class SeasonStandings
         }
 
         foreach (var entry in ordered)
-        {
             entry.IsRankShared = ordered.Any(e => e != entry && e.Rank == entry.Rank);
-
-            var levelOnPoints = ordered.Where(e => e != entry && e.TotalPoints == entry.TotalPoints).ToList();
-            if (levelOnPoints.Count == 0)
-                continue;
-
-            var levelOnGameDays = levelOnPoints.Where(e => e.GameDaysPlayed == entry.GameDaysPlayed).ToList();
-
-            entry.TieBreak = new TieBreak(
-                levelOnPoints.Select(e => new TieBreakRival(e.UserId, e.DisplayName, e.GameDaysPlayed)).ToList(),
-                SplitOnGameDaysPlayed: levelOnGameDays.Count < levelOnPoints.Count,
-                HeadToHead: levelOnGameDays.Count > 0 ? headToHead[entry.UserId] : null,
-                SplitOnHeadToHead: levelOnGameDays.Any(e => Net(e) != Net(entry)));
-        }
 
         return ordered;
     }
@@ -177,5 +163,23 @@ public static class SeasonStandings
         }
 
         return new HeadToHeadRecord(won, lost, drawn);
+    }
+
+    /// <summary>
+    /// Game days taken, lost and drawn against other players, over only the game days each pair
+    /// both played.
+    /// </summary>
+    private sealed record HeadToHeadRecord(int Won, int Lost, int Drawn)
+    {
+        public static readonly HeadToHeadRecord None = new(0, 0, 0);
+
+        /// <summary>
+        /// What the mini-league ranks on. Net rather than raw wins, so a player who simply shared
+        /// more game days with the others isn't ahead for that alone.
+        /// </summary>
+        public int Net => Won - Lost;
+
+        public HeadToHeadRecord Plus(HeadToHeadRecord other) =>
+            new(Won + other.Won, Lost + other.Lost, Drawn + other.Drawn);
     }
 }

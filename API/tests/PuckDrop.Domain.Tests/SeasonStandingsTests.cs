@@ -234,13 +234,12 @@ public class SeasonStandingsTests
         entries.Single(e => e.UserId == userId);
 
     [Fact]
-    public void Build_NoOneElseOnTheSameTotal_HasNoTieBreakAndAnUnsharedRank()
+    public void Build_NoOneElseOnTheSameTotal_HasAnUnsharedRank()
     {
         var entries = SeasonStandings.Build(
             SeasonId, [Score("a", "p1", 2, 2), Score("b", "p1", 1, 2), Score("c", "p1", 0, 2)], [], []);
 
         Assert.Equal([("a", 1, false), ("b", 2, false), ("c", 3, false)], Ranks(entries));
-        Assert.All(entries, e => Assert.Null(e.TieBreak));
     }
 
     [Fact]
@@ -253,11 +252,7 @@ public class SeasonStandingsTests
         ], [], []);
 
         Assert.Equal([("regular", 1, false), ("occasional", 2, false)], Ranks(entries));
-
-        var tieBreak = For(entries, "occasional").TieBreak!;
-        Assert.True(tieBreak.SplitOnGameDaysPlayed);
-        Assert.Null(tieBreak.HeadToHead); // no one was level on game days too
-        Assert.Equal([("regular", 3)], tieBreak.LevelOnPointsWith.Select(r => (r.UserId, r.GameDaysPlayed)));
+        Assert.Equal([3, 2], entries.Select(e => e.GameDaysPlayed));
     }
 
     [Fact]
@@ -271,12 +266,6 @@ public class SeasonStandingsTests
         ], [], []);
 
         Assert.Equal([("sam", 1, false), ("nick", 2, false)], Ranks(entries));
-
-        var sam = For(entries, "sam").TieBreak!;
-        Assert.False(sam.SplitOnGameDaysPlayed);
-        Assert.True(sam.SplitOnHeadToHead);
-        Assert.Equal(new HeadToHeadRecord(Won: 1, Lost: 0, Drawn: 2), sam.HeadToHead);
-        Assert.Equal(new HeadToHeadRecord(Won: 0, Lost: 1, Drawn: 2), For(entries, "nick").TieBreak!.HeadToHead);
     }
 
     [Fact]
@@ -290,8 +279,6 @@ public class SeasonStandingsTests
         ], [], []);
 
         Assert.Equal([("nick", 1, true), ("sam", 1, true)], Ranks(entries));
-        Assert.Equal(new HeadToHeadRecord(1, 1, 0), For(entries, "nick").TieBreak!.HeadToHead);
-        Assert.False(For(entries, "nick").TieBreak!.SplitOnHeadToHead);
     }
 
     [Fact]
@@ -305,9 +292,6 @@ public class SeasonStandingsTests
         ], [], []);
 
         Assert.Equal([("a", 1, false), ("b", 2, false), ("c", 3, false)], Ranks(entries));
-        Assert.Equal(new HeadToHeadRecord(2, 0, 0), For(entries, "a").TieBreak!.HeadToHead);
-        Assert.Equal(new HeadToHeadRecord(1, 1, 0), For(entries, "b").TieBreak!.HeadToHead);
-        Assert.Equal(new HeadToHeadRecord(0, 2, 0), For(entries, "c").TieBreak!.HeadToHead);
     }
 
     [Fact]
@@ -321,8 +305,6 @@ public class SeasonStandingsTests
         ], [], []);
 
         Assert.Equal([("a", 1, false), ("b", 2, true), ("c", 2, true)], Ranks(entries));
-        // b was still split from a on head-to-head, even though not from c.
-        Assert.True(For(entries, "b").TieBreak!.SplitOnHeadToHead);
     }
 
     [Fact]
@@ -336,7 +318,6 @@ public class SeasonStandingsTests
         ], [], []);
 
         Assert.Equal([("a", 1, true), ("b", 1, true), ("c", 1, true)], Ranks(entries));
-        Assert.All(entries, e => Assert.False(e.TieBreak!.SplitOnHeadToHead));
     }
 
     [Fact]
@@ -345,7 +326,6 @@ public class SeasonStandingsTests
         var entries = SeasonStandings.Build(SeasonId, [Score("x", "p1", 1, 1), Score("y", "p2", 1, 1)], [], []);
 
         Assert.Equal([("x", 1, true), ("y", 1, true)], Ranks(entries));
-        Assert.Equal(HeadToHeadRecord.None, For(entries, "x").TieBreak!.HeadToHead);
     }
 
     [Fact]
@@ -380,7 +360,8 @@ public class SeasonStandingsTests
     [Fact]
     public void Build_VoidedGameDay_DoesNotCountInHeadToHead()
     {
-        // a beat b on p1, but a's p1 was voided - so the only shared day left is p2, a draw.
+        // a beat b on p1, but a's p1 was voided - so the only shared day left is p2, a draw, and
+        // they stay level. Counting p1 would have put a ahead.
         var entries = SeasonStandings.Build(
             SeasonId,
             [
@@ -390,7 +371,7 @@ public class SeasonStandingsTests
             [Void("a", "p1")],
             []);
 
-        Assert.Equal(new HeadToHeadRecord(0, 0, 1), For(entries, "a").TieBreak!.HeadToHead);
+        Assert.Equal([("a", 1, true), ("b", 1, true)], Ranks(entries));
     }
 
     [Fact]
@@ -448,9 +429,6 @@ public class SeasonStandingsTests
         var backwards = SeasonStandings.Build(SeasonId, scores.Reverse(), [], []);
 
         Assert.Equal(Ranks(forwards), Ranks(backwards));
-        Assert.Equal(
-            forwards.Select(e => e.TieBreak?.HeadToHead),
-            backwards.Select(e => e.TieBreak?.HeadToHead));
     }
 
     // ─── Display name and timestamps ────────────────────────────────────────

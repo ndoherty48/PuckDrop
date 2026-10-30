@@ -1,7 +1,6 @@
 using PuckDrop.Api.Contracts;
 using PuckDrop.Application.Services;
 using PuckDrop.Domain.Entities;
-using PuckDrop.Domain.Standings;
 
 namespace PuckDrop.Api.Mappings;
 
@@ -17,16 +16,7 @@ public static class LeaderboardMappingExtensions
             .Select(a => new LeaderboardAdjustmentResponse(a.AdjustmentId, a.Points, a.Reason)).ToList(),
         entry.Voids
             .Select(v => new LeaderboardVoidResponse(v.PollId, v.PollTitle, v.Reason)).ToList(),
-        entry.GameDaysPlayed, entry.IsRankShared, entry.TieBreak?.ToResponse());
-
-    public static LeaderboardTieBreakResponse ToResponse(this TieBreak tieBreak) => new(
-        tieBreak.LevelOnPointsWith
-            .Select(r => new LeaderboardRivalResponse(r.UserId, r.DisplayName, r.GameDaysPlayed)).ToList(),
-        tieBreak.SplitOnGameDaysPlayed,
-        tieBreak.HeadToHead is { } record
-            ? new LeaderboardHeadToHeadResponse(record.Won, record.Lost, record.Drawn)
-            : null,
-        tieBreak.SplitOnHeadToHead);
+        entry.GameDaysPlayed, entry.IsRankShared);
 
     public static LeaderboardResponse ToResponse(this LeaderboardResult result) => new(
         result.SeasonId, result.Entries.Select(e => e.ToResponse()).ToList());

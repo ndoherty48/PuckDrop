@@ -190,44 +190,14 @@ public class LeaderboardTests : BunitContext
     }
 
     [Fact]
-    public void TieBreakNote_IsShownOnBothRowsItSeparated()
-    {
-        // The player placed lower is the one who'll wonder why, so the note goes on their row too.
-        var cut = Render(new LeaderboardModel("2025-26",
-        [
-            LeaderboardEntries.Entry("user-1", "Sam", 6, 8, 1, tieBreak: new(
-                [new LeaderboardRivalModel("user-2", "Nick", 8)], false, new(2, 1, 5), true)),
-            LeaderboardEntries.Entry("user-2", "Nick", 6, 8, 2, tieBreak: new(
-                [new LeaderboardRivalModel("user-1", "Sam", 8)], false, new(1, 2, 5), true))
-        ]));
-
-        cut.WaitForAssertion(() =>
-        {
-            var notes = cut.FindAll(".lb-tiebreak").Select(n => n.TextContent).ToList();
-            Assert.Equal(
-                ["Level on points with Nick · split on head-to-head (2\u20131)",
-                 "Level on points with Sam · split on head-to-head (1\u20132)"],
-                notes);
-        });
-    }
-
-    [Fact]
-    public void NoOneLevelOnPoints_ShowsNoTieBreakNote()
+    public void Footnote_ExplainsTheTieBreakOnceBelowTheTable()
     {
         var cut = RenderWithCurrentUser(currentUserSub: null);
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal(2, cut.FindAll("tbody tr").Count);
-            Assert.Empty(cut.FindAll(".lb-tiebreak"));
+            Assert.Contains("More game days played ranks higher, then head-to-head", cut.Find(".lb-footnote").TextContent);
+            Assert.Single(cut.FindAll(".lb-footnote"));
         });
-    }
-
-    [Fact]
-    public void Subtitle_StatesTheTieBreakRule()
-    {
-        var cut = RenderWithCurrentUser(currentUserSub: null);
-
-        Assert.Contains("ties split by game days played, then head-to-head", cut.Find(".lb-rule").TextContent);
     }
 }

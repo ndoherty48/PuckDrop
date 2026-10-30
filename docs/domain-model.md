@@ -147,7 +147,6 @@ by `SeasonStandings.Build`.
 | GameDaysPlayed | int | Scored polls with at least one graded pick, excluding voided ones. First tie-break |
 | Rank | int | Competition ranking (1, 2, 2, 4) after the tie-break |
 | IsRankShared | bool | Another player holds the same rank — shown as "=3" |
-| TieBreak | object? | Who the player is level on points with, whether game days played and/or head-to-head separated them, and their head-to-head record. Null when no one shares their total |
 | Adjustments | list | For public display, oldest first |
 | Voids | list | For public display, oldest first |
 | LastUpdated | datetime | The most recent contributing fact |

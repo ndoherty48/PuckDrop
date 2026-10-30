@@ -63,13 +63,12 @@
     color: var(--pd-slate);
 }
 
-/* What separated players level on points. Every width, for the same reason as sanctions: two
-   players on 14 ranked 3rd and 4th with no visible reason looks like a bug. */
-.lb-tiebreak {
-    display: block;
+/* The tie-break rule, once, under the table - so two players on 14 ranked 3rd and 4th doesn't
+   read as a bug. */
+.lb-footnote {
+    margin: 0;
+    padding: 0.875rem 1.75rem 1.25rem;
     font-size: 0.9375rem;
-    font-weight: 400;
-    color: var(--pd-slate);
 }
 
 @media (max-width: 767.98px) {
