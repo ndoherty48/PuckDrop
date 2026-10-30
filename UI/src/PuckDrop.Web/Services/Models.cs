@@ -65,20 +65,7 @@ public record LeaderboardEntryModel(
     string UserId, string DisplayName, int TotalPoints, int TotalAnswered, int Rank,
     int EarnedPoints, int AdjustmentPoints,
     List<LeaderboardAdjustmentModel> Adjustments, List<LeaderboardVoidModel> Voids,
-    int GameDaysPlayed = 0, bool IsRankShared = false, LeaderboardTieBreakModel? TieBreak = null);
-
-/// <summary>
-/// How a player level on points with others was separated from them; null when no one else is on
-/// the same total. Worded by <see cref="Display.TieBreakText"/>.
-/// </summary>
-public record LeaderboardTieBreakModel(
-    List<LeaderboardRivalModel> LevelOnPointsWith, bool SplitOnGameDaysPlayed,
-    LeaderboardHeadToHeadModel? HeadToHead, bool SplitOnHeadToHead);
-
-public record LeaderboardRivalModel(string UserId, string DisplayName, int GameDaysPlayed);
-
-/// <summary>Game days taken, lost and drawn against the others level on points and game days played.</summary>
-public record LeaderboardHeadToHeadModel(int Won, int Lost, int Drawn);
+    int GameDaysPlayed = 0, bool IsRankShared = false);
 
 /// <summary>A point adjustment, shown publicly so a penalty is always explained.</summary>
 public record LeaderboardAdjustmentModel(string AdjustmentId, int Points, string Reason);

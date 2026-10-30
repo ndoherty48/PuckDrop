@@ -83,11 +83,10 @@
 - **Current user's row** highlighted (not pinned)
 - **Sorting:** By effective points descending, then the tie-break (most game days played, then
   head-to-head). Players still level share a rank, shown as "=3" and read by screen readers as
-  "Tied 3rd" — on the Home page's top 5 too. The subtitle states the rule.
-- **Tie-break note** — when a tie-break separated players level on points, every row involved gets the
-  same note under the name, at every width: "Level on points with Sam · split on game days played
-  (10 v 8)", or "…split on head-to-head (2–1)". No note when the tie-break separated no one — the
-  shared rank already says it.
+  "Tied 3rd" — on the Home page's top 5 too.
+- **Tie-break footnote** — one line under the table states the rule, rather than a note on each tied
+  row. Per-row notes were tried first and dropped: they repeated the same sentence on every tied row,
+  and a note naming one step read as wrong for players that step didn't separate.
 - **Sanctions** — any point adjustments and voided game days are listed under the player's name with
   their reasons, at every width. Public on purpose: a penalty nobody can see the reason for is what
   starts the argument.

@@ -66,11 +66,6 @@ public class LeaderboardEntry
     public bool IsRankShared { get; set; }
 
     /// <summary>
-    /// How this player was separated from others on the same total, or null if no one else is.
-    /// </summary>
-    public Standings.TieBreak? TieBreak { get; set; }
-
-    /// <summary>
     /// Last time any of the underlying facts changed (UTC).
     /// </summary>
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
